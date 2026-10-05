@@ -1,0 +1,12 @@
+{
+	"name": "pi-world",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"spike": "node spike/wasm-world.mjs"
+	},
+	"dependencies": {
+		"quickjs-wasi": "3.6.2"
+	}
+}
