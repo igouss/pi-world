@@ -35,25 +35,25 @@ byte-identical snapshots. Snapshot growth is linear, about 1.5 KB per definition
 
 ## Findings
 
-Each finding names the place in `intent.md` where it is folded in, and a concrete failure.
+Each finding names the place in `design.md` or `research.md` where it is folded in, and a concrete failure.
 
-1. **Merge by replay is only valid for definitional sources** (Design constraints, "Only `develop` sources
+1. **Merge by replay is only valid for definitional sources** (`design.md`, "Only `develop` sources
    replay"). An `execute` that wrote SQLite rows replays against
    different data in the other fork and produces a different world. The rule needs enforcing: trace host calls during
    the attempt and accept a `develop` only if its evaluation made none.
-2. **Content addressing was stated at two granularities** (Design constraints, "Write blobs first"; Open checks 2).
+2. **Content addressing was stated at two granularities** (`design.md`, "Write blobs first"; `research.md`, open check 2).
    The blob store is content-addressed per snapshot; page-level dedupe is deferred. A raw snapshot passes 2 MB at
    about 410 definitions, and celld states no blob limit, so Cloudflare's 2 MB row limit cannot be assumed either
    way. The cell's blob size limit is an open check.
-3. **The observation section defeats prompt caching** (Design constraints, "Stable observation text"). Budget left and recently used functions change every turn.
+3. **The observation section defeats prompt caching** (`design.md`, "Stable observation text"). Budget left and recently used functions change every turn.
    Spec §12 ("Unstable prompt text"): a section whose output changes without a real content change appends system
    deltas and misses the provider prompt cache. Render only revision-level facts; put the volatile parts in a tool.
-4. **Direct calls must not persist heap changes** (Design constraints, same name). A call that mutates heap state, such as a global counter, loses it
+4. **Direct calls must not persist heap changes** (`design.md`, same name). A call that mutates heap state, such as a global counter, loses it
    silently on eviction. Only revisions persist heap state; data goes through the host database functions.
-5. **Attempts must be synchronous** (Design constraints, "Attempts are synchronous"). A `develop` whose source awaits anything other than `restart` spans an await,
+5. **Attempts must be synchronous** (`design.md`, "Attempts are synchronous"). A `develop` whose source awaits anything other than `restart` spans an await,
    and a direct call arriving in that window observes an uncommitted heap. An attempt runs synchronously from
    checkpoint to accept or restore; a pause snapshots into a pending revision and releases the VM.
-6. **Redefinition hole** (Design constraints, "Definitions dispatch through a registry" and "The one hole left is
+6. **Redefinition hole** (`design.md`, "Definitions dispatch through a registry" and "The one hole left is
    a running frame"). jiti's README admits active frames can retain earlier definitions. JavaScript has the same
    hole for captured references, and invariants cannot see it. Resolved after this evaluation by the prelude's
    registry with stable stubs, tested in `spike/registry.mjs`; a running frame remains, covered by the one-timeline
