@@ -153,8 +153,8 @@ flowchart LR
     UI["Web UI"] --> W["Worker routes"]
     REST["REST clients"] --> W
     W --> C["World cell (Durable Object)<br/>one writer per world"]
-    C --> H["pi-durable harness<br/>tools: develop, execute, ..."]
-    C --> VM["WorldVm: QuickJS in WASM<br/>prelude, registry, invariants, goals"]
+    C --> H["pi-durable harness<br/>tools: develop, execute, ...<br/>checks: invariants, goals"]
+    C --> VM["WorldVm: QuickJS in WASM<br/>prelude, registry"]
     H --> VM
     H --> M["Model API"]
     VM --> B[("Revision blobs<br/>gzipped snapshots, content-addressed")]
@@ -217,8 +217,11 @@ sequenceDiagram
     Job-->>Cell: continues with its locals intact
 ```
 
-**Can the agent weaken its own checks?** As designed today, yes: invariants live in the world and are written through
-`develop`. That is open decision 10 in [`decisions.md`](decisions.md).
+**Can the agent weaken its own checks?** No. Checks are stored on the host side, outside the heap, and world code has
+no way to reach them. The agent can propose a check, and it is enrolled only after it has been seen failing on a
+counterexample. Removing or loosening one is an operator call with a reason. The built-ins a check calls are frozen.
+One case is still open: a check that calls a function the agent defined, which is open decision 13 in
+[`decisions.md`](decisions.md).
 
 **Where will it live, and how is the REST API authenticated?** Undecided. `decisions.md` lists these and the other
 open decisions.

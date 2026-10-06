@@ -14,6 +14,7 @@
 - "and let's shard, split indent from research, etc.", 2026-10-06.
 - "I think leaning on data living in SQLite is a good idea, fold it into design.md and the registry spike, then
   commit and push", 2026-10-06, on eager, declared instance migration at class redefinition.
+- "Ok, I think I agree with you, let's update the md files.", 2026-10-06, on keeping checks outside the world.
 
 This approves:
 
@@ -28,10 +29,13 @@ This approves:
   language: every `develop` would be a recompile into a module with a new memory layout, which invalidates the
   previous snapshot and ends the live image. Compiled code belongs in the compiled tier (`plan.md`, milestone 9);
 - the position in `intent.md`: one station, the fastest implement-and-check loop for one kind of artifact. It decides none
-  of open decisions 4 and 10 to 13;
+  of open decisions 4 and 10 to 12;
 - the split of the intent into `intent.md`, `design.md`, `plan.md`, `research.md` and this file;
 - instance migration at class redefinition: eager, declared with `version` and `migrate`, rejected without one while
-  instances are live, and kept affordable by data living in SQLite rather than the heap.
+  instances are live, and kept affordable by data living in SQLite rather than the heap;
+- checks outside the world: stored on the host side where world code cannot reach them, enrolled only after being
+  seen failing on a counterexample, removed or loosened only by the operator with a recorded reason, and protected
+  by frozen built-ins. What to do with a check that calls a definition the agent can replace is open decision 13.
 
 Nothing else is approved: the package's home (standalone or upstream in pi), the first milestone's scope, the web UI
 stack, dependency choices beyond those named here, and every other policy question go back to the operator.
@@ -61,16 +65,16 @@ stack, dependency choices beyond those named here, and every other policy questi
 9. **Explicit `define` or a host rewrite.** The agent writes `define(...)` and `state(...)` by hand, or the host
    rewrites top-level `function`, `class` and `const` declarations into them so the agent writes ordinary
    JavaScript. The rewrite needs a parser on the host.
-10. **Checks out of the world.** The design stores invariants and goals in the world under a reserved name, written
-    through `develop` by the same agent that writes the code. A `develop` that weakens a check and then passes it is
-    a false green. The alternative: checks are a separate registry kind with their own tool, enrolled only after
-    they have been seen failing against a counterexample, and loosened only with a recorded operator reason.
-11. **A requirement id on every revision.** The revision manifest records the producing tool call and nothing about
+10. **A requirement id on every revision.** The revision manifest records the producing tool call and nothing about
     intent. A revision could carry the requirement or use case it serves, so a shipped function traces back to why
     it exists.
-12. **Harness-owned interrupts by change class.** `restart` is a pause the agent's own code decides. The harness has
+11. **Harness-owned interrupts by change class.** `restart` is a pause the agent's own code decides. The harness has
     no interrupt of its own. A `develop` that touches checks, data schema or effectful host functions could block for
     the operator by change class, decided in harness code rather than by the agent.
-13. **Rejections as records.** A rejected attempt is a tool result in the conversation, which compaction can
+12. **Rejections as records.** A rejected attempt is a tool result in the conversation, which compaction can
     summarise away. The alternative is a revision-family record naming the failing check, so rejections stay
     queryable.
+13. **A check that calls a replaceable definition.** Frozen built-ins cover what the language provides. A check can
+    still call a function the agent defined, and the agent can redefine it. Either refuse such a check at enrolment,
+    so checks read data and built-ins only, or allow it and re-run its counterexample every time that definition
+    changes.

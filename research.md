@@ -15,7 +15,9 @@ Three spikes ran against quickjs-wasi 3.6.2 under Node 25.2.1. Nothing has run o
   the same base gives byte-identical snapshots, and restore then snapshot is identical. Growth is linear, about
   1.5 KB per synthetic definition, so a raw snapshot passes 2 MB at about 410 definitions.
 - `spike/registry.mjs` (`npm run spike:registry`): the prelude's registry, eager instance migration and state form
-  behave as the constraints in `design.md` describe, including the one hole left, a running frame.
+  behave as the constraints in `design.md` describe, including the one hole left, a running frame. With the built-ins
+  frozen, a `develop` that reassigns `Array.prototype.every` has no effect in sloppy code and throws in strict
+  code; a class can still define `toString`, and assigning `toString` on a plain object throws in strict code.
 
 ## Deployment target: celld
 
@@ -53,4 +55,6 @@ These are undocumented or unknown. Measure them early, at milestone 6.
 ## Not verified
 
 - Nothing has run on celld, either `celld dev` or a fleet; its facts come from documentation pages, not tests.
-- Merge-by-replay, tiering, the REST API, the web UI, and the durable integration are designs, not code.
+- Merge-by-replay, tiering, the REST API, the web UI, the durable integration, and check enrolment are designs, not
+  code.
+- jiti's handling of checks was read in its source at commit `a9f46a6`, not run.

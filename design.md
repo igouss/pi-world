@@ -50,6 +50,19 @@ The rules the implementation obeys, each with the fact that forces it.
 - **Sources run in a function scope.** The host wraps every `develop` source in `(() => { ... })()`. Top-level
   bindings are locals of that evaluation, nothing leaks into the global lexical scope, re-evaluation cannot throw a
   redeclaration, and the only exports are `define` and `state`.
+- **Checks live outside the world.** Invariants and goals are not world code. Their sources are stored on the host
+  side, in a `WorldChecks` document, outside the heap. The host evaluates them in the VM after each attempt. No host
+  function lets world code read or write them, so a `develop` cannot change a check. jiti keeps its checks with the
+  caller for the same reason; there the wall is a filter over the submitted form, here it is the sandbox boundary.
+- **A check is enrolled only after it has been seen failing.** The agent proposes a check through its own tool,
+  with a counterexample: a small change to the world that the check must reject. The host applies the counterexample
+  on a checkpoint, requires the check to fail there, restores, and requires it to pass on the current world. Only
+  then is it enrolled. Removing or loosening a check is an operator call with a recorded reason, never an agent
+  tool.
+- **Built-ins are frozen.** The prelude freezes the built-in constructors and prototypes at revision 0, so world
+  code cannot weaken a check by changing something the check calls, such as `Array.prototype.every`. The cost:
+  assigning a built-in name on a plain object, such as `obj.toString = ...`, is ignored in sloppy code and throws in
+  strict code. A class may still define `toString`, because class methods are defined, not assigned.
 - **Stable observation text.** A section whose text changes without a real content change appends system deltas and
   misses the provider prompt cache (spec §12). The `world` section renders revision-level facts only; budget left and
   recently used functions are reported by the `status` tool.

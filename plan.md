@@ -11,7 +11,10 @@
    provider. Test: kill at each phase, then reopen. No revision may exist without its pointer, and nothing may be
    accepted twice.
 4. **Pauses.** Test: pause, kill, reopen, answer. The job finishes with its pre-pause locals intact.
-5. **Section, catalogue, checks.** Invariants run in the attempt; goals run through an `onYield` hook.
+5. **Section, catalogue, checks.** Invariants run in the attempt; goals run through an `onYield` hook. Check sources
+   are stored outside the heap, and `propose_check` enrols a check only after it fails on its counterexample and
+   passes on the current world. Tests: a `develop` cannot change a check or a built-in a check calls; a check that
+   passes on its own counterexample is refused.
 6. **Cell on `celld dev`.**
    - The `cell-sqlite` adapter, which must pass pi-durable's `registerStorageConformance()`.
    - The `World` Durable Object with a heartbeat alarm, and the REST routes.

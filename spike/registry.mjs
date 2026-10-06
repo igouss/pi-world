@@ -3,7 +3,7 @@
 // a class version bump migrates every live instance eagerly, and is rejected without a migrate or when the
 // migrate throws; a redefined source keeps its state; a restored checkpoint undoes state writes and migrations;
 // a version bump migrates state; an active frame keeps the body it was running; a top-level `let` cannot be
-// re-evaluated as a script.
+// re-evaluated as a script; built-ins are frozen, so world code cannot change what a check calls.
 import { readFile } from "node:fs/promises";
 import { QuickJS } from "quickjs-wasi";
 
@@ -70,6 +70,9 @@ const prelude = `
 		return value;
 	};
 	globalThis.listState = () => [...states].map(([n, e]) => n + "@" + e.version).join(",");
+	// Lock the built-ins, so world code cannot weaken a check by changing what the check calls.
+	for (const ctor of [Object, Function, Array, String, Number, Boolean, Symbol, Map, Set, WeakMap, WeakSet, Promise, RegExp, Date, Error, JSON, Math, Reflect])
+		for (const target of [ctor, ctor.prototype]) if (target) Object.freeze(target);
 `;
 run(prelude);
 
@@ -113,6 +116,11 @@ console.log("restored checkpoint: b =", run(`lookup("b")`), "| states:", run("li
 develop(`state("lookup.cache", () => new Map(), { version: 2, migrate: (old) => new Map([...old].map(([k, v]) => [k, v.toLowerCase()])) });`);
 console.log("version bump with migrate:", run(`lookup("a")`), "| states:", run("listState()"));
 console.log("primitive state:", run(`state("n", () => 0)`));
+
+develop(`Array.prototype.every = () => true; Object.prototype.hasOwnProperty = () => true;`);
+console.log("built-in tamper ignored: every =", run("String([1, 2].every((x) => x > 1))"), "| strict tamper:", develop(`"use strict"; Array.prototype.every = () => true;`));
+develop(`define("Money", class { constructor(n) { this.n = n; } toString() { return "$" + this.n; } }); globalThis.m = new Money(5);`);
+console.log("class may still define toString:", run("String(m)"), "| plain object assignment of toString:", run(`"use strict"; const o = {}; o.toString = () => "x"; String(o)`));
 
 run(`globalThis.job = (async () => { const before = greet("frame"); await new Promise((r) => (globalThis.resume = r)); globalThis.out = before + " / " + greet("after"); })();`);
 vm.executePendingJobs();

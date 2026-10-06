@@ -11,6 +11,8 @@ People use it through a REST API and a web UI. There is no TUI.
 
 - The agent changes the world with `develop(source)`. Each attempt runs against an in-memory checkpoint. Safety
   invariants decide whether it is accepted as a new revision or restored.
+- The checks are not part of the world. The agent can propose a check, and it is enrolled only after it has been
+  seen failing on a counterexample. The agent cannot change or remove one.
 - Accepted definitions are ordinary functions. They can be called directly through the REST API, without a model
   request. The agent is needed to grow the application, not to run it.
 - Definitions and state go through a prelude installed at revision 0: `define(name, impl)` and
@@ -33,7 +35,7 @@ someone other than the implementing agent, an acceptance stage, and a ledger tha
 ## Interfaces
 
 - **Agent tools:** develop, execute, preview, save_as, functions, describe, status, reset, history, rollback, answer,
-  abort. The `world` observation section shows the revision, a catalogue summary, failing goals and open pauses.
+  abort, propose_check. The `world` observation section shows the revision, a catalogue summary, failing goals and open pauses.
 - **REST API** (Worker routes, forwarding to the world's cell):
   - `POST /worlds` creates a world; `POST /worlds/:id/fork` forks one.
   - `POST /worlds/:id/messages` submits to the agent, with a `requestId` so retries don't submit twice.
@@ -41,6 +43,7 @@ someone other than the implementing agent, an acceptance stage, and a ledger tha
   - `POST /worlds/:id/pauses/:pauseId/answer` answers a pause, with a `requestId`.
   - `GET /worlds/:id/revisions`, `GET /worlds/:id/functions`, and `POST /worlds/:id/rollback` cover history and the
     catalogue.
+  - `GET /worlds/:id/checks` lists the checks. Removing or loosening one is an operator call that carries a reason.
 - **Web UI** (static assets):
   - Conversation view over a WebSocket fed by `Conversation.watch()`, or `watchEvents()` for message-style events.
   - World inspector: revisions, catalogue, failing goals, open pauses with answer buttons.
