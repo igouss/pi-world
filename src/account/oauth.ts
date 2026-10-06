@@ -9,6 +9,7 @@ const CLIENT_ID: string = atob("OWQxYzI1MGEtZTYxYi00NGQ5LTg4ZWQtNTk0NGQxOTYyZjVl
 const AUTHORIZE_URL: string = "https://claude.ai/oauth/authorize";
 const TOKEN_URL: string = "https://platform.claude.com/v1/oauth/token";
 const REDIRECT_URI: string = "https://platform.claude.com/oauth/code/callback";
+const MODELS_URL: string = "https://api.anthropic.com/v1/models";
 const SCOPES: string = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload";
 /** Refresh this long before the server's expiry. */
 const EXPIRY_MARGIN_MS: number = 5 * 60 * 1000;
@@ -71,6 +72,15 @@ export async function exchangeCode(code: string, state: string, verifier: string
 
 export async function refreshCredential(credential: OAuthCredential): Promise<OAuthCredential> {
 	return tokenRequest({ grant_type: "refresh_token", client_id: CLIENT_ID, refresh_token: credential.refresh });
+}
+
+/** Ask Anthropic whether it accepts a token, with a request that costs no tokens: listing the models. */
+export async function verifyToken(token: string): Promise<void> {
+	const response = await fetch(MODELS_URL, {
+		headers: { authorization: `Bearer ${token}`, "anthropic-version": "2023-06-01", "anthropic-beta": "oauth-2025-04-20" },
+	});
+	if (response.status === 401 || response.status === 403) throw new Error("Anthropic rejected this token. Check that you copied all of it.");
+	if (!response.ok) throw new Error(`Anthropic answered ${response.status} while checking the token; try again`);
 }
 
 export function isExpiring(credential: OAuthCredential, now: number): boolean {

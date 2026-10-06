@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import type { AccountStatus } from "../api/types.ts";
-import { authorizeUrl, createPkce, exchangeCode, isExpiring, parseAuthorization, refreshCredential, type OAuthCredential } from "./oauth.ts";
+import { authorizeUrl, createPkce, exchangeCode, isExpiring, parseAuthorization, refreshCredential, verifyToken, type OAuthCredential } from "./oauth.ts";
 
 /** A token pasted by the owner, such as one from `claude setup-token`. It is not refreshed. */
 interface PastedToken {
@@ -55,6 +55,7 @@ export class AccountCell extends DurableObject {
 	async setToken(token: string): Promise<AccountStatus> {
 		const access = token.trim();
 		if (!access.startsWith("sk-ant-")) throw new Error("expected a token starting with sk-ant-");
+		await verifyToken(access);
 		await this.ctx.storage.put("credential", { type: "token", access } satisfies PastedToken);
 		await this.ctx.storage.delete("pending");
 		return this.status();

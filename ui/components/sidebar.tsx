@@ -4,7 +4,7 @@ import { api } from "../api.ts";
 import { openWorld } from "../route.ts";
 import { worldHash } from "../../src/api/paths.ts";
 import { useAction } from "../use-action.ts";
-import { AccountBox } from "./account-box.tsx";
+import { AccountChip } from "./account-chip.tsx";
 
 export function Sidebar(props: {
 	worlds: readonly WorldListing[];
@@ -12,6 +12,7 @@ export function Sidebar(props: {
 	account?: AccountStatus;
 	onWorlds: () => void;
 	onAccount: (status: AccountStatus) => void;
+	onLogin: () => void;
 }) {
 	const [name, setName] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -49,7 +50,7 @@ export function Sidebar(props: {
 				))}
 				{props.worlds.length === 0 && <li class="muted small pad">No worlds yet.</li>}
 			</ul>
-			<AccountBox status={props.account} onChange={props.onAccount} />
+			<AccountChip status={props.account} onLogin={props.onLogin} onChange={props.onAccount} />
 		</nav>
 	);
 }

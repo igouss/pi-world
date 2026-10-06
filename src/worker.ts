@@ -15,7 +15,12 @@ export default {
 		const url = new URL(request.url);
 		const segments = url.pathname.split("/").slice(1);
 		try {
-			if (segments[0] === "api" && segments[1] === "account") return await account(request, env, segments.slice(2).join("/"));
+			if (segments[0] === "api" && segments[1] === "account") {
+				// The account cell's errors describe what the person entered: a bad code, a rejected token.
+				return await account(request, env, segments.slice(2).join("/")).catch((error: unknown) => {
+					throw error instanceof BadRequest ? error : new BadRequest(errorMessage(error));
+				});
+			}
 			if (segments[0] === "api" && segments[1] === "worlds") {
 				const id = segments[2];
 				if (!id) return await worlds(request, env);

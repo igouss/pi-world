@@ -6,7 +6,7 @@ import { useLiveWorld } from "../live.ts";
 import { Conversation } from "./conversation.tsx";
 import { Inspector } from "./inspector.tsx";
 
-export function WorldView(props: { id: string; loggedIn: boolean }) {
+export function WorldView(props: { id: string; loggedIn: boolean; onLogin: () => void }) {
 	const live = useLiveWorld(props.id);
 	const [pane, setPane] = useState<"chat" | "inspect">("chat");
 	const world = live.world;
@@ -48,7 +48,7 @@ export function WorldView(props: { id: string; loggedIn: boolean }) {
 				</div>
 			</header>
 			<div class={`world-body show-${pane}`}>
-				<Conversation id={props.id} transcript={live.transcript} loggedIn={props.loggedIn} />
+				<Conversation id={props.id} transcript={live.transcript} loggedIn={props.loggedIn} onLogin={props.onLogin} />
 				<Inspector id={props.id} world={world} />
 			</div>
 		</div>

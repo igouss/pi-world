@@ -6,7 +6,7 @@ import { ToolCallCard, type ToolOutcome } from "./tool-call.tsx";
 
 type ToolItem = Extract<TranscriptItem, { kind: "tool" }>;
 
-export function Conversation(props: { id: string; transcript?: Transcript; loggedIn: boolean }) {
+export function Conversation(props: { id: string; transcript?: Transcript; loggedIn: boolean; onLogin: () => void }) {
 	const transcript = props.transcript;
 	const results = new Map<string, ToolItem>();
 	for (const item of transcript?.items ?? []) if (item.kind === "tool") results.set(item.callId, item);
@@ -66,7 +66,7 @@ export function Conversation(props: { id: string; transcript?: Transcript; logge
 				)}
 				{transcript?.busy && !transcript.streaming && <p class="thinking muted">working…</p>}
 			</div>
-			<Composer id={props.id} busy={transcript?.busy ?? false} queued={transcript?.queued ?? 0} loggedIn={props.loggedIn} />
+			<Composer id={props.id} busy={transcript?.busy ?? false} queued={transcript?.queued ?? 0} loggedIn={props.loggedIn} onLogin={props.onLogin} />
 		</section>
 	);
 }
@@ -99,7 +99,7 @@ function Markdown(props: { text: string }) {
 	return <div class="md" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-function Composer(props: { id: string; busy: boolean; queued: number; loggedIn: boolean }) {
+function Composer(props: { id: string; busy: boolean; queued: number; loggedIn: boolean; onLogin: () => void }) {
 	const [text, setText] = useState("");
 	const [error, setError] = useState("");
 	const input = useRef<HTMLTextAreaElement>(null);
@@ -118,7 +118,14 @@ function Composer(props: { id: string; busy: boolean; queued: number; loggedIn: 
 	};
 	return (
 		<div class="composer">
-			{!props.loggedIn && <p class="notice warn">Log in with Claude (bottom left) before talking to the agent.</p>}
+			{!props.loggedIn && (
+				<p class="notice warn">
+					Connect Claude before talking to the agent.{" "}
+					<button class="link small" onClick={props.onLogin}>
+						Connect
+					</button>
+				</p>
+			)}
 			{error && <p class="error small">{error}</p>}
 			<textarea
 				ref={input}
