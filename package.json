@@ -8,7 +8,10 @@
 		"spike:determinism": "node spike/determinism.mjs",
 		"spike:registry": "node spike/registry.mjs",
 		"test": "vitest --run",
-		"typecheck": "tsc -p tsconfig.json"
+		"typecheck": "tsc -p tsconfig.json",
+		"build:ui": "esbuild ui/main.tsx --bundle --format=esm --target=es2022 --jsx=automatic --jsx-import-source=preact --minify --sourcemap --outfile=public/app.js",
+		"dev": "npm run build:ui && celld dev . --port 8791",
+		"deploy": "npm run typecheck && npm test && npm run build:ui && sh scripts/deploy.sh"
 	},
 	"dependencies": {
 		"@earendil-works/chord": "^1.0.4",

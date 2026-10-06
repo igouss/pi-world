@@ -1,6 +1,6 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { Models } from "@earendil-works/pi-ai";
-import { createRegistry, Harness, type Conversation, type ModelRef, type Settings, type Storage } from "@earendil-works/pi-durable";
+import { createRegistry, Harness, type Conversation, type HarnessSettings, type ModelRef, type Storage } from "@earendil-works/pi-durable";
 import { worldExtension } from "../agent/world-extension.ts";
 import type { BlobStore } from "../revision/blob-store.ts";
 import type { DataPort } from "../world/data-port.ts";
@@ -13,7 +13,7 @@ export interface OpenWorldDeps {
 	readonly wasm: WebAssembly.Module;
 	readonly models: Models;
 	readonly model: ModelRef;
-	readonly settings?: Settings;
+	readonly settings?: HarnessSettings;
 	readonly now?: () => number;
 }
 
