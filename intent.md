@@ -27,91 +27,45 @@ and celld v0.6.1 (beta). `evaluation.md` reviews this intent against those sourc
 - Code lives in the heap and is versioned by revisions. Data written by end-user calls lives in SQLite tables, reached
   through host functions.
 
+## Position
+
+pi-world is the fastest possible implement-and-check loop for one kind of artifact: a program that grows through
+prompting, where the result is validated and iterated on immediately. It is one station of a larger line, not the
+line. What it does not supply, and a surrounding pipeline would: a requirement spine, ownership of the gates by
+someone other than the implementing agent, an acceptance stage, and a ledger that outlives the conversation.
+
 ## Premise already tested
 
-`spike/wasm-world.mjs` (`npm run spike`) runs against quickjs-wasi 3.6.2 under Node 25.2.1. Output from the run in
-this project:
+Three spikes ran against quickjs-wasi 3.6.2 under Node 25.2.1. Nothing has run on celld yet.
 
-```
-develop: countDuplicates() = 1
-attempt broke invariant: true
-after restore: countDuplicates() = 1
-paused: [{"id":"p1","question":"1 duplicate emails"}] result = undefined
-snapshot: 1376284 bytes raw, 112853 gzipped, 3.4 ms
-restored in 4.8 ms; result = merge 1
-budget: interrupted; VM still usable: 3
-```
-
-It showed four things:
-
-- Checkpoint and restore undo a failed attempt.
-- A paused async job survives snapshot → serialize → dispose → restore in a fresh instance.
-- Snapshot and restore each take a few milliseconds.
-- An instruction budget stops runaway code, and the VM stays usable afterwards.
-
-`spike/determinism.mjs` (`npm run spike:determinism`), same library and Node, measured determinism and growth:
-
-| Measurement | Result |
-|---|---|
-| Same source, two VMs, host clock and random | different bytes |
-| Same source, two VMs, fixed `wasi` clock and random | byte-identical |
-| Restore, then snapshot again | byte-identical |
-| Restore one base twice, evaluate the same source | byte-identical |
-| 0 / 200 / 2000 definitions, raw | 1.38 MB / 1.64 MB / 4.39 MB |
-| 0 / 200 / 2000 definitions, gzipped | 109 KB / 176 KB / 620 KB |
-
-Growth is linear, about 1.5 KB per definition, and a raw snapshot passes 2 MB at about 410 definitions. The
-definitions were synthetic with small data.
-
-`spike/registry.mjs` (`npm run spike:registry`), same library and Node, tested the prelude, a registry with stable
-stubs and a keep-if-present state form:
-
-| Check | Result |
-|---|---|
-| Top-level `let` evaluated twice as a script | second evaluation throws "redeclaration" |
-| Reference captured into a variable and a table, function redefined | calls the new implementation |
-| Existing instance, class redefined | sees changed and added methods, loses removed ones, `instanceof` holds |
-| Subclass of a base redefined again | `super` reaches the newest base |
-| Source with `state()` re-evaluated with a changed body | the state object survives, the new body runs |
-| Attempt writes state, checkpoint restored | the writes and the new entry are gone |
-| Same state name, version bumped with `migrate` | entries migrated, version recorded |
-| `init` returns a primitive | rejected |
-| Async job paused mid-function, function redefined, resumed | the value computed before the pause is old, the call after the pause is new |
-
-All three ran in Node only; nothing has run on celld yet.
+- `spike/wasm-world.mjs` (`npm run spike`): checkpoint and restore undo a failed attempt; a paused async job survives
+  snapshot, serialize, dispose and restore in a fresh instance; snapshot and restore each take a few milliseconds;
+  an instruction budget stops runaway code and the VM stays usable afterwards.
+- `spike/determinism.mjs` (`npm run spike:determinism`): with a fixed `wasi` clock and random, the same source on
+  the same base gives byte-identical snapshots, and restore then snapshot is identical. Growth is linear, about
+  1.5 KB per synthetic definition, so a raw snapshot passes 2 MB at about 410 definitions.
+- `spike/registry.mjs` (`npm run spike:registry`): the prelude's registry and state form behave as the constraints
+  below describe, including the one hole left, a running frame.
 
 ## Deployment target: celld
 
 celld is "a self-hosted, distributed implementation of Cloudflare Durable Objects". Each world is one cell, a Durable
-Object with its own SQLite database. Facts below are from celld's docs, read 2026-10-05:
+Object with its own SQLite database. The facts that shape the design, from celld's docs read 2026-10-05:
 
-- **Single writer.** "Writers per cell (epoch-fenced): 1". "Exactly one node serves a cell at a time." This matches
-  pi-durable's rule that one process owns a storage.
-- **Durable writes.** "celld does not answer a write until that write survives a failure". RPO=0. Region-local durable
-  write latency is about 90 ms.
+- **Single writer.** "Exactly one node serves a cell at a time." This matches pi-durable's rule that one process owns
+  a storage.
+- **Durable writes.** "celld does not answer a write until that write survives a failure". Region-local durable write
+  latency is about 90 ms.
 - **Output gates.** "A SQL write cursor must finish before a response, an outbound effect, or `storage.sync()`."
   The intent commit is therefore durable before a model call or tool effect leaves the cell, the order pi-durable's
   spec §5.2 relies on.
-- **SQLite API.** `ctx.storage.sql.exec()`, `transactionSync()` with nesting, and async transactions. Transactions and
-  `blockConcurrencyWhile()` have a 30-second limit.
-- **Alarms.** `setAlarm`/`getAlarm`/`deleteAlarm`, with `alarm(alarmInfo)` receiving `retryCount` and `isRetry`.
-  "A cell keeps no in-memory state across an eviction", so the wake loop is still needed.
+- **Eviction and moves.** "A cell keeps no in-memory state across an eviction", so the wake loop is still needed.
+  Hibernatable WebSockets close when the cell moves, so the web UI must reconnect; a client that reconnects through
+  `watch()` starts from the current view. A durable task resumes from its checkpoint on the new owner.
 - **WebAssembly.** "A Worker bundle can import a `.wasm` file. The import gives the compiled module." Each module is
-  compiled once per process. Runtime compilation is undocumented and not needed by this design.
-- **WebSockets.** Hibernatable sockets survive hibernation on the same node and close when the cell moves. The web
-  UI must reconnect, and `watch()` is built for that: a client that reconnects starts from the current view.
-- **Failover.** About 20 s. "A request already sent to the previous owner can remain incomplete". The durable task
-  resumes from its checkpoint on the new owner.
-- **Also available.** Cron Triggers; Dynamic Workers (`{ wasm: bytes }` modules, at most 256 live per process);
-  experimental Containers that run `@cloudflare/sandbox` "as published" on ephemeral disk.
-- **Operations.**
-  - Storage on **GCS buckets**; `celld dev` uses local SQLite.
-  - celld doesn't terminate TLS, so an ingress proxy is needed.
-  - Peer traffic is plaintext HTTP, so nodes need a private network.
-  - "A fleet runs one application."
-  - Linux and macOS only.
-- **Density.** "RAM per resident cell: 0.47 MB"; waking a hibernated cell takes about 4 ms. Real pi-world cells will be
-  heavier: a QuickJS heap of about 1.4 MB plus pi-durable and pi-ai.
+  compiled once per process.
+- **Operations.** Storage on GCS buckets; `celld dev` uses local SQLite. celld doesn't terminate TLS, so an ingress
+  proxy is needed. Peer traffic is plaintext HTTP, so nodes need a private network. "A fleet runs one application."
 
 ## Design constraints found so far
 
@@ -122,9 +76,9 @@ Object with its own SQLite database. Facts below are from celld's docs, read 202
 - **Revisions go in documents, not raw entries.** Raw appends into a busy conversation "can misplace its system prompt
   entries" (spec §12). Use session-scoped docs: `WorldHead` (singleton) and `WorldRevision` (a family).
 - **Write blobs first, then commit the pointer.** Each snapshot is one content-addressed blob in the cell's SQLite,
-  written idempotently before the durable commit, which commits only the manifest and pointer. A crash can leave
-  orphan blobs, but never a pointer to a missing blob. Page-level dedupe between revisions, and moving old pages to
-  R2, come later (milestone 9).
+  gzipped with `gzipSync`, written idempotently before the durable commit, which commits only the manifest and
+  pointer. A crash can leave orphan blobs, but never a pointer to a missing blob. Page-level dedupe between
+  revisions, and moving old pages to R2, come later (milestone 9).
 - **Only `develop` sources replay.** Merge, rebuild after an upgrade, and promotion between forks replay `develop`
   sources. An `execute` that wrote data replays against different tables in another world and gives a different
   result. The attempt traces host calls, and a `develop` whose evaluation made any is rejected.
@@ -136,18 +90,19 @@ Object with its own SQLite database. Facts below are from celld's docs, read 202
 - **Definitions dispatch through a registry.** `define(name, impl)` never replaces the global binding. The global is a
   stable stub created once; the implementation lives in a registry and a redefinition swaps the entry. A class keeps
   one prototype object per name, patched in place on redefinition: the prototype is the vtable. Captured references,
-  callback tables, `.bind`, old instances and subclasses therefore all follow a redefinition, which jiti's "active
-  frames and inline sites can retain earlier definitions" does not get. The catalogue, source per definition, call
-  counts, budgets, the direct call path and the compiled tier are all operations on registry entries.
+  callback tables, `.bind`, old instances and subclasses therefore all follow a redefinition. The catalogue, source
+  per definition, call counts, budgets, the direct call path and the compiled tier are all operations on registry
+  entries. The prelude is installed at revision 0 and versioned in the revision manifest.
 - **The one hole left is a running frame.** A job paused inside a function keeps that function's bytecode when it
   resumes. The one-timeline rule covers it, and the `world` section flags a pause whose function was redefined
-  after it was taken (open decision 11).
+  after it was taken (open decision 8).
 - **State is keep-if-present.** `state(name, init, { version, migrate })` runs `init` once and returns the stored
   object on every later evaluation with the same version, so re-running a source keeps its caches and registries. A
-  shape change is a version bump, with an optional `migrate`; `reset(name)` is the deliberate replacement. The value
-  must be an object, never a primitive, because the source binds it with `const` and mutates it. State lives in the
-  heap: checkpoints undo attempt writes to it, and a source-log replay re-runs every `init`, so a value that must
-  survive replay is data and belongs in SQLite.
+  shape change is a version bump, with an optional `migrate`, which is property-tested: for every valid old value it
+  returns a valid new value. `reset(name)` is the deliberate replacement. The value must be an object, never a
+  primitive, because the source binds it with `const` and mutates it. State lives in the heap: checkpoints undo
+  attempt writes to it, and a source-log replay re-runs every `init`, so a value that must survive replay is data and
+  belongs in SQLite.
 - **Sources run in a function scope.** The host wraps every `develop` source in `(() => { ... })()`. Top-level
   bindings are locals of that evaluation, nothing leaks into the global lexical scope, re-evaluation cannot throw a
   redeclaration, and the only exports are `define` and `state`. Constructor field changes are not migrated; the rule
@@ -166,6 +121,8 @@ Object with its own SQLite database. Facts below are from celld's docs, read 202
 
 ## Interfaces
 
+- **Agent tools:** develop, execute, preview, save_as, functions, describe, status, reset, history, rollback, answer,
+  abort. The `world` observation section shows the revision, a catalogue summary, failing goals and open pauses.
 - **REST API** (Worker routes, forwarding to the world's cell):
   - `POST /worlds` creates a world; `POST /worlds/:id/fork` forks one.
   - `POST /worlds/:id/messages` submits to the agent, with a `requestId` so retries don't submit twice.
@@ -177,34 +134,6 @@ Object with its own SQLite database. Facts below are from celld's docs, read 202
   - Conversation view over a WebSocket fed by `Conversation.watch()`, or `watchEvents()` for message-style events.
   - World inspector: revisions, catalogue, failing goals, open pauses with answer buttons.
   - Task graph panel from `harness.watchTaskGraph()`.
-
-## Layout
-
-```
-src/
-  vm/world-vm.ts          QuickJS wrapper: create/restore, budget, deterministic WASI, host fns by name
-  vm/snapshot.ts          serialize, compression (see open checks), page hashing
-  vm/prelude.js           installed at revision 0: define (registry, stable stubs), state, reset; versioned in the
-                          manifest
-  store/blob-store.ts     interface: put(hash, bytes) idempotent, get(hash)
-  store/node-blobs.ts     Node implementation for unit tests (separate export)
-  store/cell-blobs.ts     Durable Object SQLite implementation
-  storage/cell-sqlite.ts  pi-durable SqliteDatabase adapter over ctx.storage
-  docs.ts                 WorldHead, WorldRevision (family), WorldPauses
-  attempt.ts              checkpoint → eval → checks → accept | restore
-  tools/                  develop, execute, preview, save_as, functions, describe, status, reset, history,
-                          rollback, answer, abort
-  section.ts              "world" observation section: revision, catalogue summary, failing goals, pauses
-  extension.ts            defineExtension({ name: "world", tools, sections, hooks })
-  call.ts                 direct call path (no model)
-  data/data-store.ts      host db.query / db.run over the cell's SQLite
-  cell/world-object.ts    the Durable Object: Harness, wake alarm, WebSocket viewers
-  api/routes.ts           REST routes in the Worker
-  testing/                blob-store and world conformance suites
-web/                      web UI (static assets)
-spike/                    premise experiment
-test/
-```
 
 ## Milestones
 
@@ -228,10 +157,8 @@ test/
    - Kill the owning node mid-turn; failover completes and the task resumes.
    - A pending pause survives a move to another node.
 9. **Later.** Content-addressed pages and R2 offload, per-user forks with promotion by replay, and a compiled tier via
-   Dynamic Workers (builds in an experimental container). The compiled tier is where Rust goes: a stable, hot
-   function gets a Rust version compiled to wasm, and the registry swaps it in like any redefinition. A scratch test
-   on 2026-10-05 restored a Rust wasm module's heap state and a paused job into a fresh instance by copying linear
-   memory, so compiled modules can hold state across eviction the same way, though the design keeps them pure.
+   Dynamic Workers (builds in an experimental container): a stable, hot function gets a version compiled to wasm,
+   and the registry swaps it in like any redefinition.
 
 Stop after milestone 6 and review before the fleet deployment.
 
@@ -248,9 +175,6 @@ These are undocumented or unknown. Measure them early, at milestone 6.
 4. **Eviction timing and alarm retry limits.** Tune the heartbeat from measurements, not Cloudflare's numbers.
 5. **Streaming lag.** Measure progress commits at about 90 ms per durable write.
 
-Settled from the docs: `node:zlib` offers synchronous gzip and deflate under celld, so `gzipSync` compresses
-snapshots and `CompressionStream` is not needed.
-
 ## Operator decision
 
 - "looks good, create a new project in ~/IdeaProjects and save this as intent.md", 2026-10-05.
@@ -259,6 +183,9 @@ snapshots and `CompressionStream` is not needed.
 - "save it as evaluation.md and fold the findings into intent.md", 2026-10-05.
 - "fold the vtable and state form into intent.md", 2026-10-05.
 - "OK, let's settle on JavaScript as the world language and TypeScript as the cell shell.", 2026-10-05.
+- "Yes, I'm looking at it as a fastest possible implement-and-check loop for one kind of artifact. I program that
+  grows thou prompting, where I can immediately validate and iterate on results.", 2026-10-06.
+- "ok, commit and push after you apply", 2026-10-06, on the proposed cuts to this document.
 
 This approves:
 
@@ -269,10 +196,11 @@ This approves:
   decisions below;
 - the prelude: a registry with stable stubs for definitions, the keep-if-present state form, and sources evaluated
   in a function scope;
-- JavaScript as the world language and TypeScript as the cell shell. Rust is not the world language: every
-  `develop` would be a recompile into a module with a new memory layout, which invalidates the previous snapshot
-  and ends the live image. Rust belongs in the compiled tier (milestone 9). Whether the pure core becomes a Rust
-  crate compiled to wasm is not decided.
+- JavaScript as the world language and TypeScript as the cell shell. A compiled language cannot be the world
+  language: every `develop` would be a recompile into a module with a new memory layout, which invalidates the
+  previous snapshot and ends the live image. Compiled code belongs in the compiled tier (milestone 9);
+- the position above: one station, the fastest implement-and-check loop for one kind of artifact. It decides none
+  of open decisions 4 and 10 to 13.
 
 Nothing else is approved: the package's home (standalone or upstream in pi), the first milestone's scope, the web UI
 stack, dependency choices beyond those named here, and every other policy question go back to the operator.
@@ -281,33 +209,42 @@ stack, dependency choices beyond those named here, and every other policy questi
 
 1. **Where it lives.** Options are this standalone repo depending on published `pi-durable` and `quickjs-wasi`, or
    `packages/world` upstream in pi, which needs the pi maintainers' agreement.
-2. **First milestone scope.** The proposal is milestones 1–6.
-3. **Web UI stack.** Not chosen.
-4. **Part 5 correction.** The article says "one commit"; it should say "one store, two commits, idempotent recovery".
-5. **Preview isolation of data writes.** Either a rolled-back transaction around the call, or a scratch copy of the
+2. **Web UI stack.** Not chosen.
+3. **Preview isolation of data writes.** Either a rolled-back transaction around the call, or a scratch copy of the
    touched tables.
-6. **Settled: JavaScript is the world language** (operator decision, 2026-10-05). Pyodide and Rune were candidates
-   for a second language; neither is planned.
-7. **Which record is authoritative.** This intent treats the snapshot as primary and the source log as the upgrade
+4. **Which record is authoritative.** This intent treats the snapshot as primary and the source log as the upgrade
    escape. The inverse, log authoritative with the snapshot as a materialization and the carrier of pauses, removes
    the wasm-build coupling from the durability story and makes forks and merges a log operation. Both designs replay
    on a runtime upgrade and both need the purity rule on `develop`. The difference: with the log authoritative, every
    revision's correctness depends on replay determinism, not only an upgrade's.
-8. **REST authentication.** Who may call `develop` versus `call`, and how an end user of a world is distinguished from
+5. **REST authentication.** Who may call `develop` versus `call`, and how an end user of a world is distinguished from
    its author. The fleet runs one application, so this is the project's to define.
-9. **Secrets for effectful host functions.** Where HTTP, email and payment credentials live, and which worlds may use
+6. **Secrets for effectful host functions.** Where HTTP, email and payment credentials live, and which worlds may use
    them.
-10. **Layout.** The layout above groups by technical layer (`vm/`, `store/`, `storage/`, `api/`). Grouping by
-    capability (`attempt/`, `revision/`, `pause/`, `call/`) would say what the system does.
-11. **A pause whose function was redefined.** When the answer arrives, resume the old body, or abort and rerun the
-    job against the new one. Rerunning needs the job to be idempotent up to the pause.
-12. **Explicit `define` or a host rewrite.** The agent writes `define(...)` and `state(...)` by hand, or the host
-    rewrites top-level `function`, `class` and `const` declarations into them so the agent writes ordinary
-    JavaScript. The rewrite needs a parser on the host.
+7. **Layout.** Not chosen. Group by capability (`attempt/`, `revision/`, `pause/`, `call/`), which says what the
+   system does, rather than by technical layer (`vm/`, `store/`, `api/`).
+8. **A pause whose function was redefined.** When the answer arrives, resume the old body, or abort and rerun the
+   job against the new one. Rerunning needs the job to be idempotent up to the pause. A pending revision holds a
+   continuation no source rebuilds, so it also dies on a runtime upgrade; the alternative that survives both is a
+   pause recorded as a fact and a rerun from the job's start.
+9. **Explicit `define` or a host rewrite.** The agent writes `define(...)` and `state(...)` by hand, or the host
+   rewrites top-level `function`, `class` and `const` declarations into them so the agent writes ordinary
+   JavaScript. The rewrite needs a parser on the host.
+10. **Checks out of the world.** This intent stores invariants and goals in the world under a reserved name, written
+    through `develop` by the same agent that writes the code. A `develop` that weakens a check and then passes it is
+    a false green. The alternative: checks are a separate registry kind with their own tool, enrolled only after
+    they have been seen failing against a counterexample, and loosened only with a recorded operator reason.
+11. **A requirement id on every revision.** The revision manifest records the producing tool call and nothing about
+    intent. A revision could carry the requirement or use case it serves, so a shipped function traces back to why
+    it exists.
+12. **Harness-owned interrupts by change class.** `restart` is a pause the agent's own code decides. The harness has
+    no interrupt of its own. A `develop` that touches checks, data schema or effectful host functions could block for
+    the operator by change class, decided in harness code rather than by the agent.
+13. **Rejections as records.** A rejected attempt is a tool result in the conversation, which compaction can
+    summarise away. The alternative is a revision-family record naming the failing check, so rejections stay
+    queryable.
 
 ## Not verified
 
-- Nothing has run on celld, either `celld dev` or a fleet.
-- celld facts come from its documentation pages, not from tests.
-- Snapshot sizes were measured on synthetic definitions with small data, not on a realistic world.
+- Nothing has run on celld, either `celld dev` or a fleet; its facts come from documentation pages, not tests.
 - Merge-by-replay, tiering, the REST API, the web UI, and the durable integration are designs, not code.
