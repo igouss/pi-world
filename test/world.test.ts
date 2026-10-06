@@ -97,7 +97,7 @@ describe("World", () => {
 		await world.develop(`define("one", () => 1);`, "one", operator);
 		await world.proposeCheck("one is 1", "one() === 1", `define("one", () => 2);`);
 		await world.removeCheck("one is 1", "requirement changed");
-		const checks = await world.checks();
+		const checks = world.checks();
 		expect(checks.checks).toEqual([]);
 		expect(checks.removed.map((r) => r.reason)).toEqual(["requirement changed"]);
 	});
