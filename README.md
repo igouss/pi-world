@@ -92,6 +92,49 @@ so a migration that throws rejects the `develop`:
 +  rho: 5, theta: 0.927    @2
 ```
 
+## A session, step by step (designed)
+
+This is the example session from jiti's README, as it would run in pi-world. You talk to the agent through the web UI
+or `POST /worlds/:id/messages`. The last two steps do not involve the agent or a model at all.
+
+```text
+you>  Add uppercaseString. Return an uppercased copy of the input.
+you>  Add reverseString. Return a reversed copy without modifying the input.
+you>  Uppercase "Hello", then reverse the result using those functions.
+you>  Save that combination as shoutBackwards.
+GET   /worlds/:id/functions
+POST  /worlds/:id/call/shoutBackwards      {"args": ["Hello"]}
+```
+
+| Step | Who acts | What happens | Result |
+|---|---|---|---|
+| 1 | Agent calls `develop` | The source below is evaluated against a checkpoint. It makes no host call and the checks pass. | Accepted as revision 1 |
+| 2 | Agent calls `develop` | Same path. JavaScript strings cannot be modified, so the input is safe by construction. | Accepted as revision 2 |
+| 3 | Agent calls `execute` | Runs `reverseString(uppercaseString("Hello"))` in the world. Nothing in the world changes. | `"OLLEH"`, no revision |
+| 4 | Agent calls `save_as` | Turns the expression from step 3 into a named definition, through the same attempt path as `develop`. | Accepted as revision 3 |
+| 5 | You, no model | The catalogue lists `shoutBackwards` with its source and the revision that introduced it. The world inspector in the web UI shows the same. | A catalogue entry |
+| 6 | You, no model | The cell calls the accepted function directly, under the same instruction budget. | `"OLLEH"`, no revision |
+
+The sources the agent writes in steps 1, 2 and 4:
+
+```js
+define("uppercaseString", (s) => s.toUpperCase());
+
+define("reverseString", (s) => [...s].reverse().join(""));
+
+define("shoutBackwards", (s) => reverseString(uppercaseString(s)));
+```
+
+What differs from jiti:
+
+- **Names.** jiti's `uppercase-string` becomes `uppercaseString`, because a definition is a JavaScript global.
+- **Slash commands.** jiti's `/describe` and `/execute` are terminal commands. Here they are a `GET` of the catalogue and
+  a direct `POST` call. The body shape of the call is not fixed yet.
+- **A failed step.** If a `develop` breaks a check, makes a host call or runs out of budget, the checkpoint is
+  restored and the agent gets the reason. The world stays at the last accepted revision.
+- **Later changes.** `shoutBackwards` calls the other two through their stubs. If you later ask for a different
+  `reverseString`, `shoutBackwards` uses the new one without being touched.
+
 ## Design philosophy
 
 1. **The world is a live image.** Code and heap state live in one snapshotable VM. JavaScript is the world language;
@@ -128,7 +171,7 @@ There is nothing to install yet. The package is private and unpublished.
 ## Interfaces (designed, not built)
 
 **Agent tools:** `develop`, `execute`, `preview`, `save_as`, `functions`, `describe`, `status`, `reset`, `history`,
-`rollback`, `answer`, `abort`.
+`rollback`, `answer`, `abort`, `propose_check`.
 
 **REST API** (Worker routes forwarding to the world's cell):
 
