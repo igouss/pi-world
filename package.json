@@ -6,9 +6,20 @@
 	"scripts": {
 		"spike": "node spike/wasm-world.mjs",
 		"spike:determinism": "node spike/determinism.mjs",
-		"spike:registry": "node spike/registry.mjs"
+		"spike:registry": "node spike/registry.mjs",
+		"test": "vitest --run",
+		"typecheck": "tsc -p tsconfig.json"
 	},
 	"dependencies": {
+		"@earendil-works/chord": "^1.0.4",
+		"@earendil-works/pi-ai": "^1.0.4",
+		"@earendil-works/pi-durable": "^1.0.4",
+		"preact": "^11.0.0",
 		"quickjs-wasi": "3.6.2"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "^5.20261006.1",
+		"typescript": "^7.0.2",
+		"vitest": "^4.1.11"
 	}
 }
