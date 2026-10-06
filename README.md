@@ -20,6 +20,18 @@ with `develop(source)`. Each attempt runs against an in-memory checkpoint; safet
 a new immutable revision or is restored. Accepted definitions are ordinary functions that people call over REST with
 no model request. The target is [celld](https://celld.dev/) (self-hosted Durable Objects) with GCS buckets.
 
+```text
+develop(source)
+  checkpoint = snapshot of the heap          # in memory, a few milliseconds
+  evaluate source                            # synchronous, in a function scope, under an instruction budget
+  if it made a host call, broke an invariant, or ran out of budget
+    restore checkpoint
+    return rejected, with the reason
+  write the snapshot blob                    # gzipped, content-addressed, idempotent
+  commit the revision manifest and the head pointer
+  return accepted as revision N+1
+```
+
 It is the fastest implement-and-check loop for one kind of artifact: a program that grows through prompting, where the
 result is validated and iterated on immediately. It is one station of a larger line, not the line.
 
@@ -49,6 +61,35 @@ define("lookup", (key) => {
 });
 
 // A later develop redefines lookup; every caller sees it, and cache.hits is kept.
+```
+
+A call always goes through a stub that is created once, so a reference captured before a redefinition still reaches
+the newest implementation:
+
+```text
+lookup("a")                      # any caller, including one holding an old reference
+  stub lookup                    # the global binding; never replaced
+    registry["lookup"].impl      # swapped by each define
+```
+
+A redefinition changes one registry entry and nothing else:
+
+```diff
+ registry
+-  lookup  →  (key) => table[key]
++  lookup  →  (key) => { cache.hits += 1; return table[key]; }
+ globalThis.lookup                 # the same stub
+ state "lookup.cache"              # kept: { hits: 41 }
+```
+
+A class that changes shape declares a version and a migration. Every live instance is migrated inside the attempt,
+so a migration that throws rejects the `develop`:
+
+```diff
+ define("Point", class { ... }, { version: 2, migrate })
+ live instance p
+-  x: 3, y: 4              @1
++  rho: 5, theta: 0.927    @2
 ```
 
 ## Design philosophy
@@ -107,17 +148,20 @@ with answer buttons) and a task graph panel. There is no TUI.
 
 ## Architecture (designed)
 
-```text
- Web UI ──┐                                   ┌─ pi-durable harness ── tools: develop, execute, ...
- REST ────┼─► Worker ─► World cell (DO) ──────┤
- agent ───┘   routes     one writer per world └─ WorldVm (QuickJS-WASI)
-                                                     │  prelude: define, state, restart
-                                                     │  registry, invariants, goals
-                                    ┌────────────────┴───────────────┐
-                              revision blobs                    SQLite tables
-                       (gzipped snapshots, content-       (data from end-user calls,
-                        addressed, pointer in docs)        via host functions)
+```mermaid
+flowchart LR
+    UI["Web UI"] --> W["Worker routes"]
+    REST["REST clients"] --> W
+    W --> C["World cell (Durable Object)<br/>one writer per world"]
+    C --> H["pi-durable harness<br/>tools: develop, execute, ..."]
+    C --> VM["WorldVm: QuickJS in WASM<br/>prelude, registry, invariants, goals"]
+    H --> VM
+    H --> M["Model API"]
+    VM --> B[("Revision blobs<br/>gzipped snapshots, content-addressed")]
+    VM --> D[("SQLite tables<br/>data from end-user calls")]
 ```
+
+A direct call goes from the Worker to the cell to the VM and never reaches the harness or the model.
 
 Revisions are stored as `WorldHead` and `WorldRevision` documents holding a manifest and a pointer to a blob.
 
@@ -155,6 +199,23 @@ layout, which invalidates the previous snapshot. Compiled code is planned as a t
 
 **What happens when a job is waiting for an answer and the node dies?** The pause is a pending promise in a stored
 snapshot. It resumes on the new owner when the answer arrives. The kill-and-reopen test is milestone 4.
+
+```mermaid
+sequenceDiagram
+    participant Job as World job
+    participant Cell as World cell
+    participant Store as Cell storage
+    participant Person
+    Job->>Cell: await restart(id, question, options)
+    Cell->>Store: snapshot holding the pending promise
+    Cell-->>Person: question shown as an open pause
+    Note over Cell: evicted, crashed or moved. Memory is gone.
+    Person->>Cell: POST /worlds/:id/pauses/:pauseId/answer
+    Cell->>Store: load the snapshot
+    Store-->>Cell: restore the VM
+    Cell->>Job: resolve the promise with the answer
+    Job-->>Cell: continues with its locals intact
+```
 
 **Can the agent weaken its own checks?** As designed today, yes: invariants live in the world and are written through
 `develop`. That is open decision 10 in [`decisions.md`](decisions.md).
