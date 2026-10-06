@@ -29,17 +29,27 @@ The rules the implementation obeys, each with the fact that forces it.
 - **The one hole left is a running frame.** A job paused inside a function keeps that function's bytecode when it
   resumes. The one-timeline rule covers it, and the `world` section flags a pause whose function was redefined
   after it was taken (`decisions.md`, open decision 8).
+- **Instances migrate at redefinition, eagerly and by declaration.** A class is redefined with
+  `define(name, impl, { version, migrate })`, like state. The constructor stub records every instance it builds in a
+  set of weak references and marks it with the class version. A redefinition whose version differs migrates every
+  live instance inside the attempt, with `migrate(instance, { from, to })` mutating it in place, so a migration that
+  throws rejects the `develop` and the checkpoint restore puts the instances back, and the invariants see migrated
+  instances before accept. There is no default migration: a version bump with live instances and no `migrate` is
+  rejected, naming the count. No version bump means the shape is unchanged and only the vtable is patched. Because
+  every live instance is migrated at each bump, `migrate` only ever runs one step and a snapshot's instances are
+  always at its revision's shape. Only instances built with `new` through the class are tracked; an object made
+  with `Object.create` or revived from JSON has no version and no migration. This is affordable because data lives
+  in SQLite, so heap instances are few; rows there are data, and a schema change there is a separate migration.
 - **State is keep-if-present.** `state(name, init, { version, migrate })` runs `init` once and returns the stored
   object on every later evaluation with the same version, so re-running a source keeps its caches and registries. A
-  shape change is a version bump, with an optional `migrate`, which is property-tested: for every valid old value it
-  returns a valid new value. `reset(name)` is the deliberate replacement. The value must be an object, never a
+  shape change is a version bump, with an optional `migrate`, which is property-tested like a class migration: for
+  every valid old value it returns a valid new value, and the invariants hold on the result. `reset(name)` is the deliberate replacement. The value must be an object, never a
   primitive, because the source binds it with `const` and mutates it. State lives in the heap: checkpoints undo
   attempt writes to it, and a source-log replay re-runs every `init`, so a value that must survive replay is data and
   belongs in SQLite.
 - **Sources run in a function scope.** The host wraps every `develop` source in `(() => { ... })()`. Top-level
   bindings are locals of that evaluation, nothing leaks into the global lexical scope, re-evaluation cannot throw a
-  redeclaration, and the only exports are `define` and `state`. Constructor field changes are not migrated; the rule
-  that data lives outside the heap keeps that from mattering.
+  redeclaration, and the only exports are `define` and `state`.
 - **Stable observation text.** A section whose text changes without a real content change appends system deltas and
   misses the provider prompt cache (spec §12). The `world` section renders revision-level facts only; budget left and
   recently used functions are reported by the `status` tool.

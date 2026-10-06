@@ -12,6 +12,8 @@
   grows thou prompting, where I can immediately validate and iterate on results.", 2026-10-06.
 - "ok, commit and push after you apply", 2026-10-06, on the proposed cuts to the intent.
 - "and let's shard, split indent from research, etc.", 2026-10-06.
+- "I think leaning on data living in SQLite is a good idea, fold it into design.md and the registry spike, then
+  commit and push", 2026-10-06, on eager, declared instance migration at class redefinition.
 
 This approves:
 
@@ -27,7 +29,9 @@ This approves:
   previous snapshot and ends the live image. Compiled code belongs in the compiled tier (`plan.md`, milestone 9);
 - the position in `intent.md`: one station, the fastest implement-and-check loop for one kind of artifact. It decides none
   of open decisions 4 and 10 to 13;
-- the split of the intent into `intent.md`, `design.md`, `plan.md`, `research.md` and this file.
+- the split of the intent into `intent.md`, `design.md`, `plan.md`, `research.md` and this file;
+- instance migration at class redefinition: eager, declared with `version` and `migrate`, rejected without one while
+  instances are live, and kept affordable by data living in SQLite rather than the heap.
 
 Nothing else is approved: the package's home (standalone or upstream in pi), the first milestone's scope, the web UI
 stack, dependency choices beyond those named here, and every other policy question go back to the operator.

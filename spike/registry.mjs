@@ -1,7 +1,9 @@
 // Experiment: the world prelude, a registry with stable stubs (the vtable) and a keep-if-present state form.
 // Checks: captured references and old instances follow a redefinition; a subclass follows its redefined base;
-// a redefined source keeps its state; a restored checkpoint undoes state writes; a version bump migrates state;
-// an active frame keeps the body it was running; a top-level `let` cannot be re-evaluated as a script.
+// a class version bump migrates every live instance eagerly, and is rejected without a migrate or when the
+// migrate throws; a redefined source keeps its state; a restored checkpoint undoes state writes and migrations;
+// a version bump migrates state; an active frame keeps the body it was running; a top-level `let` cannot be
+// re-evaluated as a script.
 import { readFile } from "node:fs/promises";
 import { QuickJS } from "quickjs-wasi";
 
@@ -19,26 +21,46 @@ const run = (code) => {
 const develop = (source) => run(`(() => { ${source} })()`);
 
 const prelude = `
-	const defs = new Map();      // name -> implementation; the global is a stable stub that dispatches here
+	const defs = new Map();      // name -> { impl, version, instances }; the global is a stable stub that dispatches here
 	const states = new Map();    // name -> { value, version, init }
-	globalThis.define = (name, impl) => {
+	const VERSION = Symbol("version");
+	globalThis.define = (name, impl, { version = 1, migrate } = {}) => {
 		const isClass = typeof impl === "function" && /^class\\b/.test(Function.prototype.toString.call(impl));
-		let stub = defs.has(name) ? globalThis[name] : undefined;
-		if (!stub) {
-			stub = function (...args) {
+		const entry = defs.get(name);
+		if (!entry) {
+			const instances = new Set();   // WeakRefs to every instance built through the stub
+			const stub = function (...args) {
 				const current = defs.get(name);
-				return new.target ? Reflect.construct(current, args, new.target) : current.apply(this, args);
+				if (!new.target) return current.impl.apply(this, args);
+				const instance = Reflect.construct(current.impl, args, new.target);
+				instance[VERSION] = current.version;
+				instances.add(new WeakRef(instance));
+				return instance;
 			};
 			stub.prototype = isClass ? impl.prototype : undefined;
 			Object.defineProperty(globalThis, name, { value: stub, writable: false, configurable: false });
-		} else if (isClass) {
-			const proto = stub.prototype;
+			defs.set(name, { impl, version, instances });
+			return;
+		}
+		if (isClass && version !== entry.version) {
+			// Eager: every live instance migrates inside the attempt, so a throw here rejects the develop.
+			const live = [...entry.instances].map((ref) => ref.deref()).filter(Boolean);
+			if (!migrate) throw new Error(name + "@" + entry.version + " -> @" + version + " needs a migrate: " + live.length + " live instance(s)");
+			for (const instance of live) {
+				migrate(instance, { from: entry.version, to: version });
+				instance[VERSION] = version;
+			}
+		}
+		if (isClass) {
+			const proto = globalThis[name].prototype;
 			for (const k of Object.getOwnPropertyNames(proto)) if (k !== "constructor" && !(k in impl.prototype)) delete proto[k];
 			for (const k of Object.getOwnPropertyNames(impl.prototype))
 				if (k !== "constructor") Object.defineProperty(proto, k, Object.getOwnPropertyDescriptor(impl.prototype, k));
 		}
-		defs.set(name, impl);
+		entry.impl = impl;
+		entry.version = version;
 	};
+	globalThis.versionOf = (instance) => instance[VERSION];
 	globalThis.state = (name, init, { version = 1, migrate } = {}) => {
 		const entry = states.get(name);
 		if (entry && entry.version === version) return entry.value;
@@ -63,6 +85,17 @@ console.log("old instance:", run("u.who()"), run("u.tag()"), "instanceof", run("
 develop(`define("Admin", class extends User { who() { return "admin:" + super.who(); } }); globalThis.ad = new Admin("root");`);
 develop(`define("User", class { constructor(n) { this.n = n; } who() { return "user3 " + this.n; } });`);
 console.log("subclass after base redefined:", run("ad.who()"), "| removed method:", run("String(typeof u.tag)"));
+
+develop(`define("Point", class { constructor(x, y) { this.x = x; this.y = y; } norm() { return Math.hypot(this.x, this.y); } }); globalThis.p = new Point(3, 4);`);
+console.log("class bump without migrate, instance live:", develop(`define("Point", class { norm() { return this.rho; } }, { version: 2 });`));
+console.log("class bump, migrate throws:", develop(`define("Point", class { norm() { return this.rho; } }, { version: 2, migrate: () => { throw new Error("no"); } });`), "| instance intact:", run("p.norm()"));
+const beforeMigration = vm.snapshot();
+develop(`define("Point", class { constructor(rho, theta) { this.rho = rho; this.theta = theta; } norm() { return this.rho; } },
+	{ version: 2, migrate: (pt) => { pt.rho = Math.hypot(pt.x, pt.y); pt.theta = Math.atan2(pt.y, pt.x); delete pt.x; delete pt.y; } });`);
+console.log("class bump with migrate: slots", run("Object.keys(p).join(',')"), "| norm", run("p.norm()"), "| version", run("String(versionOf(p))"), "| new instance", run("new Point(1, 0).norm()"));
+vm.dispose();
+vm = await QuickJS.restore(beforeMigration, { wasm });
+console.log("checkpoint restored: slots", run("Object.keys(p).join(',')"), "| version", run("String(versionOf(p))"));
 
 const lookup = (miss) => `const cache = state("lookup.cache", () => new Map());
 	define("lookup", (k) => cache.get(k) ?? "${miss}"); define("remember", (k, v) => cache.set(k, v));`;

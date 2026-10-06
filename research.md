@@ -14,8 +14,8 @@ Three spikes ran against quickjs-wasi 3.6.2 under Node 25.2.1. Nothing has run o
 - `spike/determinism.mjs` (`npm run spike:determinism`): with a fixed `wasi` clock and random, the same source on
   the same base gives byte-identical snapshots, and restore then snapshot is identical. Growth is linear, about
   1.5 KB per synthetic definition, so a raw snapshot passes 2 MB at about 410 definitions.
-- `spike/registry.mjs` (`npm run spike:registry`): the prelude's registry and state form behave as the constraints
-  in `design.md` describe, including the one hole left, a running frame.
+- `spike/registry.mjs` (`npm run spike:registry`): the prelude's registry, eager instance migration and state form
+  behave as the constraints in `design.md` describe, including the one hole left, a running frame.
 
 ## Deployment target: celld
 
