@@ -2,6 +2,8 @@ import { useState } from "preact/hooks";
 import type { AccountStatus, WorldListing } from "../../src/api/types.ts";
 import { api } from "../api.ts";
 import { openWorld } from "../route.ts";
+import { worldHash } from "../../src/api/paths.ts";
+import { useAction } from "../use-action.ts";
 import { AccountBox } from "./account-box.tsx";
 
 export function Sidebar(props: {
@@ -13,23 +15,19 @@ export function Sidebar(props: {
 }) {
 	const [name, setName] = useState("");
 	const [busy, setBusy] = useState(false);
-	const [error, setError] = useState("");
-	const create = async (event: Event) => {
-		event.preventDefault();
+	const { error, run } = useAction();
+	const create = run(async () => {
 		if (!name.trim()) return;
 		setBusy(true);
-		setError("");
 		try {
 			const world = await api.createWorld(name);
 			setName("");
 			props.onWorlds();
 			openWorld(world.id);
-		} catch (e) {
-			setError((e as Error).message);
 		} finally {
 			setBusy(false);
 		}
-	};
+	});
 	return (
 		<nav class="sidebar">
 			<a class="brand" href="#/">
@@ -43,7 +41,7 @@ export function Sidebar(props: {
 			<ul class="world-list">
 				{props.worlds.map((world) => (
 					<li key={world.id}>
-						<a class={world.id === props.current ? "active" : ""} href={`#/w/${world.id}`}>
+						<a class={world.id === props.current ? "active" : ""} href={worldHash(world.id)}>
 							{world.name}
 							<span class="muted small">{world.id}</span>
 						</a>

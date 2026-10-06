@@ -14,7 +14,7 @@ export interface DataRow {
 	readonly value: unknown;
 }
 
-/** A data store held in memory; used by tests and by checks, which must not reach real data. */
+/** A data store held in memory, for tests. */
 export class MemoryDataPort implements DataPort {
 	private readonly rows: Map<string, string> = new Map();
 

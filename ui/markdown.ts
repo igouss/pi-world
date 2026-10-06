@@ -1,3 +1,5 @@
+import { escapeHtml as escape } from "../src/api/text.ts";
+
 /**
  * A small Markdown renderer for the agent's answers: fenced and inline code, bold, italics, links, headings, lists
  * and paragraphs. The text is escaped first, so only these constructs become HTML.
@@ -61,8 +63,4 @@ function inline(text: string): string {
 		.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
 		.replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>")
 		.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-}
-
-export function escape(text: string): string {
-	return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }

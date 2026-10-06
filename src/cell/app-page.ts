@@ -1,12 +1,22 @@
+import { appPath, callPath, worldHash } from "../api/paths.ts";
+import { escapeHtml } from "../api/text.ts";
+import type { CatalogueEntry } from "../world/world-vm.ts";
 import type { World } from "../world/world.ts";
+
+/** The definition a world serves its page from. */
+const APP: string = "app";
+
+export function hasApp(catalogue: readonly CatalogueEntry[]): boolean {
+	return catalogue.some((entry) => entry.name === APP);
+}
 
 /**
  * The page a world serves: the result of its `app(path, query)` definition, with a `world.call` client injected so
  * the page's scripts can call the world's functions.
  */
 export async function appPage(world: World, worldId: string, path: string, query: Record<string, string>): Promise<Response> {
-	if (!world.catalogue().some((entry) => entry.name === "app")) return html(EMPTY(worldId), 404);
-	const outcome = await world.call("app", [path, query]);
+	if (!hasApp(world.catalogue())) return html(EMPTY(worldId), 404);
+	const outcome = await world.call(APP, [path, query]);
 	if (!outcome.ok) return html(FAILED(worldId, `${outcome.failure}: ${outcome.error}`), 500);
 	if (typeof outcome.value !== "string") return html(FAILED(worldId, `app returned ${typeof outcome.value}, not an HTML string`), 500);
 	return html(inject(outcome.value, CLIENT(worldId)), 200);
@@ -26,7 +36,7 @@ const CLIENT = (worldId: string): string => `<script>
 window.world = Object.freeze({
 	id: ${JSON.stringify(worldId)},
 	async call(name, ...args) {
-		const response = await fetch("/api/worlds/${worldId}/call/" + encodeURIComponent(name), {
+		const response = await fetch(${JSON.stringify(callPath(worldId, ""))} + encodeURIComponent(name), {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({ args }),
@@ -46,12 +56,8 @@ const SHELL = (title: string, body: string): string =>
 const EMPTY = (worldId: string): string =>
 	SHELL(
 		"No app yet",
-		`<h1>This world has no page yet</h1><p>Ask the agent for one, for example: <em>"Make an app page that lists my todos and lets me add one."</em></p><p><a href="/#/w/${worldId}">Back to the world</a></p>`,
+		`<h1>This world has no page yet</h1><p>Ask the agent for one, for example: <em>"Make an app page that lists my todos and lets me add one."</em></p><p><a href="/${worldHash(worldId)}">Back to the world</a></p>`,
 	);
 
 const FAILED = (worldId: string, error: string): string =>
-	SHELL("App failed", `<h1>The app failed</h1><pre>${escape(error)}</pre><p><a href="/#/w/${worldId}">Back to the world</a></p>`);
-
-function escape(text: string): string {
-	return text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-}
+	SHELL("App failed", `<h1>The app failed</h1><pre>${escapeHtml(error)}</pre><p><a href="/${worldHash(worldId)}">Back to the world</a></p>`);

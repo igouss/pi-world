@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import type { AccountStatus } from "../../src/api/types.ts";
 import { api } from "../api.ts";
+import { useAction } from "../use-action.ts";
 
 /** Claude subscription login: the copy-code OAuth flow, or a pasted `claude setup-token` token. */
 export function AccountBox(props: { status?: AccountStatus; onChange: (status: AccountStatus) => void }) {
@@ -8,16 +9,7 @@ export function AccountBox(props: { status?: AccountStatus; onChange: (status: A
 	const [code, setCode] = useState("");
 	const [token, setToken] = useState("");
 	const [mode, setMode] = useState<"idle" | "oauth" | "token">("idle");
-	const [error, setError] = useState("");
-	const guard = (action: () => Promise<void>) => async (event?: Event) => {
-		event?.preventDefault();
-		setError("");
-		try {
-			await action();
-		} catch (e) {
-			setError((e as Error).message);
-		}
-	};
+	const { error, run: guard } = useAction();
 	const start = guard(async () => {
 		const { url } = await api.startLogin();
 		setUrl(url);
@@ -45,14 +37,14 @@ export function AccountBox(props: { status?: AccountStatus; onChange: (status: A
 				<span class={`dot ${state === "none" ? "off" : "on"}`} />
 				{state === "none" ? "Claude: not logged in" : state === "oauth" ? "Claude: subscription" : "Claude: token"}
 				{state !== "none" && (
-					<button class="link small" onClick={() => logout()}>
+					<button class="link small" onClick={logout}>
 						log out
 					</button>
 				)}
 			</div>
 			{state === "none" && mode === "idle" && (
 				<div class="account-actions">
-					<button class="primary" onClick={() => start()}>
+					<button class="primary" onClick={start}>
 						Log in with Claude
 					</button>
 					<button class="link small" onClick={() => setMode("token")}>

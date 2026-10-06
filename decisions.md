@@ -15,6 +15,12 @@
 - "I think leaning on data living in SQLite is a good idea, fold it into design.md and the registry spike, then
   commit and push", 2026-10-06, on eager, declared instance migration at class redefinition.
 - "Ok, I think I agree with you, let's update the md files.", 2026-10-06, on keeping checks outside the world.
+- "http://oracle-arm.mist-walleye.ts.net:8787 celld installed, your goal is to write a working prototype, this is an
+  experiment so I don't have all the answers, can to code enough code for me to have a webui I can use, one I have it
+  and use it I'll have a better idea how to answer open questions, for now you have my authorization to do common
+  sense approach, be bold and this is a cool new greenfield, set your standards high and god speed! I'm on a flight to
+  japan so you have autonomy.", 2026-10-06.
+- "Check how pi is connected to clause without API key, using my subscription, use same approach", 2026-10-06.
 
 This approves:
 
@@ -37,8 +43,47 @@ This approves:
   seen failing on a counterexample, removed or loosened only by the operator with a recorded reason, and protected
   by frozen built-ins. What to do with a check that calls a definition the agent can replace is open decision 13.
 
+- a working prototype with a web UI, deployed to the celld node, built with common-sense choices for the open
+  questions. Each such choice is recorded below under "Prototype assumptions" so it can be revisited after use;
+- reaching Claude through the owner's subscription the way pi does: Claude Code's public OAuth client with PKCE and
+  the copy-code redirect, refresh in one place, and the token passed to pi-ai as `ANTHROPIC_OAUTH_TOKEN`.
+
 Nothing else is approved: the package's home (standalone or upstream in pi), the first milestone's scope, the web UI
 stack, dependency choices beyond those named here, and every other policy question go back to the operator.
+
+## Prototype assumptions
+
+Made on 2026-10-06 under the prototype authorization above. Each is a default to revisit, not a settled decision.
+
+- **Open decision 2, web UI stack:** Preact with TSX, bundled by esbuild into `public/`, served as celld static
+  assets. No CSS framework.
+- **Open decision 5, REST authentication:** none. The fleet is reachable only on the tailnet, and anyone on it can
+  call every route, including the account routes.
+- **Open decision 7, layout:** by capability: `world/`, `revision/`, `check/`, `agent/`, `conversation/`,
+  `account/`, `directory/`, `cell/`, `api/`.
+- **Open decision 9, explicit `define`:** the agent writes `define(...)` and `state(...)` by hand.
+- **Open decision 13, a check that calls a replaceable definition:** allowed, with no re-run of its counterexample when
+  that definition changes.
+- **Checks cannot read data.** A check runs in attempt mode, where data is unreachable. In the first real session the
+  agent changed a function's signature (an optional entries argument) to make it checkable. This limits what a check
+  can protect.
+- **Model:** Claude through the subscription; `claude-sonnet-5-5` by default, switchable per world in the UI between
+  Sonnet 5.5, Opus 5.5, Haiku 4.5 and Fable 5.1.
+- **Credential:** one `AccountCell` holds the fleet's single Claude credential. A pasted `claude setup-token` token is
+  accepted as well as the OAuth login.
+- **Data:** a key-value table per world (`data.get/set/delete/list`), JSON values, reachable from calls and
+  `execute` only. `list` returns at most 1000 rows. A full SQL host API is not built.
+- **Pages:** a world serves a page by defining `app(path, query)`, which returns HTML. The page is served at
+  `/w/:id/`, with a `world.call(name, ...args)` client injected.
+- **Calls discard heap changes** by restoring the head snapshot after every call and `execute`. This costs a restore
+  per call.
+- **`execute` keeps its data writes**, so an agent that tries its functions leaves test rows behind unless it cleans
+  up.
+- **Snapshots are stored raw**, not gzipped, in the cell's SQLite. A row of about 1.4 MB worked on the node.
+- **Operator develop:** the UI's console can develop a source by hand; it goes through the same attempt as the agent's.
+
+Not built in the prototype: pauses (`restart`), forks and merge by replay, source-log rebuild, preview isolation,
+the task graph panel, and gzip of blobs.
 
 ## Open decisions
 

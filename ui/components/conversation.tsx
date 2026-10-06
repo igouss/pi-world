@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ToolCallItem, Transcript, TranscriptItem } from "../../src/api/types.ts";
 import { api } from "../api.ts";
 import { markdown } from "../markdown.ts";
@@ -84,13 +84,19 @@ function Message(props: { item: TranscriptItem; outcome: (call: ToolCallItem) =>
 					<pre>{item.thinking}</pre>
 				</details>
 			)}
-			{item.text && <div class="md" dangerouslySetInnerHTML={{ __html: markdown(item.text) }} />}
+			{item.text && <Markdown text={item.text} />}
 			{item.toolCalls.map((call) => (
 				<ToolCallCard key={call.id} call={call} outcome={props.outcome(call)} />
 			))}
 			{item.error && <p class="error">The model request failed: {item.error}</p>}
 		</div>
 	);
+}
+
+/** Rendered once per text: the transcript is re-sent on every update, but a settled message's text does not change. */
+function Markdown(props: { text: string }) {
+	const html = useMemo(() => markdown(props.text), [props.text]);
+	return <div class="md" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 function Composer(props: { id: string; busy: boolean; queued: number; loggedIn: boolean }) {

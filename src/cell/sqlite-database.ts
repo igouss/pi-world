@@ -1,4 +1,5 @@
 import type { SqliteDatabase, SqliteExecutor, SqliteValue } from "@earendil-works/pi-durable/storage/sqlite";
+import { Mutex } from "../world/mutex.ts";
 
 /**
  * pi-durable's asynchronous SQLite facade over a cell's synchronous `ctx.storage.sql`. Operations run one at a time in
@@ -6,12 +7,8 @@ import type { SqliteDatabase, SqliteExecutor, SqliteValue } from "@earendil-work
  */
 export function cellDatabase(storage: DurableObjectStorage): SqliteDatabase {
 	const direct = executor(storage.sql);
-	let tail: Promise<unknown> = Promise.resolve();
-	const queued = <T>(operation: () => Promise<T>): Promise<T> => {
-		const result = tail.then(operation);
-		tail = result.catch(() => undefined);
-		return result;
-	};
+	const lock = new Mutex();
+	const queued = <T>(operation: () => Promise<T>): Promise<T> => lock.run(operation);
 	return {
 		exec: (sql) => queued(() => direct.exec(sql)),
 		run: (sql, ...params) => queued(() => direct.run(sql, ...params)),

@@ -1,3 +1,5 @@
+import { hex } from "../api/text.ts";
+
 /** Snapshot blobs, addressed by the SHA-256 of their bytes. `put` is idempotent. */
 export interface BlobStore {
 	put(hash: string, bytes: Uint8Array): Promise<void>;
@@ -5,8 +7,7 @@ export interface BlobStore {
 }
 
 export async function contentHash(bytes: Uint8Array): Promise<string> {
-	const digest = await crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>);
-	return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+	return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>)));
 }
 
 export class MemoryBlobStore implements BlobStore {

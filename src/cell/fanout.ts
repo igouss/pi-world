@@ -11,17 +11,11 @@ export class Fanout {
 	private readonly pending: Map<ServerFrame["type"], () => ServerFrame> = new Map();
 	private timer: ReturnType<typeof setTimeout> | undefined;
 
-	get size(): number {
-		return this.sockets.size;
-	}
-
-	add(socket: WebSocket, initial: readonly ServerFrame[], onEmpty: () => void): void {
+	add(socket: WebSocket, initial: readonly ServerFrame[]): void {
 		socket.accept();
 		this.sockets.add(socket);
 		for (const frame of initial) socket.send(JSON.stringify(frame));
-		const remove = () => {
-			if (this.sockets.delete(socket) && this.sockets.size === 0) onEmpty();
-		};
+		const remove = () => this.sockets.delete(socket);
 		socket.addEventListener("close", remove);
 		socket.addEventListener("error", remove);
 		socket.addEventListener("message", (event) => {

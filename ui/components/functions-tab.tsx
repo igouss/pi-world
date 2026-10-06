@@ -1,6 +1,9 @@
 import { useState } from "preact/hooks";
 import type { CallResult, FunctionInfo, WorldSummary } from "../../src/api/types.ts";
+import { callPath } from "../../src/api/paths.ts";
 import { api } from "../api.ts";
+import { useAction } from "../use-action.ts";
+import { CallResultView } from "./call-result.tsx";
 import { Code } from "./code.tsx";
 
 export function FunctionsTab(props: { id: string; world: WorldSummary }) {
@@ -54,23 +57,21 @@ function FunctionDetail(props: { id: string; fn: FunctionInfo }) {
 	const [useRaw, setUseRaw] = useState(!simple);
 	const [result, setResult] = useState<CallResult | undefined>();
 	const [running, setRunning] = useState(false);
+	const { error, run } = useAction();
 	const args = (): unknown[] => {
 		if (useRaw) return JSON.parse(raw) as unknown[];
 		const parsed = values.map(parseArg);
 		while (parsed.length && parsed[parsed.length - 1] === undefined) parsed.pop();
 		return parsed;
 	};
-	const call = async (event: Event) => {
-		event.preventDefault();
+	const call = run(async () => {
 		setRunning(true);
 		try {
 			setResult(await api.call(props.id, props.fn.name, args()));
-		} catch (e) {
-			setResult({ ok: false, failure: "request", error: (e as Error).message });
 		} finally {
 			setRunning(false);
 		}
-	};
+	});
 	let curlArgs = "[]";
 	try {
 		curlArgs = JSON.stringify(args());
@@ -110,16 +111,13 @@ function FunctionDetail(props: { id: string; fn: FunctionInfo }) {
 					</button>
 				</div>
 			</form>
-			{result && (
-				<pre class={`tool-result ${result.ok ? "ok" : "error"}`}>
-					{result.ok ? JSON.stringify(result.value, null, 2) : `${result.failure}: ${result.error}`}
-				</pre>
-			)}
+			{error && <p class="error small">{error}</p>}
+			{result && <CallResultView result={result} />}
 			<Code text={props.fn.source} label="source" />
 			<details class="curl">
 				<summary class="small muted">call it over REST</summary>
 				<Code
-					text={`curl -X POST ${location.origin}/api/worlds/${props.id}/call/${props.fn.name} \\\n  -H 'content-type: application/json' \\\n  -d '${JSON.stringify({ args: JSON.parse(curlArgs) })}'`}
+					text={`curl -X POST ${location.origin}${callPath(props.id, props.fn.name)} \\\n  -H 'content-type: application/json' \\\n  -d '${JSON.stringify({ args: JSON.parse(curlArgs) })}'`}
 				/>
 			</details>
 		</div>

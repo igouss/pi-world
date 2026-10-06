@@ -1,16 +1,15 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import type { ConversationView } from "@earendil-works/pi-durable";
+import { AgentDoc, type AgentState } from "@earendil-works/pi-durable";
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite";
 import { DurableObject } from "cloudflare:workers";
 import wasm from "quickjs-wasi/quickjs.wasm";
 import { DEFAULT_MODEL, type Transcript, type WorldSummary } from "../api/types.ts";
 import { toTranscript } from "../conversation/transcript.ts";
 import { ACCOUNT_NAME, type Env } from "../env.ts";
-import type { DataPort } from "../world/data-port.ts";
-import { appPage } from "./app-page.ts";
+import { appPage, hasApp } from "./app-page.ts";
 import { claudeModels } from "./claude-models.ts";
 import { Fanout } from "./fanout.ts";
-import { openWorld, type OpenedWorld } from "./open-world.ts";
+import { openWorld } from "./open-world.ts";
 import { sqlBlobStore } from "./sql-blob-store.ts";
 import { sqlDataPort } from "./sql-data-port.ts";
 import { cellDatabase } from "./sqlite-database.ts";
@@ -78,61 +77,37 @@ export class WorldCell extends DurableObject<Env> {
 			model: { provider: "anthropic", modelId: DEFAULT_MODEL },
 			settings: { progress: { partialIntervalMs: PROGRESS_MS, outputIntervalMs: PROGRESS_MS } },
 		});
-		const view = await opened.root.viewState(BACKGROUND_CONTEXT);
-		return this.runtimeFor(meta, opened, view.value, (listener) => view.subscribe(async (value) => listener(value)), data);
-	}
-
-	private runtimeFor(
-		meta: Meta,
-		opened: OpenedWorld,
-		initial: ConversationView,
-		subscribe: (listener: (view: ConversationView) => void) => () => void,
-		data: DataPort,
-	): WorldRuntime {
+		const { world, root } = opened;
+		const view = await root.viewState(BACKGROUND_CONTEXT);
 		const fanout = new Fanout();
-		let view = initial;
-		let model = DEFAULT_MODEL;
-		const transcript = (): Transcript => toTranscript(view);
-		const summary = async (): Promise<WorldSummary> => {
-			const catalogue = opened.world.catalogue();
+		const summary = (): WorldSummary => {
+			const catalogue = world.catalogue();
+			const agent = view.value.docs[AgentDoc.definition.kind] as AgentState | undefined;
 			return {
 				id: meta.id,
 				name: meta.name,
-				revision: opened.world.head().revision,
+				revision: world.head().revision,
 				functions: catalogue,
-				checks: (await opened.world.checks()).checks,
-				hasApp: catalogue.some((entry) => entry.name === "app"),
-				model,
+				checks: world.checks().checks,
+				hasApp: hasApp(catalogue),
+				model: agent?.model?.modelId ?? DEFAULT_MODEL,
 			};
 		};
-		let latestSummary: WorldSummary | undefined;
-		const refreshSummary = () =>
-			void summary().then((value) => {
-				latestSummary = value;
-				fanout.publish("world", () => ({ type: "world", world: value }));
-			});
-		subscribe((next) => {
-			view = next;
+		const transcript = (): Transcript => toTranscript(view.value);
+		view.subscribe(async () => {
 			fanout.publish("transcript", () => ({ type: "transcript", transcript: transcript() }));
+			fanout.publish("world", () => ({ type: "world", world: summary() }));
 		});
-		opened.world.subscribe(refreshSummary);
-		void opened.root.agent(BACKGROUND_CONTEXT).then((agent) => {
-			model = agent.model?.modelId ?? DEFAULT_MODEL;
-		});
+		world.subscribe(() => fanout.publish("world", () => ({ type: "world", world: summary() })));
 		return {
-			id: meta.id,
 			opened,
 			data,
 			fanout,
 			transcript,
-			summary: async () => (latestSummary = await summary()),
-			setModel: async (modelId) => {
-				await opened.root.configure({ model: { provider: "anthropic", modelId } }, BACKGROUND_CONTEXT);
-				model = modelId;
-				refreshSummary();
-			},
+			summary,
+			setModel: (modelId) => root.configure({ model: { provider: "anthropic", modelId } }, BACKGROUND_CONTEXT),
 			armHeartbeat: () => this.ctx.storage.setAlarm(Date.now() + HEARTBEAT_MS),
-			app: (path, query) => appPage(opened.world, meta.id, path, query),
+			app: (path, query) => appPage(world, meta.id, path, query),
 		};
 	}
 }

@@ -101,4 +101,32 @@ describe("World", () => {
 		expect(checks.checks).toEqual([]);
 		expect(checks.removed.map((r) => r.reason)).toEqual(["requirement changed"]);
 	});
+
+	it("returns the enrolled check when the same proposal reruns, and refuses a different check under that name", async () => {
+		const world = await World.open(fixture());
+		await world.develop(`define("one", () => 1);`, "one", operator);
+		const first = await world.proposeCheck("one is 1", "one() === 1", `define("one", () => 2);`);
+		const rerun = await world.proposeCheck("one is 1", "one() === 1", `define("one", () => 2);`);
+		const other = await world.proposeCheck("one is 1", "one() > 0", `define("one", () => 0);`);
+		expect(rerun).toEqual(first);
+		expect(other.status).toBe("refused");
+		expect(world.checks().checks).toHaveLength(1);
+	});
+
+	it("refuses a rollback or a check removal without a reason", async () => {
+		const world = await World.open(fixture());
+		await world.develop(`define("v", () => 1);`, "v1", operator);
+		await expect(world.rollback(0, "  ", operator)).rejects.toThrow("needs a reason");
+		await expect(world.removeCheck("x", "")).rejects.toThrow("needs a reason");
+	});
+
+	it("restores the head heap before the next operation after a call that changed it", async () => {
+		const world = await World.open(fixture());
+		await world.develop(`const s = state("s", () => ({ n: 0 })); define("bump", () => ++s.n); define("peek", () => s.n);`, "s", operator);
+		await world.call("bump", []);
+		expect(await world.call("peek", [])).toEqual({ ok: true, value: 0 });
+		const result = await world.develop(`define("twice", () => 2 * peek());`, "twice", operator);
+		expect(result.status).toBe("accepted");
+		expect(await world.call("twice", [])).toEqual({ ok: true, value: 0 });
+	});
 });

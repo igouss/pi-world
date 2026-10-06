@@ -19,6 +19,19 @@ Three spikes ran against quickjs-wasi 3.6.2 under Node 25.2.1. Nothing has run o
   frozen, a `develop` that reassigns `Array.prototype.every` has no effect in sloppy code and throws in strict
   code; a class can still define `toString`, and assigning `toString` on a plain object throws in strict code.
 
+## Verified on celld, 2026-10-06
+
+`spike/celld/probe.ts` and then the prototype ran under `celld dev` (x86-64) and on the fleet node `oracle-arm`
+(aarch64, celld 0.6.1, one node, bucket `gs://pi-world-celld`).
+
+- quickjs-wasi loads from a bundled `.wasm` import, creates a VM, snapshots it, and restores it from a 1.38 MB row
+  in the cell's SQLite. A 1.44 MB snapshot row also round-trips (open check 2: no limit hit at this size).
+- pi-durable runs over the cell's SQLite through an asynchronous facade (`src/cell/sqlite-database.ts`), and pi-ai's
+  Anthropic provider answers through the owner's Claude subscription with an OAuth token (open check 3: settled).
+  One answered input took about 1 s end to end on the node, with its durable commits.
+- A full session ran on the node through the web UI: the agent defined seven functions over three revisions, enrolled a
+  check, and the page it built added a todo that a direct call then read back.
+
 ## Deployment target: celld
 
 celld is "a self-hosted, distributed implementation of Cloudflare Durable Objects". Each world is one cell, a Durable
@@ -45,16 +58,17 @@ These are undocumented or unknown. Measure them early, at milestone 6.
 
 1. **Memory and CPU limits per cell.** The limitations page lists none, and balancing "does not measure the CPU or
    memory that one cell uses". Measure a realistic world cell.
-2. **Blob size per row.** celld's Durable Object docs state no row or blob limit, and Cloudflare's 2 MB cannot be
-   assumed either way. A raw snapshot passes 2 MB at about 410 definitions. Measure, and chunk if needed.
-3. **pi-ai and pi-durable under celld's runtime.** Node compatibility is "Partial", but pi-durable's core exports
-   have no `node:` imports, and pi-ai's Anthropic path pulls in only a browser-safe helper. One run should settle it.
+2. **Blob size per row.** A 1.44 MB row works on the node; larger is untested. celld's docs state no row or blob
+   limit, and a raw snapshot passes 2 MB at about 410 definitions. Measure, and chunk if needed.
+3. **pi-ai and pi-durable under celld's runtime.** Settled: both run on the node (see above).
 4. **Eviction timing and alarm retry limits.** Tune the heartbeat from measurements, not Cloudflare's numbers.
 5. **Streaming lag.** Measure progress commits at about 90 ms per durable write.
 
 ## Not verified
 
-- Nothing has run on celld, either `celld dev` or a fleet; its facts come from documentation pages, not tests.
-- Merge-by-replay, tiering, the REST API, the web UI, the durable integration, and check enrolment are designs, not
-  code.
+- Failover, eviction and a run resuming on another owner: the heartbeat alarm is built but has not been seen firing
+  after an eviction.
+- The copy-code OAuth login: the authorize URL is built as pi builds it, but the exchange has not been completed by a
+  person.
+- Merge-by-replay, tiering and pauses are designs, not code.
 - jiti's handling of checks was read in its source at commit `a9f46a6`, not run.

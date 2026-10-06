@@ -1,12 +1,12 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { JsonObject, Session, Tx } from "@earendil-works/pi-durable";
 import type { Snapshot } from "quickjs-wasi";
-import type { Check } from "../check/check.ts";
+import type { Check, RemovedCheck } from "../check/check.ts";
 import { contentHash, type BlobStore } from "../revision/blob-store.ts";
 import { WorldChecks, WorldHead, WorldRevision, type ChecksState } from "../revision/documents.ts";
-import type { Head, Origin, Revision, RevisionEntry } from "../revision/revision.ts";
+import type { Head, Origin, Revision } from "../revision/revision.ts";
 import { attemptDevelop, attemptEnrolment, type AttemptMode } from "./attempt.ts";
-import { diffCatalogues, type CatalogueChanges } from "./catalogue-diff.ts";
+import { diffCatalogues } from "./catalogue-diff.ts";
 import type { DataPort } from "./data-port.ts";
 import { Mutex } from "./mutex.ts";
 import { PRELUDE_VERSION } from "./prelude.ts";
@@ -34,40 +34,43 @@ const KEPT_CALLS: number = 200;
 
 /**
  * One world: its VM at the head revision, and the only path that changes it. Every operation holds the world's
- * lock from start to finish, so a call never observes an attempt in progress. The VM always returns to the head
- * snapshot after a call, because only revisions persist heap state.
+ * lock from start to finish, so a call never observes an attempt in progress. A call leaves the VM dirty, and the
+ * next holder of the lock restores the head snapshot first, because only revisions persist heap state.
  */
 export class World {
 	private readonly lock: Mutex = new Mutex();
 	private readonly listeners: Set<() => void> = new Set();
 	private readonly revisions: Map<number, Revision> = new Map();
-	private catalogueCache: readonly CatalogueEntry[] | undefined;
+	private dirty: boolean = false;
 
 	private constructor(
 		private readonly deps: WorldDeps,
 		private readonly vm: WorldVm,
 		private headSnapshot: Snapshot,
 		private current: Head,
+		private currentCatalogue: readonly CatalogueEntry[],
+		private checksState: ChecksState,
 	) {}
 
 	/** Open the world at its head, creating revision 0 (the prelude alone) on first use. */
 	static async open(deps: WorldDeps): Promise<World> {
 		const limits = deps.limits ?? DEFAULT_LIMITS;
 		const head = await deps.session.snapshot(WorldHead, BACKGROUND_CONTEXT);
+		const checks = (await deps.session.snapshot(WorldChecks, BACKGROUND_CONTEXT)) ?? { checks: [], removed: [] };
 		if (head && head.revision >= 0) {
 			const bytes = await deps.blobs.get(head.blob);
 			if (!bytes) throw new Error(`world head points at blob ${head.blob}, which is missing`);
 			const vm = await WorldVm.fromBytes(bytes, deps.wasm, limits);
-			return new World(deps, vm, vm.snapshot(), head);
+			return new World(deps, vm, vm.snapshot(), head, vm.catalogue(), checks);
 		}
 		const vm = await WorldVm.create(deps.wasm, limits);
 		const snapshot = vm.snapshot();
-		const world = new World(deps, vm, snapshot, { revision: -1, blob: "", calls: {} });
+		const world = new World(deps, vm, snapshot, { revision: -1, blob: "", calls: {} }, [], checks);
 		await world.accept(
 			snapshot,
 			{ kind: "genesis", summary: "the prelude", at: world.now(), origin: { by: "host" }, changes: { added: [], changed: [], removed: [] } },
 			[],
-			(change) => deps.session.commit(change, BACKGROUND_CONTEXT),
+			world.sessionCommit,
 		);
 		return world;
 	}
@@ -83,19 +86,19 @@ export class World {
 	}
 
 	catalogue(): readonly CatalogueEntry[] {
-		this.catalogueCache ??= this.vm.catalogue();
-		return this.catalogueCache;
+		return this.currentCatalogue;
 	}
 
-	async develop(source: string, summary: string, origin: Origin, commit?: Commit): Promise<DevelopResult> {
-		return this.lock.run(async () => {
-			if (origin.by === "agent") {
-				const done = this.current.calls[origin.callId];
-				if (done !== undefined) return { status: "accepted", revision: await this.requireRevision(done), replayed: true };
-			}
+	checks(): ChecksState {
+		return this.checksState;
+	}
+
+	async develop(source: string, summary: string, origin: Origin, commit: Commit = this.sessionCommit): Promise<DevelopResult> {
+		return this.exclusive(async () => {
+			const replayed = await this.replayed(origin);
+			if (replayed) return { status: "accepted", revision: replayed, replayed: true };
 			const at = this.now();
-			const mode = this.attemptMode(at);
-			const attempt = await attemptDevelop(this.vm, source, await this.enrolledChecks(), mode);
+			const attempt = await attemptDevelop(this.vm, source, this.checksState.checks, this.attemptMode(at));
 			if (!attempt.accepted) {
 				return {
 					status: "rejected",
@@ -108,19 +111,18 @@ export class World {
 				attempt.snapshot,
 				{ kind: "develop", source, summary, at, origin, changes: attempt.changes },
 				attempt.catalogue,
-				commit ?? this.sessionCommit,
+				commit,
 			);
 			return { status: "accepted", revision, replayed: false };
 		});
 	}
 
 	/** Restore an earlier revision's heap as a new revision. History is never rewritten. */
-	async rollback(target: number, reason: string, origin: Origin, commit?: Commit): Promise<Revision> {
-		return this.lock.run(async () => {
-			if (origin.by === "agent") {
-				const done = this.current.calls[origin.callId];
-				if (done !== undefined) return this.requireRevision(done);
-			}
+	async rollback(target: number, reason: string, origin: Origin, commit: Commit = this.sessionCommit): Promise<Revision> {
+		if (!reason.trim()) throw new Error("a rollback needs a reason");
+		return this.exclusive(async () => {
+			const replayed = await this.replayed(origin);
+			if (replayed) return replayed;
 			const revision = await this.requireRevision(target);
 			if (target === this.current.revision) throw new Error(`revision ${target} is already the head`);
 			const bytes = await this.deps.blobs.get(revision.blob);
@@ -133,7 +135,7 @@ export class World {
 				this.vm.snapshot(),
 				{ kind: "rollback", target, reason, summary: `rollback to revision ${target}: ${reason}`, at: this.now(), origin, changes: diffCatalogues(before, catalogue) },
 				catalogue,
-				commit ?? this.sessionCommit,
+				commit,
 			);
 		});
 	}
@@ -148,21 +150,22 @@ export class World {
 		return this.live(() => this.vm.invoke(name, args, { kind: "live", data: this.deps.data }));
 	}
 
-	async checks(): Promise<ChecksState> {
-		return (await this.deps.session.snapshot(WorldChecks, BACKGROUND_CONTEXT)) ?? { checks: [], removed: [] };
-	}
-
-	/** Enrol a check only after seeing it fail on its counterexample and pass on the current world. */
-	async proposeCheck(name: string, expression: string, counterexample: string, commit?: Commit): Promise<EnrolResult> {
-		return this.lock.run(async () => {
-			const state = await this.checks();
-			if (state.checks.some((check) => check.name === name)) return { status: "refused", reason: `a check named "${name}" is already enrolled` };
+	/**
+	 * Enrol a check only after seeing it fail on its counterexample and pass on the current world. Proposing an
+	 * enrolled check again, as a rerun tool call does, returns the enrolled check.
+	 */
+	async proposeCheck(name: string, expression: string, counterexample: string, commit: Commit = this.sessionCommit): Promise<EnrolResult> {
+		return this.exclusive(async () => {
+			const existing = this.checksState.checks.find((check) => check.name === name);
+			if (existing && existing.expression === expression && existing.counterexample === counterexample) return { status: "enrolled", check: existing };
+			if (existing) return { status: "refused", reason: `a different check named "${name}" is already enrolled` };
 			const enrolment = await attemptEnrolment(this.vm, expression, counterexample, this.attemptMode(this.now()));
 			if (!enrolment.enrolled) return { status: "refused", reason: enrolment.reason };
 			const check: Check = { name, expression, counterexample, enrolledAt: this.now() };
-			await (commit ?? this.sessionCommit)(async (tx) => {
+			this.checksState = await commit(async (tx) => {
 				const doc = await tx.doc(WorldChecks);
 				(doc.checks as Check[]).push(check);
+				return plain<ChecksState>(doc);
 			});
 			this.notify();
 			return { status: "enrolled", check };
@@ -171,13 +174,15 @@ export class World {
 
 	/** An operator call: removing a check needs a reason, which is kept. */
 	async removeCheck(name: string, reason: string): Promise<void> {
-		await this.lock.run(async () => {
-			await this.sessionCommit(async (tx) => {
+		if (!reason.trim()) throw new Error("removing a check needs a reason");
+		await this.exclusive(async () => {
+			this.checksState = await this.sessionCommit(async (tx) => {
 				const doc = await tx.doc(WorldChecks);
 				const index = (doc.checks as Check[]).findIndex((check) => check.name === name);
 				if (index < 0) throw new Error(`no check named "${name}"`);
 				const [check] = (doc.checks as Check[]).splice(index, 1);
-				(doc.removed as { check: Check; reason: string; removedAt: number }[]).push({ check: check!, reason, removedAt: this.now() });
+				(doc.removed as RemovedCheck[]).push({ check: check!, reason, removedAt: this.now() });
+				return plain<ChecksState>(doc);
 			});
 			this.notify();
 		});
@@ -207,12 +212,20 @@ export class World {
 	}
 
 	private async live(body: () => Outcome): Promise<Outcome> {
+		return this.exclusive(async () => {
+			this.dirty = true;
+			return body();
+		});
+	}
+
+	/** Hold the lock with the VM at the head snapshot. */
+	private exclusive<T>(body: () => Promise<T>): Promise<T> {
 		return this.lock.run(async () => {
-			try {
-				return body();
-			} finally {
+			if (this.dirty) {
 				await this.vm.reset(this.headSnapshot);
+				this.dirty = false;
 			}
+			return body();
 		});
 	}
 
@@ -229,15 +242,7 @@ export class World {
 			await this.deps.blobs.put(blob, bytes);
 			const n = this.current.revision + 1;
 			const parent = this.current.revision >= 0 ? this.current.revision : null;
-			const revision = {
-				...draft,
-				n,
-				parent,
-				blob,
-				bytes: bytes.length,
-				prelude: PRELUDE_VERSION,
-				catalogue: catalogue.map(toRevisionEntry),
-			} as Revision;
+			const revision: Revision = { ...draft, n, parent, blob, bytes: bytes.length, prelude: PRELUDE_VERSION };
 			const head = await commit(async (tx) => {
 				const doc = await tx.doc(WorldHead);
 				if (doc.revision !== this.current.revision) throw new Error(`the head moved from ${this.current.revision} to ${doc.revision}`);
@@ -250,11 +255,11 @@ export class World {
 					const keys = Object.keys(calls);
 					for (const key of keys.slice(0, Math.max(0, keys.length - KEPT_CALLS))) delete calls[key];
 				}
-				return { revision: n, blob, calls: { ...(doc.calls as Record<string, number>) } };
+				return plain<Head>(doc);
 			});
 			this.current = head;
 			this.headSnapshot = snapshot;
-			this.catalogueCache = catalogue;
+			this.currentCatalogue = catalogue;
 			this.revisions.set(n, revision);
 			this.notify();
 			return revision;
@@ -264,8 +269,11 @@ export class World {
 		}
 	}
 
-	private async enrolledChecks(): Promise<readonly Check[]> {
-		return (await this.checks()).checks;
+	/** The revision an agent's tool call already produced, when the call reruns after a crash. */
+	private async replayed(origin: Origin): Promise<Revision | undefined> {
+		if (origin.by !== "agent") return undefined;
+		const done = this.current.calls[origin.callId];
+		return done === undefined ? undefined : this.requireRevision(done);
 	}
 
 	private async requireRevision(n: number): Promise<Revision> {
@@ -289,11 +297,10 @@ export class World {
 	}
 }
 
-type AcceptDraft =
-	| { kind: "genesis"; summary: string; at: number; origin: Origin; changes: CatalogueChanges }
-	| { kind: "develop"; source: string; summary: string; at: number; origin: Origin; changes: CatalogueChanges }
-	| { kind: "rollback"; target: number; reason: string; summary: string; at: number; origin: Origin; changes: CatalogueChanges };
-
-function toRevisionEntry({ name, kind, version, doc, params }: CatalogueEntry): RevisionEntry {
-	return { name, kind, version, doc, params };
+/** A plain copy of a document draft, which is only valid inside its commit. */
+function plain<T>(draft: unknown): T {
+	return JSON.parse(JSON.stringify(draft)) as T;
 }
+
+/** A revision before `accept` gives it its number, parent and blob. */
+type AcceptDraft = Revision extends infer R ? (R extends Revision ? Omit<R, "n" | "parent" | "blob" | "bytes" | "prelude"> : never) : never;

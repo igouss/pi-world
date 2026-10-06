@@ -3,9 +3,13 @@
  * Everything here is plain JSON.
  */
 import type { Check } from "../check/check.ts";
+import type { CatalogueEntry, Outcome } from "../world/world-vm.ts";
 
-export type { Check } from "../check/check.ts";
+export type { Check, RemovedCheck } from "../check/check.ts";
+export type { ChecksState } from "../revision/documents.ts";
 export type { Revision } from "../revision/revision.ts";
+export type { DataRow } from "../world/data-port.ts";
+export type { DevelopResult } from "../world/world.ts";
 
 export interface WorldListing {
 	readonly id: string;
@@ -13,14 +17,7 @@ export interface WorldListing {
 	readonly createdAt: number;
 }
 
-export interface FunctionInfo {
-	readonly name: string;
-	readonly kind: "function" | "class";
-	readonly version: number;
-	readonly doc: string;
-	readonly params: string;
-	readonly source: string;
-}
+export type FunctionInfo = CatalogueEntry;
 
 export interface WorldSummary {
 	readonly id: string;
@@ -32,7 +29,8 @@ export interface WorldSummary {
 	readonly model: string;
 }
 
-export type CallResult = { readonly ok: true; readonly value: unknown } | { readonly ok: false; readonly failure: string; readonly error: string };
+/** A direct call's or an evaluation's result; `failure` says why it failed. */
+export type CallResult = Outcome;
 
 export interface ToolCallItem {
 	readonly id: string;

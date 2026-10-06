@@ -27,11 +27,6 @@ export interface CatalogueEntry {
 	readonly source: string;
 }
 
-export interface StateEntry {
-	readonly name: string;
-	readonly version: number;
-}
-
 export interface VmLimits {
 	/** Interrupt-handler ticks one evaluation may use. QuickJS polls about every 0.1 ms of execution. */
 	readonly budget: number;
@@ -47,7 +42,7 @@ const INIT_TIME_NS: bigint = 1_700_000_000_000n * 1_000_000n;
  * caller holding the world's lock sees no interleaving.
  */
 export class WorldVm {
-	private vm: QuickJS;
+	private vm!: QuickJS;
 	private mode: Mode = { kind: "attempt", at: 0, seed: 1 };
 	private ticks: number = 0;
 	private metering: boolean = false;
@@ -58,14 +53,11 @@ export class WorldVm {
 	private constructor(
 		private readonly wasm: WebAssembly.Module,
 		private readonly limits: VmLimits,
-		vm: QuickJS | undefined,
-	) {
-		this.vm = vm as QuickJS;
-	}
+	) {}
 
 	/** A fresh world: the prelude at revision 0. */
 	static async create(wasm: WebAssembly.Module, limits: VmLimits = DEFAULT_LIMITS): Promise<WorldVm> {
-		const world = new WorldVm(wasm, limits, undefined);
+		const world = new WorldVm(wasm, limits);
 		world.vm = await QuickJS.create(world.options());
 		world.vm.newFunction("__hostData", world.hostData).consume((h) => world.vm.setProp(world.vm.global, "__hostData", h));
 		world.vm.newFunction("__hostRandom", world.hostRandom).consume((h) => world.vm.setProp(world.vm.global, "__hostRandom", h));
@@ -73,14 +65,10 @@ export class WorldVm {
 		return world;
 	}
 
-	static async restore(snapshot: Snapshot, wasm: WebAssembly.Module, limits: VmLimits = DEFAULT_LIMITS): Promise<WorldVm> {
-		const world = new WorldVm(wasm, limits, undefined);
-		world.vm = await world.load(snapshot);
-		return world;
-	}
-
 	static async fromBytes(bytes: Uint8Array, wasm: WebAssembly.Module, limits: VmLimits = DEFAULT_LIMITS): Promise<WorldVm> {
-		return WorldVm.restore(QuickJS.deserializeSnapshot(bytes), wasm, limits);
+		const world = new WorldVm(wasm, limits);
+		world.vm = await world.load(QuickJS.deserializeSnapshot(bytes));
+		return world;
 	}
 
 	/** Replace this heap with `snapshot`, in place, so holders of this object keep a valid VM. */
@@ -140,10 +128,6 @@ export class WorldVm {
 
 	catalogue(): readonly CatalogueEntry[] {
 		return this.read<CatalogueEntry[]>("__world.catalogue()");
-	}
-
-	states(): readonly StateEntry[] {
-		return this.read<StateEntry[]>("__world.states()");
 	}
 
 	private settle(mode: Mode, start: () => void): Outcome {

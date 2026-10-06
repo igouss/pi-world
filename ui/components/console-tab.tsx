@@ -1,6 +1,8 @@
 import { useState } from "preact/hooks";
-import type { CallResult } from "../../src/api/types.ts";
-import { api, type DevelopResponse } from "../api.ts";
+import type { CallResult, DevelopResult } from "../../src/api/types.ts";
+import { api } from "../api.ts";
+import { useAction } from "../use-action.ts";
+import { CallResultView } from "./call-result.tsx";
 
 /** Talk to the world directly, without the agent: evaluate an expression, or develop a source by hand. */
 export function ConsoleTab(props: { id: string }) {
@@ -8,25 +10,15 @@ export function ConsoleTab(props: { id: string }) {
 	const [result, setResult] = useState<CallResult | undefined>();
 	const [source, setSource] = useState("");
 	const [summary, setSummary] = useState("");
-	const [developed, setDeveloped] = useState<DevelopResponse | { status: "error"; reason: string } | undefined>();
-	const evaluate = async (event: Event) => {
-		event.preventDefault();
-		try {
-			setResult(await api.execute(props.id, expression));
-		} catch (e) {
-			setResult({ ok: false, failure: "request", error: (e as Error).message });
-		}
-	};
-	const develop = async (event: Event) => {
-		event.preventDefault();
-		try {
-			const response = await api.develop(props.id, source, summary);
-			setDeveloped(response);
-			if (response.status === "accepted") setSource("");
-		} catch (e) {
-			setDeveloped({ status: "error", reason: (e as Error).message });
-		}
-	};
+	const [developed, setDeveloped] = useState<DevelopResult | undefined>();
+	const evaluation = useAction();
+	const development = useAction();
+	const evaluate = evaluation.run(async () => setResult(await api.execute(props.id, expression)));
+	const develop = development.run(async () => {
+		const response = await api.develop(props.id, source, summary);
+		setDeveloped(response);
+		if (response.status === "accepted") setSource("");
+	});
 	return (
 		<div class="console">
 			<form onSubmit={evaluate} class="stack">
@@ -37,7 +29,8 @@ export function ConsoleTab(props: { id: string }) {
 					Evaluate
 				</button>
 			</form>
-			{result && <pre class={`tool-result ${result.ok ? "ok" : "error"}`}>{result.ok ? JSON.stringify(result.value, null, 2) : `${result.failure}: ${result.error}`}</pre>}
+			{evaluation.error && <p class="error">{evaluation.error}</p>}
+			{result && <CallResultView result={result} />}
 			<form onSubmit={develop} class="stack">
 				<h4>Develop by hand</h4>
 				<p class="small muted">The same attempt the agent's develop makes: checkpoint, evaluate, checks, then a new revision or a restore.</p>
@@ -47,6 +40,7 @@ export function ConsoleTab(props: { id: string }) {
 					Develop
 				</button>
 			</form>
+			{development.error && <p class="error">{development.error}</p>}
 			{developed && (
 				<pre class={`tool-result ${developed.status === "accepted" ? "ok" : "error"}`}>
 					{developed.status === "accepted" ? `Accepted as revision ${developed.revision.n}.` : developed.reason}

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "preact/hooks";
-import { api, type DataRow } from "../api.ts";
+import type { DataRow } from "../../src/api/types.ts";
+import { api } from "../api.ts";
+import { useAction } from "../use-action.ts";
 
 export function DataTab(props: { id: string; revision: number }) {
 	const [prefix, setPrefix] = useState("");
 	const [rows, setRows] = useState<DataRow[]>([]);
-	const [error, setError] = useState("");
-	const load = () => void api.data(props.id, prefix).then(setRows, (e: Error) => setError(e.message));
+	const { error, run } = useAction();
+	const load = () => void run(async () => setRows(await api.data(props.id, prefix)))();
 	useEffect(load, [props.id, props.revision, prefix]);
 	return (
 		<div class="data">

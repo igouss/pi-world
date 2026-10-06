@@ -1,4 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
+import { worldHash } from "../src/api/paths.ts";
 
 /** The hash route: `#/w/:id` selects a world. */
 export function useRoute(): { worldId?: string } {
@@ -16,5 +17,5 @@ export function useRoute(): { worldId?: string } {
 }
 
 export function openWorld(id: string): void {
-	location.hash = `#/w/${id}`;
+	location.hash = worldHash(id);
 }

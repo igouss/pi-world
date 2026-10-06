@@ -1,19 +1,18 @@
 import { useEffect, useState } from "preact/hooks";
 import type { Revision } from "../../src/api/types.ts";
 import { api } from "../api.ts";
+import { useAction } from "../use-action.ts";
 import { Code } from "./code.tsx";
 
 export function RevisionsTab(props: { id: string; head: number }) {
 	const [revisions, setRevisions] = useState<Revision[]>([]);
 	const [open, setOpen] = useState<number | undefined>();
-	const [error, setError] = useState("");
-	useEffect(() => {
-		void api.revisions(props.id).then(setRevisions, (e: Error) => setError(e.message));
-	}, [props.id, props.head]);
-	const more = async () => {
+	const { error, run } = useAction();
+	useEffect(() => void run(async () => setRevisions(await api.revisions(props.id)))(), [props.id, props.head]);
+	const more = run(async () => {
 		const last = revisions[revisions.length - 1];
 		if (last) setRevisions([...revisions, ...(await api.revisions(props.id, last.n))]);
-	};
+	});
 	return (
 		<div class="revisions">
 			{error && <p class="error">{error}</p>}
@@ -31,7 +30,7 @@ export function RevisionsTab(props: { id: string; head: number }) {
 				))}
 			</ul>
 			{revisions.length > 0 && revisions[revisions.length - 1]!.n > 0 && (
-				<button class="link" onClick={() => void more()}>
+				<button class="link" onClick={more}>
 					older…
 				</button>
 			)}
@@ -42,17 +41,11 @@ export function RevisionsTab(props: { id: string; head: number }) {
 function RevisionDetail(props: { id: string; revision: Revision; head: number }) {
 	const r = props.revision;
 	const [reason, setReason] = useState("");
-	const [error, setError] = useState("");
-	const rollback = async (event: Event) => {
-		event.preventDefault();
-		setError("");
-		try {
-			await api.rollback(props.id, r.n, reason);
-			setReason("");
-		} catch (e) {
-			setError((e as Error).message);
-		}
-	};
+	const { error, run } = useAction();
+	const rollback = run(async () => {
+		await api.rollback(props.id, r.n, reason);
+		setReason("");
+	});
 	const changes = [
 		...r.changes.added.map((n) => `+ ${n}`),
 		...r.changes.changed.map((n) => `~ ${n}`),

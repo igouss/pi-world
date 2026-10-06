@@ -1,12 +1,12 @@
 import type { AssistantMessage, ToolResultMessage, UserMessage } from "@earendil-works/pi-ai";
-import type { ConversationView, EntryRecord, LiveState } from "@earendil-works/pi-durable";
+import { InboxDoc, LiveDoc, type ConversationView, type EntryRecord, type InboxState, type LiveState } from "@earendil-works/pi-durable";
 import type { ToolCallItem, Transcript, TranscriptItem } from "../api/types.ts";
 
 /** What the web UI shows of a conversation: the messages people read, without system entries. */
 export function toTranscript(view: ConversationView): Transcript {
 	const items = view.entries.flatMap(toItems);
-	const live = view.docs["pi.live"] as LiveState | undefined;
-	const inbox = view.docs["pi.inbox"] as { items?: unknown[] } | undefined;
+	const live = view.docs[LiveDoc.definition.kind] as LiveState | undefined;
+	const inbox = view.docs[InboxDoc.definition.kind] as InboxState | undefined;
 	const partial = live?.generation?.message as AssistantMessage | undefined;
 	return {
 		items,

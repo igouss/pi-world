@@ -2,8 +2,9 @@
 
 **A live application world that an agent grows by talking to it. The world is a snapshotable WASM heap, so every change is checked, versioned and reversible.**
 
-> **Status: design plus verified spikes. There is no implementation yet.** Three spikes run against quickjs-wasi under
-> Node. Nothing has run on celld. Sections below say *verified* (a spike shows it) or *designed* (a document says it).
+> **Status: working prototype, deployed on one celld node.** The web UI, the agent, revisions, checks, direct calls and
+> world pages run on celld at `http://oracle-arm.mist-walleye.ts.net:8787`. Pauses, forks and replay are still designs.
+> Sections below say *built* (code and tests exist), *verified* (a spike shows it) or *designed* (a document says it).
 
 ---
 
@@ -39,14 +40,17 @@ result is validated and iterated on immediately. It is one station of a larger l
 
 | Capability | What it means | Status |
 |---|---|---|
-| Checkpoint and restore | A failed attempt leaves no trace; snapshot and restore take a few milliseconds | verified |
-| Deterministic snapshots | Same source on the same base gives byte-identical snapshots | verified |
-| Live redefinition | A redefinition reaches captured references, callbacks, old instances and subclasses | verified |
-| State that survives re-evaluation | `state(name, init, { version, migrate })` keeps its value across re-runs | verified |
-| Runaway code stopped | An instruction budget interrupts a loop; the VM stays usable | verified |
+| Checkpoint and restore | A failed attempt leaves no trace; snapshot and restore take a few milliseconds | built |
+| Deterministic snapshots | Same source on the same base gives byte-identical snapshots | built |
+| Live redefinition | A redefinition reaches captured references, callbacks, old instances and subclasses | built |
+| State that survives re-evaluation | `state(name, init, { version, migrate })` keeps its value across re-runs | built |
+| Runaway code stopped | A time budget interrupts a loop; the VM stays usable | built |
+| Checks the agent cannot weaken | Enrolled only after failing on a counterexample; removed only by you, with a reason | built |
+| Pages served by the world | `define("app", (path, query) => html)` is served at `/w/:id/` | built |
 | Pauses that survive crashes | `await restart(id, question, options)` is a pending promise in a stored snapshot | verified in a spike (survives snapshot, serialize, dispose, restore); the durable path is designed |
-| Immutable revisions, rollback, cheap forks | Rollback creates a new revision; forks merge by replaying accepted `develop` sources | designed |
-| Direct calls without a model | `POST /worlds/:id/call/:fn` | designed |
+| Immutable revisions and rollback | Rollback creates a new revision | built |
+| Cheap forks | Forks merge by replaying accepted `develop` sources | designed |
+| Direct calls without a model | `POST /api/worlds/:id/call/:fn` | built |
 
 ## The prelude
 
@@ -92,10 +96,10 @@ so a migration that throws rejects the `develop`:
 +  rho: 5, theta: 0.927    @2
 ```
 
-## A session, step by step (designed)
+## A session, step by step (built)
 
-This is the example session from jiti's README, as it would run in pi-world. You talk to the agent through the web UI
-or `POST /worlds/:id/messages`. The last two steps do not involve the agent or a model at all.
+This is the example session from jiti's README, as it runs in pi-world (`test/agent.test.ts` replays it with a
+scripted model). You talk to the agent through the web UI or `POST /api/worlds/:id/messages`. The last two steps do not involve the agent or a model at all.
 
 ```text
 you>  Add uppercaseString. Return an uppercased copy of the input.
@@ -164,49 +168,102 @@ The full constraint list, each with the fact that forces it, is in [`design.md`]
 The remaining hole in pi-world is a running frame: a job paused inside a function keeps that function's bytecode when
 it resumes. `decisions.md` (open decision 8) records the choice still to make.
 
-## Installation
+## Use it
 
-There is nothing to install yet. The package is private and unpublished.
+Open `http://oracle-arm.mist-walleye.ts.net:8787` from a machine on the tailnet.
 
-## Interfaces (designed, not built)
+1. **Log in with Claude** (bottom left). This uses your Pro/Max subscription the way pi does: a tab opens on
+   claude.ai, you approve, and you paste the code Anthropic shows back into the box. Or run `claude setup-token` and
+   paste the token it prints.
+2. **Create a world** (top left) and ask for something: *"Keep a todo list: add, toggle, delete, list. Then make an
+   app page for it."*
+3. Watch the agent's `develop` and `execute` calls in the chat. Each accepted `develop` is a revision; a rejected one
+   shows its reason and changes nothing.
+4. The **inspector** on the right has:
+   - **Functions:** call any definition with arguments, no model involved.
+   - **Revisions:** each change with its source; roll back to any revision.
+   - **Data:** what calls stored.
+   - **Checks:** what every future change must keep true.
+   - **Console:** evaluate expressions, or develop a source by hand.
+   - **App:** the world's page.
+5. **Open app** opens the page the world serves at `/w/:id/`.
 
-**Agent tools:** `develop`, `execute`, `preview`, `save_as`, `functions`, `describe`, `status`, `reset`, `history`,
-`rollback`, `answer`, `abort`, `propose_check`.
+## Develop it
 
-**REST API** (Worker routes forwarding to the world's cell):
+```sh
+npm install
+npm test            # vitest: the VM, attempts, the World service, the agent with a scripted model
+npm run typecheck
+npm run dev         # builds the UI and runs `celld dev` on 127.0.0.1:8791
+npm run deploy      # typecheck, test, build, then `celld deploy` to gs://pi-world-celld
+```
+
+`npm run deploy` reads the fleet's service-account key from `~/.config/celld/pi-world.json`; set
+`GOOGLE_APPLICATION_CREDENTIALS` and `CELLD_BUCKET` to deploy elsewhere. A running node adopts a new deployment
+without a restart. Keep the Worker `name` (`pi-world`) stable: celld derives every cell id from it.
+
+## Interfaces (built)
+
+**Agent tools:** `develop`, `execute`, `describe`, `history`, `rollback`, `propose_check`. The system prompt's `world`
+section lists the revision, the definitions with their docs, and the checks. Designed but not built: `preview`,
+`answer`, pauses.
+
+**REST API:**
 
 | Route | Purpose |
 |---|---|
-| `POST /worlds` | Create a world |
-| `POST /worlds/:id/fork` | Fork a world |
-| `POST /worlds/:id/messages` | Submit to the agent; `requestId` makes retries idempotent |
-| `POST /worlds/:id/call/:fn` | Call an accepted definition directly, no model |
-| `POST /worlds/:id/pauses/:pauseId/answer` | Answer a pause; `requestId` makes retries idempotent |
-| `GET /worlds/:id/revisions` | Revision history |
-| `GET /worlds/:id/functions` | Catalogue |
-| `POST /worlds/:id/rollback` | Roll back (creates a new revision) |
+| `GET /api/worlds`, `POST /api/worlds {name}` | List worlds, create one |
+| `GET /api/worlds/:id` | Summary: revision, functions with source, checks, model |
+| `GET /api/worlds/:id/ws` | WebSocket: `world` and `transcript` frames |
+| `POST /api/worlds/:id/messages {content, requestId}` | Submit to the agent; `requestId` makes a retry a no-op |
+| `POST /api/worlds/:id/abort`, `POST /api/worlds/:id/reset` | Stop the run; start a new context |
+| `POST /api/worlds/:id/call/:fn {args}` | Call a definition directly, no model |
+| `POST /api/worlds/:id/execute {expression}` | Evaluate an expression against the world |
+| `POST /api/worlds/:id/develop {source, summary}` | Develop by hand, through the same attempt |
+| `GET /api/worlds/:id/revisions[/:n]`, `POST /api/worlds/:id/rollback {revision, reason}` | History and rollback |
+| `GET /api/worlds/:id/checks`, `DELETE /api/worlds/:id/checks/:name {reason}` | Checks; removal needs a reason |
+| `GET /api/worlds/:id/data?prefix=`, `DELETE /api/worlds/:id/data/:key` | The world's data |
+| `POST /api/worlds/:id/model {model}` | Choose the Claude model |
+| `GET /api/account`, `POST /api/account/login`, `POST /api/account/login/finish {code}`, `POST /api/account/token {token}`, `POST /api/account/logout` | Claude login |
+| `GET /w/:id/*` | The world's page |
 
-**Web UI:** a conversation view over a WebSocket, a world inspector (revisions, catalogue, failing goals, open pauses
-with answer buttons) and a task graph panel. There is no TUI.
+There is no authentication: anyone on the tailnet can call every route.
 
-## Architecture (designed)
+## Architecture (built)
 
 ```mermaid
 flowchart LR
-    UI["Web UI"] --> W["Worker routes"]
+    UI["Web UI (Preact)"] --> W["Worker routes"]
     REST["REST clients"] --> W
-    W --> C["World cell (Durable Object)<br/>one writer per world"]
-    C --> H["pi-durable harness<br/>tools: develop, execute, ...<br/>checks: invariants, goals"]
-    C --> VM["WorldVm: QuickJS in WASM<br/>prelude, registry"]
-    H --> VM
-    H --> M["Model API"]
-    VM --> B[("Revision blobs<br/>gzipped snapshots, content-addressed")]
-    VM --> D[("SQLite tables<br/>data from end-user calls")]
+    W --> C["WorldCell<br/>one per world"]
+    W --> A["AccountCell<br/>Claude OAuth"]
+    W --> DIR["DirectoryCell<br/>world list"]
+    C --> H["pi-durable harness<br/>tools: develop, execute, ..."]
+    C --> WS["World service<br/>lock, attempts, revisions, checks"]
+    H --> WS
+    WS --> VM["WorldVm: QuickJS in WASM<br/>prelude, registry"]
+    H --> M["Claude, via the subscription"]
+    C -. access token .-> A
+    WS --> B[("Snapshot blobs<br/>content-addressed")]
+    VM --> D[("world_data table<br/>data from calls")]
 ```
 
-A direct call goes from the Worker to the cell to the VM and never reaches the harness or the model.
+A direct call goes from the Worker to the cell to the VM and never reaches the harness or the model. Every operation
+on a world holds its lock, and after a call the VM returns to the head snapshot.
 
-Revisions are stored as `WorldHead` and `WorldRevision` documents holding a manifest and a pointer to a blob.
+| Directory | What it does |
+|---|---|
+| `src/world/` | `WorldVm`, the prelude, attempts, the `World` service |
+| `src/revision/` | Revision manifests, the head, the blob store port, the pi-durable documents |
+| `src/check/` | The check type |
+| `src/agent/` | The agent's tools, its standing instructions and the `world` section |
+| `src/conversation/` | The transcript the UI shows |
+| `src/cell/` | The world cell: SQLite adapter, routes, WebSocket fan-out, world pages |
+| `src/account/`, `src/directory/` | The Claude credential, the world list |
+| `src/api/` | The wire contract shared with the UI |
+| `ui/` | The web UI |
+
+Revisions are stored as `world.head` and `world.revision` documents holding a manifest and a pointer to a blob.
 
 ## Measurements (verified, Node 25.2.1, synthetic definitions)
 
@@ -220,16 +277,18 @@ Growth is linear, about 1.5 KB per definition. Real worlds may differ.
 
 ## Limitations
 
-- No implementation exists; the plan's milestone 1 (the `WorldVm`) is next.
-- Nothing has run on celld, which is in beta. Its facts come from documentation pages. Open checks (memory and CPU per
-  cell, blob size per row, pi-ai and pi-durable under celld's runtime, eviction timing, streaming lag) are in
+- A prototype: no authentication, one node, no pauses, forks or replay. The defaults chosen for open questions are
+  listed in [`decisions.md`](decisions.md) under "Prototype assumptions".
+- celld is in beta. Open checks that remain (memory and CPU per cell, eviction timing, streaming lag) are in
   [`research.md`](research.md).
+- Checks cannot read data, so a behaviour that depends on stored data is hard to protect with one.
+- `execute` keeps its data writes, so an agent that tries its functions can leave test rows behind.
 - A snapshot belongs to the exact `quickjs.wasm` build. After a runtime upgrade, the world is rebuilt by replaying the
   source log.
 - Only instances built with `new` through a class are tracked and migrated.
 - State values must be objects, not primitives.
 - A running frame keeps the bytecode it started with.
-- Each durable write takes about 90 ms, which shows as streaming lag.
+- Each durable write waits for the bucket on a single node; progress commits are spaced 400 ms apart.
 
 ## FAQ
 

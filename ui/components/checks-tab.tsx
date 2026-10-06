@@ -1,10 +1,11 @@
 import { useEffect, useState } from "preact/hooks";
-import type { Check, WorldSummary } from "../../src/api/types.ts";
+import type { Check, RemovedCheck, WorldSummary } from "../../src/api/types.ts";
 import { api } from "../api.ts";
+import { useAction } from "../use-action.ts";
 import { Code } from "./code.tsx";
 
 export function ChecksTab(props: { id: string; world: WorldSummary }) {
-	const [removed, setRemoved] = useState<{ check: Check; reason: string; removedAt: number }[]>([]);
+	const [removed, setRemoved] = useState<readonly RemovedCheck[]>([]);
 	useEffect(() => void api.checks(props.id).then((state) => setRemoved(state.removed)), [props.id, props.world.checks.length]);
 	return (
 		<div class="checks">
@@ -32,15 +33,8 @@ export function ChecksTab(props: { id: string; world: WorldSummary }) {
 
 function CheckCard(props: { id: string; check: Check }) {
 	const [reason, setReason] = useState("");
-	const [error, setError] = useState("");
-	const remove = async (event: Event) => {
-		event.preventDefault();
-		try {
-			await api.removeCheck(props.id, props.check.name, reason);
-		} catch (e) {
-			setError((e as Error).message);
-		}
-	};
+	const { error, run } = useAction();
+	const remove = run(() => api.removeCheck(props.id, props.check.name, reason).then(() => undefined));
 	return (
 		<div class="card">
 			<h4>{props.check.name}</h4>

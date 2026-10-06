@@ -45,7 +45,7 @@ export async function attemptDevelop(vm: WorldVm, source: string, checks: readon
 }
 
 /** `true` when the check holds, otherwise a description of what it returned or threw. */
-export function runCheck(vm: WorldVm, check: Pick<Check, "expression">, mode: AttemptMode): true | string {
+function runCheck(vm: WorldVm, check: Pick<Check, "expression">, mode: AttemptMode): true | string {
 	const outcome = vm.evaluate(check.expression, mode);
 	if (!outcome.ok) return `${outcome.failure}: ${outcome.error.split("\n")[0]}`;
 	return outcome.value === true ? true : `returned ${JSON.stringify(outcome.value)}`;

@@ -1,6 +1,9 @@
 /**
  * Claude Pro/Max OAuth, as pi does it: Claude Code's public client, PKCE, and the copy-code redirect, so login works
  * from a browser that is not on the server. Refresh rotates the refresh token.
+ *
+ * pi-ai has this flow, but loads it through a variable dynamic import that a Worker bundle cannot follow, and the
+ * module also starts a `node:http` callback server. So the copy-code half is here, with pi-ai's constants.
  */
 const CLIENT_ID: string = atob("OWQxYzI1MGEtZTYxYi00NGQ5LTg4ZWQtNTk0NGQxOTYyZjVl");
 const AUTHORIZE_URL: string = "https://claude.ai/oauth/authorize";
@@ -54,6 +57,10 @@ export function parseAuthorization(input: string): { code?: string; state?: stri
 	if (value.includes("#")) {
 		const [code, state] = value.split("#", 2);
 		return { code, state };
+	}
+	if (value.includes("code=")) {
+		const params = new URLSearchParams(value);
+		return { code: params.get("code") ?? undefined, state: params.get("state") ?? undefined };
 	}
 	return { code: value };
 }

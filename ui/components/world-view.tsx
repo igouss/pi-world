@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { appPath } from "../../src/api/paths.ts";
 import { MODELS } from "../../src/api/types.ts";
 import { api } from "../api.ts";
 import { useLiveWorld } from "../live.ts";
@@ -21,7 +22,7 @@ export function WorldView(props: { id: string; loggedIn: boolean }) {
 				</div>
 				<div class="tools">
 					{world?.hasApp && (
-						<a class="button" href={`/w/${props.id}/`} target="_blank" rel="noopener">
+						<a class="button" href={appPath(props.id)} target="_blank" rel="noopener">
 							Open app ↗
 						</a>
 					)}

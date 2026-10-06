@@ -1,17 +1,17 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { MODELS, type CallResult, type Transcript, type WorldSummary } from "../api/types.ts";
+import { MODELS, type Transcript, type WorldSummary } from "../api/types.ts";
 import type { DataPort } from "../world/data-port.ts";
 import type { Fanout } from "./fanout.ts";
+import { errorMessage, json, read } from "./http.ts";
 import type { OpenedWorld } from "./open-world.ts";
 
 /** What the routes need of an open world cell. */
 export interface WorldRuntime {
-	readonly id: string;
 	readonly opened: OpenedWorld;
 	readonly data: DataPort;
 	readonly fanout: Fanout;
 	transcript(): Transcript;
-	summary(): Promise<WorldSummary>;
+	summary(): WorldSummary;
 	setModel(modelId: string): Promise<void>;
 	armHeartbeat(): Promise<void>;
 	app(path: string, query: Record<string, string>): Promise<Response>;
@@ -31,7 +31,7 @@ export async function routeWorld(request: Request, runtime: WorldRuntime): Promi
 		if (segments[0] === "api" && segments[1] === "worlds") return await routeApi(request, url, segments.slice(3), runtime);
 		return json({ error: "not found" }, 404);
 	} catch (error) {
-		return json({ error: error instanceof Error ? error.message : String(error) }, 400);
+		return json({ error: errorMessage(error) }, 400);
 	}
 }
 
@@ -42,18 +42,14 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 	const route = `${method} ${head ?? ""}`;
 	switch (route) {
 		case "GET ":
-			return json(await runtime.summary());
+			return json(runtime.summary());
 		case "GET ws": {
 			if (request.headers.get("upgrade") !== "websocket") return json({ error: "expected a WebSocket upgrade" }, 426);
 			const pair = new WebSocketPair();
-			runtime.fanout.add(
-				pair[1],
-				[
-					{ type: "world", world: await runtime.summary() },
-					{ type: "transcript", transcript: runtime.transcript() },
-				],
-				() => undefined,
-			);
+			runtime.fanout.add(pair[1], [
+				{ type: "world", world: runtime.summary() },
+				{ type: "transcript", transcript: runtime.transcript() },
+			]);
 			return new Response(null, { status: 101, webSocket: pair[0] });
 		}
 		case "GET transcript":
@@ -90,8 +86,7 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 			const { args = [] } = await read<{ args?: unknown[] }>(request);
 			if (!Array.isArray(args)) return json({ error: "args must be an array" }, 400);
 			const outcome = await world.call(arg, args);
-			const result: CallResult = outcome.ok ? outcome : { ok: false, failure: outcome.failure, error: outcome.error };
-			return json(result, outcome.ok ? 200 : 422);
+			return json(outcome, outcome.ok ? 200 : 422);
 		}
 		case "POST execute": {
 			const { expression } = await read<{ expression: string }>(request);
@@ -99,7 +94,8 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 			return json(outcome, outcome.ok ? 200 : 422);
 		}
 		case "GET functions":
-			return arg ? json(world.catalogue().find((entry) => entry.name === arg) ?? { error: `no function ${arg}` }) : json(world.catalogue());
+			if (!arg) return json(world.catalogue());
+			return json(world.catalogue().find((entry) => entry.name === arg) ?? { error: `no function ${arg}` }, 404);
 		case "GET revisions": {
 			if (arg !== undefined) {
 				const revision = await world.revision(Number(arg));
@@ -109,17 +105,15 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 			return json(await world.history(Number(url.searchParams.get("limit") ?? HISTORY_PAGE), before === null ? undefined : Number(before)));
 		}
 		case "POST rollback": {
-			const { revision, reason } = await read<{ revision: number; reason: string }>(request);
-			if (!reason?.trim()) return json({ error: "a rollback needs a reason" }, 400);
-			return json(await world.rollback(revision, reason, { by: "operator" }));
+			const { revision, reason } = await read<{ revision: number; reason?: string }>(request);
+			return json(await world.rollback(Number(revision), reason ?? "", { by: "operator" }));
 		}
 		case "GET checks":
-			return json(await world.checks());
+			return json(world.checks());
 		case "DELETE checks": {
 			if (!arg) return json({ error: "name the check: /checks/:name" }, 400);
-			const { reason } = await read<{ reason: string }>(request);
-			if (!reason?.trim()) return json({ error: "removing a check needs a reason" }, 400);
-			await world.removeCheck(arg, reason);
+			const { reason } = await read<{ reason?: string }>(request);
+			await world.removeCheck(arg, reason ?? "");
 			return json({ ok: true });
 		}
 		case "GET data":
@@ -131,16 +125,4 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 		default:
 			return json({ error: `no route ${method} /${parts.join("/")}` }, 404);
 	}
-}
-
-async function read<T>(request: Request): Promise<T> {
-	try {
-		return (await request.json()) as T;
-	} catch {
-		throw new Error("the body must be JSON");
-	}
-}
-
-function json(value: unknown, status: number = 200): Response {
-	return Response.json(value, { status, headers: { "cache-control": "no-store" } });
 }
