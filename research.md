@@ -1,8 +1,8 @@
 # pi-world: research
 
-Background and reasoning: the article series in `~/preview/pi-durable/`, especially part 5
-(`05-wasm-native-jiti.html`). Written 2026-10-05 against pi commit `28dcce2ba` (pi-durable 1.0.4, quickjs-wasi 3.6.2)
-and celld v0.6.1 (beta). `evaluation.md` reviews the intent against those sources; its findings are folded into `design.md` and `decisions.md`.
+Written 2026-10-05 against pi commit `28dcce2ba` (pi-durable 1.0.4, quickjs-wasi 3.6.2) and celld v0.6.1 (beta).
+`evaluation.md` reviews the intent against those sources; its findings are folded into `design.md` and
+`decisions.md`.
 
 ## Premise already tested
 
