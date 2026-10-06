@@ -4,7 +4,9 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"spike": "node spike/wasm-world.mjs"
+		"spike": "node spike/wasm-world.mjs",
+		"spike:determinism": "node spike/determinism.mjs",
+		"spike:registry": "node spike/registry.mjs"
 	},
 	"dependencies": {
 		"quickjs-wasi": "3.6.2"
