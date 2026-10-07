@@ -129,4 +129,15 @@ describe("World", () => {
 		expect(result.status).toBe("accepted");
 		expect(await world.call("twice", [])).toEqual({ ok: true, value: 0 });
 	});
+
+	it("rolls back the data writes of an execute and reports them, while a call keeps its writes", async () => {
+		const deps = fixture();
+		const world = await World.open(deps);
+		await world.develop(`define("add", (k) => { data.set(k, true); return data.list("").length; }); define("drop", (k) => data.delete(k));`, "data", operator);
+		await world.call("add", ["kept"]);
+		const preview = await world.execute(`[add("tried"), drop("kept"), data.list("").map((r) => r.key)]`);
+		expect(preview).toEqual({ ok: true, value: [2, true, ["tried"]], rolledBack: { set: ["tried"], deleted: ["kept"] } });
+		expect(deps.data.list("").map((row) => row.key)).toEqual(["kept"]);
+	});
 });
+

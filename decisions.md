@@ -21,6 +21,11 @@
   sense approach, be bold and this is a cool new greenfield, set your standards high and god speed! I'm on a flight to
   japan so you have autonomy.", 2026-10-06.
 - "Check how pi is connected to clause without API key, using my subscription, use same approach", 2026-10-06.
+- "We should support concurrent calls", 2026-10-07.
+- "The goal now is to implement the remaining ideas", 2026-10-07, answered in two choices: of the remaining ideas,
+  "Isolation and storage" (each world's calls in a Dynamic Worker so one world's CPU work stops slowing the others,
+  and old snapshots moved to R2); and for agent test runs, "Roll back (Recommended)" (execute rolls back its data
+  writes; calls from people and other worlds still write).
 
 This approves:
 
@@ -45,6 +50,10 @@ This approves:
 
 - a working prototype with a web UI, deployed to the celld node, built with common-sense choices for the open
   questions. Each such choice is recorded below under "Prototype assumptions" so it can be revisited after use;
+- concurrent calls to one world, each on its own VM (built 2026-10-07);
+- running each world's calls in an isolate of its own, through a Dynamic Worker, and moving snapshots that are not the
+  head to R2;
+- `execute` rolling back its data writes, which settles open decision 3 for this world's data;
 - reaching Claude through the owner's subscription the way pi does: Claude Code's public OAuth client with PKCE and
   the copy-code redirect, refresh in one place, and the token passed to pi-ai as `ANTHROPIC_OAUTH_TOKEN`.
 
@@ -98,8 +107,8 @@ the task graph panel, and gzip of blobs.
 1. **Where it lives.** Options are this standalone repo depending on published `pi-durable` and `quickjs-wasi`, or
    `packages/world` upstream in pi, which needs the pi maintainers' agreement.
 2. **Web UI stack.** Not chosen.
-3. **Preview isolation of data writes.** Either a rolled-back transaction around the call, or a scratch copy of the
-   touched tables.
+3. **Preview isolation of data writes.** Settled 2026-10-07 for the world's own data: `execute` rolls its writes back.
+   Still open: a world that `execute` calls through `worlds.call` writes for real.
 4. **Which record is authoritative.** The design treats the snapshot as primary and the source log as the upgrade
    escape. The inverse, log authoritative with the snapshot as a materialization and the carrier of pauses, removes
    the wasm-build coupling from the durability story and makes forks and merges a log operation. Both designs replay

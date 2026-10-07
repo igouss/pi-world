@@ -68,8 +68,8 @@ describe("calls between worlds", () => {
 	it("lists the other worlds and their functions", async () => {
 		const world = await fleet("a", "b");
 		await world("b").develop(`define("hello", (n) => "hi " + n, { doc: "Greets" });`, "hello", operator);
-		expect(await world("a").execute(`worlds.list()`)).toEqual({ ok: true, value: [{ id: "b", name: "b" }] });
-		expect(await world("a").execute(`worlds.functions("b")`)).toEqual({ ok: true, value: [{ name: "hello", kind: "function", doc: "Greets", params: "n" }] });
+		expect(await world("a").execute(`worlds.list()`)).toMatchObject({ ok: true, value: [{ id: "b", name: "b" }] });
+		expect(await world("a").execute(`worlds.functions("b")`)).toMatchObject({ ok: true, value: [{ name: "hello", kind: "function", doc: "Greets", params: "n" }] });
 	});
 
 	it("runs two calls awaited together at the same time", async () => {

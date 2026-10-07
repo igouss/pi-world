@@ -23,7 +23,7 @@ export function ConsoleTab(props: { id: string }) {
 		<div class="console">
 			<form onSubmit={evaluate} class="stack">
 				<h4>Evaluate</h4>
-				<p class="small muted">An expression against the current world and its data. Heap changes are discarded; data writes are kept.</p>
+				<p class="small muted">An expression against the current world and its data, as a preview: heap changes and data writes are rolled back.</p>
 				<input class="mono" placeholder='shoutBackwards("Hello")' value={expression} onInput={(e) => setExpression(e.currentTarget.value)} />
 				<button class="primary" disabled={!expression.trim()}>
 					Evaluate

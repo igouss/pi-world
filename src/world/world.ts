@@ -8,6 +8,7 @@ import type { Head, Origin, Revision } from "../revision/revision.ts";
 import { attemptDevelop, attemptEnrolment, type AttemptMode } from "./attempt.ts";
 import { diffCatalogues } from "./catalogue-diff.ts";
 import type { DataPort } from "./data-port.ts";
+import { OverlayDataPort, type DataChanges } from "./overlay-data-port.ts";
 import { NO_PEERS, type PeerPort } from "./peer-port.ts";
 import { Mutex } from "./mutex.ts";
 import { VmPool } from "./vm-pool.ts";
@@ -36,6 +37,8 @@ const WARM_VMS: number = 2;
 export type DevelopResult =
 	| { readonly status: "accepted"; readonly revision: Revision; readonly replayed: boolean }
 	| { readonly status: "rejected"; readonly failure: Failure | "check"; readonly reason: string; readonly check?: string };
+
+export type ExecuteResult = Outcome & { readonly rolledBack: DataChanges };
 
 export type EnrolResult = { readonly status: "enrolled"; readonly check: Check } | { readonly status: "refused"; readonly reason: string };
 
@@ -163,9 +166,14 @@ export class World {
 		});
 	}
 
-	/** Evaluate an expression against the world and its data. Heap changes are discarded; data writes are kept. */
-	async execute(expression: string, peers: PeerPort = this.deps.peers ?? NO_PEERS): Promise<Outcome> {
-		return this.pool.run((vm) => vm.evaluate(expression, { kind: "live", data: this.deps.data, peers }));
+	/**
+	 * Evaluate an expression against the world and its data, as a preview: heap changes and data writes are both
+	 * discarded, and the result names the writes it rolled back. Other worlds it calls write for real.
+	 */
+	async execute(expression: string, peers: PeerPort = this.deps.peers ?? NO_PEERS): Promise<ExecuteResult> {
+		const overlay = new OverlayDataPort(this.deps.data);
+		const outcome = await this.pool.run((vm) => vm.evaluate(expression, { kind: "live", data: overlay, peers }));
+		return { ...outcome, rolledBack: overlay.changes() };
 	}
 
 	/**

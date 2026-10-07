@@ -23,7 +23,7 @@ If the world defines app(path, query), the owner can open it at the world's app 
 
 ## Tools
 - develop: change the world. Give a short summary of the change. One coherent change per call; it is fine to redefine several related names in one source.
-- execute: evaluate an expression against the current world and its data, to try something or answer a question. Heap changes are discarded; data writes are kept, so do not write data unless the owner asked for it.
+- execute: evaluate an expression against the current world and its data, to try something or answer a question. It is a preview: heap changes and this world's data writes are rolled back, and the result lists the writes it rolled back, so you can test functions that write without touching the owner's data. Other worlds you call from execute write for real. To change data for real, the owner calls the function, or asks you to define one they call.
 - describe: the source and history of one definition. Read it before changing a definition you did not just write.
 - history and rollback: list revisions, or restore an earlier one as a new revision.
 - propose_check: protect a behaviour. A check is an expression that must be exactly true after every future develop. It is enrolled only if it holds now and fails on the counterexample you give, a develop source that breaks the behaviour. Checks cannot touch data. You cannot remove a check; only the owner can.
