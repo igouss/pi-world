@@ -73,12 +73,15 @@ The rules the implementation obeys, each with the fact that forces it.
   facet loaded through a Worker Loader with a loader id per world, because loaded code with one id shares one isolate,
   and a shared isolate would let one world's CPU work hold up the others. The facet owns the world's data in its own
   SQLite (synchronous, as world code needs), fetches snapshots from the cell by content hash, and reaches other worlds
-  only through the `WorldHost` capability. Develops and checks stay on the cell's main VM: they touch no data and are
-  bounded by the time budget.
+  only through the `WorldHost` capability. The runtime bundle is built from `src/isolate/runtime/` and the world core
+  alone, so host code cannot leak into it. Develops and checks stay on the cell's main VM: they touch no data and are
+  bounded by the time budget. Snapshots reach a runner by content hash from the blob store, so `World` does not
+  serve them.
 - **`execute` is a preview.** Its data writes go to an overlay that is dropped afterwards (`OverlayDataPort`), and
   the result lists them. An overlay rather than a SQL transaction, because an evaluation can span awaits.
 - **Snapshots are tiered.** The head's blob stays in the cell's SQLite; every other blob moves to R2, gzipped, and the
-  local copy is deleted only once R2 holds it (`TieredBlobStore`). Blobs are content-addressed, so a key never needs
+  local copy is deleted only once R2 holds it (`TieredBlobStore`). A pass runs when the head changes; requests during
+  a pass collapse into one more. Blobs are content-addressed, so a key never needs
   rewriting and identical snapshots of different worlds share one object.
 - **Calls run concurrently, each on its own VM; changes run one at a time on the main VM.** A call takes a VM from the
   world's pool (`VmPool`, 8 by default), restored from the head the call started at, and keeps it until it settles.

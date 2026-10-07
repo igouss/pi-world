@@ -410,8 +410,9 @@ flowchart LR
 
 | Directory | What it does |
 |---|---|
-| `src/world/` | `WorldVm`, the prelude, attempts, the `World` service, the `CallRunner` port and its in-process runner |
-| `src/isolate/` | The world's runtime isolate: the facet, the host capability, the loader, and the host's runner |
+| `src/world/` | `WorldVm`, the prelude, attempts, the `World` service, the `CallRunner` and `DataAdmin` ports and their in-process runner |
+| `src/isolate/runtime/` | What runs in a world's own isolate: the facet and its SQLite data store. The runtime bundle is built from here alone |
+| `src/isolate/host/` | The host's side: the loader, the `WorldHost` capability and the runner that forwards to the facet |
 | `src/revision/` | Revision manifests, the head, the blob stores (local, R2, tiered), the pi-durable documents |
 | `src/check/` | The check type |
 | `src/agent/` | The agent's tools, its standing instructions and the `world` section |
