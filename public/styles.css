@@ -39,7 +39,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body { background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-#root { height: 100%; }
+#root { height: 100%; height: 100dvh; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 code, pre, .mono { font-family: var(--mono); font-size: 12.5px; }
@@ -163,8 +163,17 @@ button.wide, .button.wide { width: 100%; justify-content: center; padding: 9px 1
 .code pre { padding: 8px 10px; max-height: 360px; overflow: auto; white-space: pre; }
 .code-label { font-size: 11px; color: var(--muted); padding: 3px 10px; border-bottom: 1px solid var(--line); text-transform: uppercase; letter-spacing: 0.04em; }
 
-.composer { border-top: 1px solid var(--line); padding: 10px 16px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--panel); }
+.composer { border-top: 1px solid var(--line); padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 6px; background: var(--panel); }
 .composer .notice { align-self: stretch; }
+.compose-row { display: flex; align-items: flex-end; gap: 8px; }
+.compose-row textarea { flex: 1; resize: none; max-height: 40vh; overflow-y: auto; line-height: 1.4; min-height: 38px; }
+.compose-row button { height: 38px; }
+.compose-meta { gap: 12px; }
+
+.menu-button, .more-button, .phone-bar, .more-menu { display: none; }
+.menu-button, .more-button { background: none; border: none; font-size: 20px; padding: 2px 8px; line-height: 1; }
+.world-actions { display: flex; align-items: center; gap: 8px; }
+.scrim { display: none; }
 
 .inspector { display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
 .tabs { display: flex; border-bottom: 1px solid var(--line); overflow-x: auto; flex: none; }
@@ -201,14 +210,40 @@ button.wide, .button.wide { width: 100%; justify-content: center; padding: 9px 1
 .app-tab iframe { flex: 1; min-height: 420px; width: 100%; border: 1px solid var(--line); border-radius: var(--radius); background: white; }
 
 @media (max-width: 860px) {
-	.shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-	.sidebar { border-right: none; border-bottom: 1px solid var(--line); }
-	.world-list { max-height: 22vh; }
+	.shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+	.sidebar {
+		position: fixed; inset: 0 auto 0 0; width: min(320px, 86vw); z-index: 20; box-shadow: 4px 0 24px rgb(0 0 0 / 0.3);
+		transform: translateX(-105%); transition: transform 0.18s ease-out;
+	}
+	.drawer-open .sidebar { transform: none; }
+	.drawer-open .scrim { display: block; position: fixed; inset: 0; background: rgb(0 0 0 / 0.45); z-index: 19; }
+	.wide-only { display: none !important; }
+	.menu-button, .more-button { display: inline-flex; }
+	.phone-bar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--panel); }
+	.phone-bar .brand-mark { width: 22px; height: 22px; font-size: 13px; }
+	.main { display: flex; flex-direction: column; }
+	.welcome { padding: 20px 16px; height: auto; flex: 1; }
+	.welcome h1 { font-size: 22px; }
+	.world-head { flex-wrap: nowrap; gap: 4px; padding: 6px 6px 6px 2px; position: relative; }
+	.world-head .title { flex: 1; gap: 6px; }
+	.world-head h2 { font-size: 15px; }
+	.world-head .tools { gap: 2px; flex-wrap: nowrap; }
+	.pane-switch button { padding: 4px 9px; font-size: 13px; }
+	.more-menu {
+		display: block; position: absolute; top: 100%; right: 6px; z-index: 15; background: var(--panel);
+		border: 1px solid var(--line); border-radius: 10px; padding: 10px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+	}
+	.more-menu .world-actions { flex-direction: column; align-items: stretch; }
+	.more-menu .world-actions select, .more-menu .world-actions .button, .more-menu .world-actions button { width: 100%; justify-content: center; }
+	.messages { padding: 10px; gap: 10px; }
+	.msg.user { max-width: 92%; }
+	.composer { padding: 6px 8px calc(8px + env(safe-area-inset-bottom)); }
+	.compose-row textarea { font-size: 16px; }
+	.tab-body { padding: 10px; }
 	.overlay { padding: 0; place-items: stretch; }
 	.dialog { width: 100%; height: 100%; max-height: none; border-radius: 0; border: none; padding: 16px; }
 	.world-body { grid-template-columns: minmax(0, 1fr); }
-	.world-head { padding: 8px 12px; }
-	.messages, .composer { padding-left: 12px; padding-right: 12px; }
+
 	.pane-switch { display: flex; gap: 4px; }
 	.world-body.show-chat .inspector { display: none; }
 	.world-body.show-inspect .conversation { display: none; }

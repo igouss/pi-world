@@ -103,7 +103,15 @@ function Composer(props: { id: string; busy: boolean; queued: number; loggedIn: 
 	const [text, setText] = useState("");
 	const [error, setError] = useState("");
 	const input = useRef<HTMLTextAreaElement>(null);
-	useEffect(() => input.current?.focus(), [props.id]);
+	useEffect(() => {
+		if (matchMedia("(min-width: 861px)").matches) input.current?.focus();
+	}, [props.id]);
+	useLayoutEffect(() => {
+		const el = input.current;
+		if (!el) return;
+		el.style.height = "auto";
+		el.style.height = `${el.scrollHeight + 2}px`;
+	}, [text]);
 	const send = async () => {
 		const content = text.trim();
 		if (!content) return;
@@ -127,31 +135,34 @@ function Composer(props: { id: string; busy: boolean; queued: number; loggedIn: 
 				</p>
 			)}
 			{error && <p class="error small">{error}</p>}
+			<div class="compose-row">
 			<textarea
 				ref={input}
-				rows={3}
-				placeholder={props.busy ? "The agent is working. A message now is queued as a follow-up." : "Ask for a change… (Enter to send, Shift+Enter for a new line)"}
+				rows={1}
+				placeholder={props.busy ? "Queued as a follow-up while the agent works" : "Ask for a change…"}
 				value={text}
 				onInput={(e) => setText(e.currentTarget.value)}
 				onKeyDown={(e) => {
-					if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+					if (e.key === "Enter" && !e.shiftKey && !e.isComposing && !matchMedia("(pointer: coarse)").matches) {
 						e.preventDefault();
 						void send();
 					}
 				}}
 			/>
-			<div class="row end">
 				{props.queued > 0 && <span class="muted small">{props.queued} queued</span>}
 				{props.busy && (
 					<button class="danger" onClick={() => void api.abort(props.id)}>
 						Stop
 					</button>
 				)}
-				<button class="link small" title="Start a new context; the world is kept" onClick={() => void api.reset(props.id)}>
-					New conversation
-				</button>
 				<button class="primary" disabled={!text.trim()} onClick={() => void send()}>
 					Send
+				</button>
+			</div>
+			<div class="row end compose-meta wide-only">
+				<span class="muted small">Enter to send, Shift+Enter for a new line</span>
+				<button class="link small" title="Start a new context; the world is kept" onClick={() => void api.reset(props.id)}>
+					New conversation
 				</button>
 			</div>
 		</div>
