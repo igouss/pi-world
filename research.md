@@ -97,7 +97,8 @@ These are undocumented or unknown. Measure them early, at milestone 6.
    concurrent calls that each call another world got 28 answers and 12 refusals. The limit is the node setting
    `CELLD_MAX_CELL_REQUESTS` (default 64).
 10. **CPU in one world slows others.** On the node, a world computing for about 1.5 s delayed calls to unrelated worlds
-    by the same time: cells share a small pool of JavaScript isolates (`worker_count=2`). The time budget bounds it.
+    by the same time: cells share a small pool of JavaScript isolates (`worker_count=2`). The time budget bounds it. Resolved 2026-10-07 for calls: each world's calls run in an isolate of the world's own (see "Isolation and R2 on the
+    node"). Develops and checks still run in the shared cell isolate.
 
 ## Hibernatable sockets on the node
 
