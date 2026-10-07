@@ -69,6 +69,20 @@ The rules the implementation obeys, each with the fact that forces it.
 - **Snapshots are tied to the exact `quickjs.wasm` build.** Keep the source log. After a runtime upgrade, rebuild by
   replaying accepted `develop` sources.
 - **Determinism:** pin the clock, random and timezone through quickjs-wasi's `wasi` and `timezoneOffset` options.
+- **Calls between worlds are request and response over Durable Object RPC, under the caller's lock.** World code
+  calls `worlds.call(id, name, ...args)` and gets a QuickJS promise; the evaluation step ends, the host sends
+  `peerCall` to the other world's cell, waits outside the VM, then resolves the promise and runs the waiting code
+  (`WorldVm.settle`). The caller holds its world's lock for the whole wait, because the VM is mid-evaluation and must
+  not be reset or entered by another operation. Consequences:
+  - Calls awaited together overlap (`Promise.all` of two 200 ms calls takes about 200 ms, `test/peers.test.ts`).
+  - The caller world is busy for the whole call: its other calls and develops queue behind it. The cell itself is not
+    blocked; the conversation and sockets keep working.
+  - A call back into a world already in the call would wait for a lock the call holds, so the chain of worlds travels
+    with the call and such a call is refused (`chainedPeers`). A chain is at most four worlds.
+  - Nothing is durable: no queue, no retry, no idempotency key. A caller that crashes mid-call loses the call; data
+    the callee wrote stays. A callee that does not answer within 30 s fails the call (`PEER_DEADLINE_MS`).
+  - Any world may call any world; there is no permission model.
+  Open decision 14 is what calls between worlds should be.
 - **Portable core.** No `node:` modules in the core: celld's Node compatibility is "Partial", and Node-only code sits
   behind separate exports. The `.wasm` import comes from the bundle; the host passes the compiled module in.
 - **Streaming cadence.** Each durable write takes about 90 ms, and viewer output is held until its write is durable.

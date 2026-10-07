@@ -80,6 +80,13 @@ These are undocumented or unknown. Measure them early, at milestone 6.
 3. **pi-ai and pi-durable under celld's runtime.** Settled: both run on the node (see above).
 4. **Eviction timing and alarm retry limits.** Tune the heartbeat from measurements, not Cloudflare's numbers.
 5. **Streaming lag.** Measure progress commits at about 90 ms per durable write.
+6. **Calls between worlds across nodes** (for open decision 14). One node forwards every `peerCall` locally. On a fleet
+   of two or more nodes, measure the latency of a forwarded call and what the caller sees when the callee's node dies
+   mid-call. celld says a remote RPC "retries only when the failed peer attempt did not start the method".
+7. **celld Queues as the durable path** (for open decision 14, option C). Documented: one writer per queue, at most 256
+   concurrent producer calls, batches leased and retried, at-least-once delivery, dead-letter queues. Untested here:
+   enqueue latency on one node (each write waits for the bucket), and whether a world cell can be a consumer or only a
+   Worker.
 
 ## Not verified
 

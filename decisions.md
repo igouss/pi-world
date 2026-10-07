@@ -129,3 +129,25 @@ the task graph panel, and gzip of blobs.
     still call a function the agent defined, and the agent can redefine it. Either refuse such a check at enrolment,
     so checks read data and built-ins only, or allow it and re-run its counterexample every time that definition
     changes.
+14. **What a call between worlds is.** Recorded 2026-10-06; the operator is researching it. Today it is synchronous
+    request and response over Durable Object RPC, with the caller's world locked for the whole wait (`design.md`,
+    "Calls between worlds"). That is the simplest thing that works on one node, not a decision. The options:
+
+    | Option | What it is | Gains | Costs |
+    |---|---|---|---|
+    | A. Keep RPC under the lock | What is built | Simple; the answer arrives inside the calling function; errors propagate | The caller world is busy while it waits; no durability; a slow world stalls its callers |
+    | B. RPC without the lock | Release the caller's lock while it waits, running the evaluation on a forked VM | Other calls to the caller proceed | One VM per waiting call (about 1.4 MB each); two evaluations in flight against one data store; the "VM at the head" rule needs rework |
+    | C. Durable messages | `worlds.send(id, name, ...args)`: fire and forget through celld Queues or an outbox the cell drains from an alarm | Survives crashes; the caller is never blocked; retries | At-least-once delivery, so the callee needs idempotency keys; no return value in the calling function, so replies are messages too |
+    | D. A and C both | `call` for queries, `send` for commands | Each use gets the semantics it needs | Two mechanisms to explain to the agent; the agent must choose correctly |
+
+    Questions the research should answer:
+    - Does a world service need answers inside the calling function (queries), or mostly fire-and-forget effects
+      (commands, events)? That separates A from C.
+    - Is a busy caller acceptable? Measure how long typical calls take, and how often a world is called while it waits.
+    - Delivery: is at-least-once with idempotency keys acceptable, or does some use need exactly-once? celld Queues
+      deliver at least once and retry from a lease: "A consumer must therefore tolerate a duplicate."
+    - Replay: today only `develop` sources replay, and calls are not recorded. Should calls between worlds be recorded,
+      for audit or for rebuilding a world's data?
+    - Permissions: who may call whom (open decision 5 for people; this is the same for worlds).
+    - Multi-node: a call to a cell on another node is forwarded by celld; latency and failure behaviour are untested.
+    - Checks: a check cannot reach other worlds. Is a contract between two worlds something a check should protect?
