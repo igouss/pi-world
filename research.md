@@ -89,9 +89,9 @@ These are undocumented or unknown. Measure them early, at milestone 6.
    Worker.
 8. **Deploy cut-over with open sockets.** After a deploy, idle cells moved to the new version at once; a world cell
    with an open WebSocket from the UI moved 60 s later, and a request to it waited 38 s. The UI uses regular
-   WebSockets (`server.accept()`), which keep the cell busy. Hibernatable WebSockets (`ctx.acceptWebSocket`) would let
-   it swap and hibernate, at the cost of re-subscribing the view when the cell wakes. Not yet changed. It also stalls
-   other worlds' calls into such a cell: a Dashboard call waited out its 30 s deadline on a world that was mid-swap.
+   WebSockets (`server.accept()`), which keep the cell busy. It also stalls other worlds' calls into such a cell: a
+   Dashboard call waited out its 30 s deadline on a world that was mid-swap. Fixed on 2026-10-07: the UI's sockets are
+   hibernatable (`ctx.acceptWebSocket`); see "Hibernatable sockets on the node" below.
 9. **Cell limits under load.** celld refuses a request with `503 cell request limit reached` when a cell has 64 in
    flight (`in_flight=64 limit=64`), and the count appears to include the cell's own calls to other worlds: 40
    concurrent calls that each call another world got 28 answers and 12 refusals. The limit is the node setting

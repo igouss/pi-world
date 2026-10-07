@@ -336,7 +336,8 @@ npm run dev         # builds the UI and runs `celld dev` on 127.0.0.1:8791 (rest
 npm run deploy      # typecheck, test, build, then `celld deploy` to gs://pi-world-celld
 ```
 
-`npm run deploy` reads the fleet's service-account key from `~/.config/celld/pi-world.json`; set
+`npm run deploy` stamps the git revision into the bundle (`/api/version`, and `build` in each world's summary), so you
+can see a deploy reach each world. It reads the fleet's service-account key from `~/.config/celld/pi-world.json`; set
 `GOOGLE_APPLICATION_CREDENTIALS` and `CELLD_BUCKET` to deploy elsewhere. A running node adopts a new deployment
 without a restart. Keep the Worker `name` (`pi-world`) stable: celld derives every cell id from it.
 
@@ -352,7 +353,8 @@ section lists the revision, the definitions with their docs, and the checks. Des
 |---|---|
 | `GET /api/worlds`, `POST /api/worlds {name}` | List worlds, create one |
 | `GET /api/worlds/:id` | Summary: revision, functions with source, checks, model |
-| `GET /api/worlds/:id/ws` | WebSocket: `world` and `transcript` frames |
+| `GET /api/worlds/:id/ws` | WebSocket: `world` and `transcript` frames. Hibernatable: the world's cell can hibernate or move to a new deploy without closing it |
+| `GET /api/version` | The build (git revision) the node runs; each world's summary carries the build of its cell |
 | `POST /api/worlds/:id/messages {content, requestId}` | Submit to the agent; `requestId` makes a retry a no-op |
 | `POST /api/worlds/:id/abort`, `POST /api/worlds/:id/reset` | Stop the run; start a new context |
 | `POST /api/worlds/:id/call/:fn {args}` | Call a definition directly, no model; world code reaches other worlds with `worlds.call` |
