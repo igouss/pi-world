@@ -6,15 +6,16 @@ import wasm from "quickjs-wasi/quickjs.wasm";
 import { DEFAULT_MODEL, type Transcript, type WorldSummary } from "../api/types.ts";
 import { build } from "../build.ts";
 import { toTranscript } from "../conversation/transcript.ts";
-import { ACCOUNT_NAME, DIRECTORY_NAME, type Env } from "../env.ts";
-import { chainedPeers, type PeerTransport } from "../world/chained-peers.ts";
+import { ACCOUNT_NAME, type Env } from "../env.ts";
+import type { DataRecord } from "../isolate/host-api.ts";
+import { FacetCallRunner } from "../isolate/facet-call-runner.ts";
+import { runtimeFacet } from "../isolate/runtime-loader.ts";
 import type { CatalogueEntry, Outcome } from "../world/world-vm.ts";
 import { appPage, hasApp } from "./app-page.ts";
 import { claudeModels } from "./claude-models.ts";
 import { Fanout } from "./fanout.ts";
 import { openWorld } from "./open-world.ts";
 import { sqlBlobStore } from "./sql-blob-store.ts";
-import { sqlDataPort } from "./sql-data-port.ts";
 import { cellDatabase } from "./sqlite-database.ts";
 import { routeWorld, type WorldRuntime } from "./world-routes.ts";
 
@@ -57,10 +58,8 @@ export class WorldCell extends DurableObject<Env> {
 
 	/** A call from another world; `chain` lists the worlds it passed through, the caller last. */
 	async peerCall(name: string, args: unknown[], chain: string[]): Promise<Outcome> {
-		const meta = await this.meta();
-		if (!meta) return { ok: false, failure: "threw", error: "no such world" };
-		const { opened } = await this.live();
-		return opened.world.call(name, args, chainedPeers(meta.id, chain, this.peerTransport()));
+		if (!(await this.meta())) return { ok: false, failure: "threw", error: "no such world" };
+		return (await this.live()).opened.world.call(name, args, chain);
 	}
 
 	async peerFunctions(): Promise<readonly CatalogueEntry[]> {
@@ -68,13 +67,15 @@ export class WorldCell extends DurableObject<Env> {
 		return (await this.live()).opened.world.catalogue();
 	}
 
-	/** Other worlds are other cells: reached by name over Durable Object RPC. */
-	private peerTransport(): PeerTransport {
-		return {
-			call: (id, name, args, chain) => this.env.WORLD.getByName(id).peerCall(name, [...args], [...chain]),
-			list: async () => (await this.env.DIRECTORY.getByName(DIRECTORY_NAME).list()).map(({ id, name }) => ({ id, name })),
-			functions: (id) => this.env.WORLD.getByName(id).peerFunctions(),
-		};
+	/** The capability this world's runtime isolate calls back through. */
+	private hostFor(worldId: string): unknown {
+		const exports = this.ctx.exports as unknown as { WorldHost(options: { props: { worldId: string } }): unknown };
+		return exports.WorldHost({ props: { worldId } });
+	}
+
+	/** A snapshot blob for this world's runtime isolate. */
+	async blobBytes(hash: string): Promise<Uint8Array> {
+		return (await this.live()).opened.world.blobBytes(hash);
 	}
 
 	async fetch(request: Request): Promise<Response> {
@@ -87,6 +88,18 @@ export class WorldCell extends DurableObject<Env> {
 		if (!(await this.meta())) return;
 		const runtime = await this.live();
 		if (runtime.transcript().busy) await this.ctx.storage.setAlarm(Date.now() + HEARTBEAT_MS);
+	}
+
+	/**
+	 * Data written before calls ran in the world's own isolate lives in this cell's `world_data` table; the runtime
+	 * takes it over once. The table is left in place.
+	 */
+	private async moveDataToRuntime(facet: { importData(records: DataRecord[]): Promise<number> | number }): Promise<void> {
+		if (await this.ctx.storage.get<boolean>("dataMovedToRuntime")) return;
+		const table = this.ctx.storage.sql.exec<{ n: number }>("SELECT count(*) AS n FROM sqlite_master WHERE name = 'world_data'").one().n;
+		const records = table ? this.ctx.storage.sql.exec<{ key: string; value: string }>("SELECT key, value FROM world_data").toArray() : [];
+		await facet.importData(records.map(({ key, value }) => ({ key, json: value })));
+		await this.ctx.storage.put("dataMovedToRuntime", true);
 	}
 
 	private async meta(): Promise<Meta | undefined> {
@@ -105,13 +118,13 @@ export class WorldCell extends DurableObject<Env> {
 		const meta = await this.meta();
 		if (!meta) throw new Error("the world was not initialised");
 		const db = cellDatabase(this.ctx.storage);
-		const data = sqlDataPort(this.ctx.storage.sql);
 		const account = this.env.ACCOUNT.getByName(ACCOUNT_NAME);
+		const facet = () => runtimeFacet(this.env.LOADER, this.ctx.facets as never, meta.id, this.hostFor(meta.id));
+		await this.moveDataToRuntime(facet());
 		const opened = await openWorld({
 			storage: await SqliteStorage.open(db),
 			blobs: await sqlBlobStore(db),
-			data,
-			peers: chainedPeers(meta.id, [], this.peerTransport()),
+			calls: new FacetCallRunner(meta.id, facet),
 			wasm,
 			models: claudeModels(() => account.accessToken()),
 			model: { provider: "anthropic", modelId: DEFAULT_MODEL },
@@ -145,7 +158,6 @@ export class WorldCell extends DurableObject<Env> {
 		fanout.publish("transcript", () => ({ type: "transcript", transcript: transcript() }));
 		return {
 			opened,
-			data,
 			fanout,
 			transcript,
 			summary,

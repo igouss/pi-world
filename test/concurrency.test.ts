@@ -24,7 +24,7 @@ async function world(concurrentCalls?: number): Promise<World> {
 		session: createSession(new MemoryStorage()),
 		blobs: new MemoryBlobStore(),
 		data: new MemoryDataPort(),
-		peers: chainedPeers("a", [], slowPeer),
+		peers: (chain) => chainedPeers("a", chain, slowPeer),
 		wasm,
 		...(concurrentCalls ? { concurrentCalls } : {}),
 	});

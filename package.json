@@ -8,10 +8,12 @@
 		"spike:determinism": "node spike/determinism.mjs",
 		"spike:registry": "node spike/registry.mjs",
 		"test": "vitest --run",
-		"typecheck": "tsc -p tsconfig.json",
+		"typecheck": "npm run build:runtime && tsc -p tsconfig.json",
 		"build:ui": "esbuild ui/main.tsx --bundle --format=esm --target=es2022 --jsx=automatic --jsx-import-source=preact --minify --sourcemap --outfile=public/app.js",
-		"dev": "npm run build:ui && celld dev . --port 8791",
-		"deploy": "npm run typecheck && npm test && npm run build:ui && sh scripts/deploy.sh"
+		"dev": "npm run build && celld dev . --port 8791",
+		"deploy": "npm run typecheck && npm test && npm run build && sh scripts/deploy.sh",
+		"build:runtime": "mkdir -p dist/runtime && esbuild src/isolate/runtime-entry.ts --bundle --format=esm --platform=neutral --external:cloudflare:workers --external:./quickjs.wasm --minify --outfile=dist/runtime/world-runtime.txt && cp node_modules/quickjs-wasi/quickjs.wasm dist/runtime/quickjs.bin",
+		"build": "npm run build:runtime && npm run build:ui"
 	},
 	"dependencies": {
 		"@earendil-works/chord": "^1.0.4",

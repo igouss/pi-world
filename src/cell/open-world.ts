@@ -3,21 +3,25 @@ import type { Models } from "@earendil-works/pi-ai";
 import { createRegistry, Harness, type Conversation, type HarnessSettings, type ModelRef, type Storage } from "@earendil-works/pi-durable";
 import { worldExtension } from "../agent/world-extension.ts";
 import type { BlobStore } from "../revision/blob-store.ts";
+import type { CallRunner } from "../world/call-runner.ts";
 import type { DataPort } from "../world/data-port.ts";
 import type { PeerPort } from "../world/peer-port.ts";
 import { World } from "../world/world.ts";
 
-export interface OpenWorldDeps {
+/** Where the world's calls run: a runner (such as the world's own isolate), or this process over `data`. */
+export type OpenWorldCalls =
+	| { readonly calls: CallRunner }
+	| { readonly data: DataPort; readonly peers?: (chain: readonly string[]) => PeerPort };
+
+export type OpenWorldDeps = OpenWorldCalls & {
 	readonly storage: Storage;
 	readonly blobs: BlobStore;
-	readonly data: DataPort;
-	readonly peers?: PeerPort;
 	readonly wasm: WebAssembly.Module;
 	readonly models: Models;
 	readonly model: ModelRef;
 	readonly settings?: HarnessSettings;
 	readonly now?: () => number;
-}
+};
 
 export interface OpenedWorld {
 	readonly harness: Harness;
@@ -36,12 +40,12 @@ export async function openWorld(deps: OpenWorldDeps): Promise<OpenedWorld> {
 		{ models: deps.models, registry, ...(deps.settings ? { settings: deps.settings } : {}) },
 		BACKGROUND_CONTEXT,
 	);
+	const calls = "calls" in deps ? { calls: deps.calls } : { data: deps.data, ...(deps.peers ? { peers: deps.peers } : {}) };
 	const world = await World.open({
 		session: harness,
 		blobs: deps.blobs,
-		data: deps.data,
-		...(deps.peers ? { peers: deps.peers } : {}),
 		wasm: deps.wasm,
+		...calls,
 		...(deps.now ? { now: deps.now } : {}),
 	});
 	registry.install(worldExtension(world));

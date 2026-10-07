@@ -6,7 +6,7 @@ import { World, type WorldDeps } from "../src/world/world.ts";
 import { wasm } from "./wasm.ts";
 
 const operator = { by: "operator" } as const;
-const fixture = (): WorldDeps & { session: Session } => ({
+const fixture = (): WorldDeps & { session: Session; data: MemoryDataPort } => ({
 	session: createSession(new MemoryStorage()),
 	blobs: new MemoryBlobStore(),
 	data: new MemoryDataPort(),

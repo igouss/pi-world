@@ -2,7 +2,7 @@
 	"name": "pi-world",
 	"main": "src/worker.ts",
 	"compatibility_date": "2026-01-01",
-	"compatibility_flags": ["nodejs_compat"],
+	"compatibility_flags": ["nodejs_compat", "js_rpc"],
 	"define": { "BUILD": "\"dev\"" },
 	"assets": {
 		"directory": "./public",
@@ -17,5 +17,10 @@
 			{ "name": "DIRECTORY", "class_name": "DirectoryCell" }
 		]
 	},
+	"worker_loaders": [{ "binding": "LOADER" }],
+	"rules": [
+		{ "type": "Text", "globs": ["**/*.txt"] },
+		{ "type": "Data", "globs": ["**/*.bin"] }
+	],
 	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorldCell", "AccountCell", "DirectoryCell"] }]
 }

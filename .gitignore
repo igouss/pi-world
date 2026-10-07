@@ -3,3 +3,4 @@ node_modules/
 public/app.js
 public/app.js.map
 wrangler.deploy.jsonc
+dist/

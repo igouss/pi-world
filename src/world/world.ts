@@ -7,38 +7,42 @@ import { WorldChecks, WorldHead, WorldRevision, type ChecksState } from "../revi
 import type { Head, Origin, Revision } from "../revision/revision.ts";
 import { attemptDevelop, attemptEnrolment, type AttemptMode } from "./attempt.ts";
 import { diffCatalogues } from "./catalogue-diff.ts";
-import type { DataPort } from "./data-port.ts";
-import { OverlayDataPort, type DataChanges } from "./overlay-data-port.ts";
+import type { CallRunner, ExecuteResult, HeadRef } from "./call-runner.ts";
+import type { DataPort, DataRow } from "./data-port.ts";
+import { LocalCallRunner } from "./local-call-runner.ts";
 import { NO_PEERS, type PeerPort } from "./peer-port.ts";
 import { Mutex } from "./mutex.ts";
-import { VmPool } from "./vm-pool.ts";
 import { PRELUDE_VERSION } from "./prelude.ts";
 import { DEFAULT_LIMITS, WorldVm, type CatalogueEntry, type Failure, type Outcome, type VmLimits } from "./world-vm.ts";
 
 /** Runs one atomic commit; a tool passes its own `api.commit`, everything else the Session's. */
 export type Commit = <T>(change: (tx: Tx) => T | Promise<T>) => Promise<T>;
 
-export interface WorldDeps {
+interface BaseDeps {
 	readonly session: Pick<Session, "commit" | "snapshot">;
 	readonly blobs: BlobStore;
-	readonly data: DataPort;
-	/** The other worlds, for calls that start here; a call from another world brings its own. */
-	readonly peers?: PeerPort;
 	readonly wasm: WebAssembly.Module;
 	readonly limits?: VmLimits;
 	readonly now?: () => number;
-	/** How many calls one world runs at once; more wait. Each running call holds a VM of about the snapshot's size. */
-	readonly concurrentCalls?: number;
 }
 
-const CONCURRENT_CALLS: number = 8;
-const WARM_VMS: number = 2;
+/** Where calls run: a runner of the caller's choosing, or one in this process over `data`. */
+type CallDeps =
+	| { readonly calls: CallRunner }
+	| {
+			readonly data: DataPort;
+			/** The other worlds, for a call that came through `chain`. */
+			readonly peers?: (chain: readonly string[]) => PeerPort;
+			readonly concurrentCalls?: number;
+	  };
+
+export type WorldDeps = BaseDeps & CallDeps;
 
 export type DevelopResult =
 	| { readonly status: "accepted"; readonly revision: Revision; readonly replayed: boolean }
 	| { readonly status: "rejected"; readonly failure: Failure | "check"; readonly reason: string; readonly check?: string };
 
-export type ExecuteResult = Outcome & { readonly rolledBack: DataChanges };
+export type { ExecuteResult } from "./call-runner.ts";
 
 export type EnrolResult = { readonly status: "enrolled"; readonly check: Check } | { readonly status: "refused"; readonly reason: string };
 
@@ -48,16 +52,16 @@ const KEPT_CALLS: number = 200;
  * One world: its head revision, and the only path that changes it.
  *
  * Changes (develop, rollback, checks, upgrades) run one at a time under the world's lock, on the main VM, which is
- * always at the head between them. Calls run concurrently, each on its own VM from a pool, restored from the head
- * the call started at: a call never observes an attempt in progress, a call that started before a new revision
- * finishes on the old one, and heap changes a call makes vanish with its VM, because only revisions persist heap
- * state. Data is shared: calls see each other's writes between their awaits.
+ * always at the head between them. Calls, previews and the world's data belong to its `CallRunner`, which runs each
+ * call on a VM of its own at the head the call started at: a call never observes an attempt in progress, a call that
+ * started before a new revision finishes on the old one, and heap changes a call makes vanish with its VM, because
+ * only revisions persist heap state. Data is shared: calls see each other's writes between their awaits.
  */
 export class World {
 	private readonly lock: Mutex = new Mutex();
 	private readonly listeners: Set<() => void> = new Set();
 	private readonly revisions: Map<number, Revision> = new Map();
-	private readonly pool: VmPool;
+	private readonly calls: CallRunner;
 
 	private constructor(
 		private readonly deps: WorldDeps,
@@ -67,13 +71,17 @@ export class World {
 		private currentCatalogue: readonly CatalogueEntry[],
 		private checksState: ChecksState,
 	) {
-		const limits = deps.limits ?? DEFAULT_LIMITS;
-		this.pool = new VmPool(
-			(snapshot) => WorldVm.fromSnapshot(snapshot, deps.wasm, limits),
-			() => ({ revision: this.current.revision, snapshot: this.headSnapshot }),
-			deps.concurrentCalls ?? CONCURRENT_CALLS,
-			WARM_VMS,
-		);
+		this.calls =
+			"calls" in deps
+				? deps.calls
+				: new LocalCallRunner({
+						wasm: deps.wasm,
+						...(deps.limits ? { limits: deps.limits } : {}),
+						data: deps.data,
+						peers: deps.peers ?? (() => NO_PEERS),
+						snapshot: (head) => this.snapshotOf(head),
+						...(deps.concurrentCalls ? { concurrentCalls: deps.concurrentCalls } : {}),
+					});
 	}
 
 	/** Open the world at its head, creating revision 0 (the prelude alone) on first use. */
@@ -170,18 +178,24 @@ export class World {
 	 * Evaluate an expression against the world and its data, as a preview: heap changes and data writes are both
 	 * discarded, and the result names the writes it rolled back. Other worlds it calls write for real.
 	 */
-	async execute(expression: string, peers: PeerPort = this.deps.peers ?? NO_PEERS): Promise<ExecuteResult> {
-		const overlay = new OverlayDataPort(this.deps.data);
-		const outcome = await this.pool.run((vm) => vm.evaluate(expression, { kind: "live", data: overlay, peers }));
-		return { ...outcome, rolledBack: overlay.changes() };
+	async execute(expression: string, chain: readonly string[] = []): Promise<ExecuteResult> {
+		return this.calls.execute(expression, chain, this.headRef());
 	}
 
 	/**
 	 * Call a definition directly, as an end user or another world would. Heap changes are discarded; data writes are
-	 * kept. `peers` is how this call reaches other worlds; a call from another world passes one that knows the chain.
+	 * kept. A call from another world passes `chain`, the worlds it came through.
 	 */
-	async call(name: string, args: readonly unknown[], peers: PeerPort = this.deps.peers ?? NO_PEERS): Promise<Outcome> {
-		return this.pool.run((vm) => vm.invoke(name, args, { kind: "live", data: this.deps.data, peers }));
+	async call(name: string, args: readonly unknown[], chain: readonly string[] = []): Promise<Outcome> {
+		return this.calls.call(name, args, chain, this.headRef());
+	}
+
+	async data(prefix: string): Promise<readonly DataRow[]> {
+		return this.calls.dataList(prefix);
+	}
+
+	async deleteData(key: string): Promise<boolean> {
+		return this.calls.dataDelete(key);
 	}
 
 	/**
@@ -242,7 +256,7 @@ export class World {
 	}
 
 	dispose(): void {
-		this.pool.dispose();
+		this.calls.dispose();
 		this.vm.dispose();
 	}
 
@@ -308,6 +322,24 @@ export class World {
 		if (origin.by !== "agent") return undefined;
 		const done = this.current.calls[origin.callId];
 		return done === undefined ? undefined : this.requireRevision(done);
+	}
+
+	private headRef(): HeadRef {
+		return { revision: this.current.revision, blob: this.current.blob };
+	}
+
+	/** A head's snapshot for the call runner: the current one from memory, an older one from its blob. */
+	async snapshotOf(head: HeadRef): Promise<Snapshot> {
+		if (head.blob === this.current.blob) return this.headSnapshot;
+		return WorldVm.deserialize(await this.blobBytes(head.blob));
+	}
+
+	/** A snapshot blob by its content hash, for a call runner in another isolate. */
+	async blobBytes(hash: string): Promise<Uint8Array> {
+		if (hash === this.current.blob) return WorldVm.serialize(this.headSnapshot);
+		const bytes = await this.deps.blobs.get(hash);
+		if (!bytes) throw new Error(`no snapshot blob ${hash}`);
+		return bytes;
 	}
 
 	private async requireRevision(n: number): Promise<Revision> {

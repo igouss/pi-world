@@ -8,6 +8,7 @@ export interface Env {
 	readonly ACCOUNT: DurableObjectNamespace<AccountCell>;
 	readonly DIRECTORY: DurableObjectNamespace<DirectoryCell>;
 	readonly ASSETS: Fetcher;
+	readonly LOADER: { get(id: string, code: () => object): { getDurableObjectClass(name: string): unknown } };
 }
 
 export const ACCOUNT_NAME: string = "account";

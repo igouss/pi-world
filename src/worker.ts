@@ -6,6 +6,7 @@ import { ACCOUNT_NAME, DIRECTORY_NAME, type Env } from "./env.ts";
 export { AccountCell } from "./account/account-cell.ts";
 export { WorldCell } from "./cell/world-cell.ts";
 export { DirectoryCell } from "./directory/directory-cell.ts";
+export { WorldHost } from "./isolate/world-host.ts";
 
 /**
  * Routes: `/api/account/*` to the account cell, `/api/worlds` to the directory, `/api/worlds/:id/*` and `/w/:id/*` to

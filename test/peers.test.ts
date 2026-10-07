@@ -15,7 +15,7 @@ async function fleet(...ids: string[]) {
 		call: async (id, name, args, chain) => {
 			const world = worlds.get(id);
 			if (!world) return { ok: false, failure: "threw", error: `no world ${id}` };
-			return world.call(name, args, chainedPeers(id, chain, transport));
+			return world.call(name, args, chain);
 		},
 		list: async () => [...worlds.keys()].map((id) => ({ id, name: id })),
 		functions: async (id) => worlds.get(id)?.catalogue() ?? [],
@@ -27,7 +27,7 @@ async function fleet(...ids: string[]) {
 				session: createSession(new MemoryStorage()),
 				blobs: new MemoryBlobStore(),
 				data: new MemoryDataPort(),
-				peers: chainedPeers(id, [], transport),
+				peers: (chain) => chainedPeers(id, chain, transport),
 				wasm,
 			}),
 		);
@@ -85,7 +85,7 @@ describe("calls between worlds", () => {
 			session: createSession(new MemoryStorage()),
 			blobs: new MemoryBlobStore(),
 			data: new MemoryDataPort(),
-			peers: chainedPeers("a", [], slow),
+			peers: (chain) => chainedPeers("a", chain, slow),
 			wasm,
 		});
 		await world.develop(`define("both", () => Promise.all([worlds.call("b", "x"), worlds.call("c", "y")]));`, "both", operator);

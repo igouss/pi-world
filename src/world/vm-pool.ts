@@ -13,27 +13,27 @@ interface Idle {
 }
 
 /**
- * VMs for calls, so a world answers several calls at once. Each call gets a VM at the head it started from and keeps
- * it until it settles, awaits on other worlds included; the VM then returns to the head in the background. At most
- * `max` VMs exist at a time; further calls wait for one. Up to `warm` idle VMs are kept ready.
+ * VMs for calls, so a world answers several calls at once. Each call gets a VM at the head it names and keeps it until
+ * it settles, awaits on other worlds included; the VM then returns to the newest head seen, in the background. At
+ * most `max` VMs exist at a time; further calls wait for one. Up to `warm` idle VMs are kept ready.
  */
 export class VmPool {
 	private readonly idle: Idle[] = [];
 	private readonly waiting: (() => void)[] = [];
 	private active: number = 0;
+	private newest: PoolHead | undefined;
 
 	constructor(
 		private readonly open: (snapshot: Snapshot) => Promise<WorldVm>,
-		private readonly head: () => PoolHead,
 		private readonly max: number,
 		private readonly warm: number,
 	) {}
 
-	async run<T>(body: (vm: WorldVm) => Promise<T>): Promise<T> {
+	async run<T>(head: PoolHead, body: (vm: WorldVm) => Promise<T>): Promise<T> {
+		if (!this.newest || head.revision >= this.newest.revision) this.newest = head;
 		await this.slot();
 		let vm: WorldVm | undefined;
 		try {
-			const head = this.head();
 			vm = this.takeIdle(head.revision) ?? (await this.open(head.snapshot));
 			return await body(vm);
 		} finally {
@@ -58,11 +58,11 @@ export class VmPool {
 	/** Return a used VM to the head it may have changed, or drop it when enough are warm. */
 	private async recycle(vm: WorldVm): Promise<void> {
 		try {
-			if (this.idle.length >= this.warm) {
+			const head = this.newest;
+			if (!head || this.idle.length >= this.warm) {
 				vm.dispose();
 				return;
 			}
-			const head = this.head();
 			await vm.reset(head.snapshot);
 			this.idle.push({ vm, revision: head.revision });
 		} catch {
