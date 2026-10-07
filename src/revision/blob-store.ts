@@ -6,11 +6,17 @@ export interface BlobStore {
 	get(hash: string): Promise<Uint8Array | undefined>;
 }
 
+/** A blob store that can say what it holds and drop a blob: the cell's own storage. */
+export interface LocalBlobStore extends BlobStore {
+	hashes(): Promise<readonly string[]>;
+	delete(hash: string): Promise<void>;
+}
+
 export async function contentHash(bytes: Uint8Array): Promise<string> {
 	return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>)));
 }
 
-export class MemoryBlobStore implements BlobStore {
+export class MemoryBlobStore implements LocalBlobStore {
 	private readonly blobs: Map<string, Uint8Array> = new Map();
 
 	async put(hash: string, bytes: Uint8Array): Promise<void> {
@@ -19,5 +25,17 @@ export class MemoryBlobStore implements BlobStore {
 
 	async get(hash: string): Promise<Uint8Array | undefined> {
 		return this.blobs.get(hash);
+	}
+
+	async has(hash: string): Promise<boolean> {
+		return this.blobs.has(hash);
+	}
+
+	async hashes(): Promise<readonly string[]> {
+		return [...this.blobs.keys()];
+	}
+
+	async delete(hash: string): Promise<void> {
+		this.blobs.delete(hash);
 	}
 }

@@ -1,0 +1,14 @@
+{
+	"name": "pi-world-iso",
+	"main": "index.ts",
+	"compatibility_date": "2026-08-18",
+	"compatibility_flags": ["js_rpc"],
+	"durable_objects": { "bindings": [{ "name": "HOST", "class_name": "Host" }] },
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["Host"] }],
+	"worker_loaders": [{ "binding": "LOADER" }],
+	"r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "pi-world-snapshots" }],
+	"rules": [
+		{ "type": "Text", "globs": ["**/*.txt"] },
+		{ "type": "Data", "globs": ["**/*.bin"] }
+	]
+}

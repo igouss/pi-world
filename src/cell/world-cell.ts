@@ -15,6 +15,9 @@ import { appPage, hasApp } from "./app-page.ts";
 import { claudeModels } from "./claude-models.ts";
 import { Fanout } from "./fanout.ts";
 import { openWorld } from "./open-world.ts";
+import { TieredBlobStore } from "../revision/tiered-blob-store.ts";
+import { Mutex } from "../world/mutex.ts";
+import { r2Archive } from "./r2-archive.ts";
 import { sqlBlobStore } from "./sql-blob-store.ts";
 import { cellDatabase } from "./sqlite-database.ts";
 import { routeWorld, type WorldRuntime } from "./world-routes.ts";
@@ -121,9 +124,10 @@ export class WorldCell extends DurableObject<Env> {
 		const account = this.env.ACCOUNT.getByName(ACCOUNT_NAME);
 		const facet = () => runtimeFacet(this.env.LOADER, this.ctx.facets as never, meta.id, this.hostFor(meta.id));
 		await this.moveDataToRuntime(facet());
+		const blobs = new TieredBlobStore(await sqlBlobStore(db), r2Archive(this.env.SNAPSHOTS));
 		const opened = await openWorld({
 			storage: await SqliteStorage.open(db),
-			blobs: await sqlBlobStore(db),
+			blobs,
 			calls: new FacetCallRunner(meta.id, facet),
 			wasm,
 			models: claudeModels(() => account.accessToken()),
@@ -153,6 +157,13 @@ export class WorldCell extends DurableObject<Env> {
 			fanout.publish("world", () => ({ type: "world", world: summary() }));
 		});
 		world.subscribe(() => fanout.publish("world", () => ({ type: "world", world: summary() })));
+		const archiving = new Mutex();
+		const archive = () =>
+			void archiving
+				.run(() => blobs.archiveAllBut(world.head().blob))
+				.catch((error: unknown) => console.warn(`archiving snapshots of ${meta.id} failed; the next revision retries`, error));
+		world.subscribe(archive);
+		archive();
 		// Sockets that outlived a hibernation or a deploy get the current state from this version of the code.
 		fanout.publish("world", () => ({ type: "world", world: summary() }));
 		fanout.publish("transcript", () => ({ type: "transcript", transcript: transcript() }));

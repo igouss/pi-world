@@ -8,6 +8,8 @@ export interface Env {
 	readonly ACCOUNT: DurableObjectNamespace<AccountCell>;
 	readonly DIRECTORY: DurableObjectNamespace<DirectoryCell>;
 	readonly ASSETS: Fetcher;
+	/** Snapshot blobs other than each world's head. */
+	readonly SNAPSHOTS: R2Bucket;
 	readonly LOADER: { get(id: string, code: () => object): { getDurableObjectClass(name: string): unknown } };
 }
 
