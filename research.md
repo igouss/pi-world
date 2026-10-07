@@ -94,8 +94,8 @@ These are undocumented or unknown. Measure them early, at milestone 6.
    other worlds' calls into such a cell: a Dashboard call waited out its 30 s deadline on a world that was mid-swap.
 9. **Cell limits under load.** celld refuses a request with `503 cell request limit reached` when a cell has 64 in
    flight (`in_flight=64 limit=64`), and the count appears to include the cell's own calls to other worlds: 40
-   concurrent calls that each call another world got 28 answers and 12 refusals. Not documented; the 64 is from the
-   log line.
+   concurrent calls that each call another world got 28 answers and 12 refusals. The limit is the node setting
+   `CELLD_MAX_CELL_REQUESTS` (default 64).
 10. **CPU in one world slows others.** On the node, a world computing for about 1.5 s delayed calls to unrelated worlds
     by the same time: cells share a small pool of JavaScript isolates (`worker_count=2`). The time budget bounds it.
 
@@ -138,6 +138,35 @@ Little or no use now:
 
 Suggested order: hibernatable WebSockets (fixes a stall already seen), alarms for scheduled world code (the most visible
 missing capability), then Queues or Workflows once open decision 14 is settled.
+
+### Spike results, 2026-10-07
+
+`spike/features/` (`index.ts`, `ws-check.mjs`) ran on a temporary one-node fleet on the development machine, against
+the same GCS bucket under the prefix `spikes/`, with `CELLD_IDLE_EVICT_S=5`, `CELLD_DEPLOY_POLL_S=2`,
+`CELLD_TOKIO_THREADS=2` and, for the alarm runs, `CELLD_ALARM_RESIDENT_MS=1000`. The machine is not in the bucket's
+region, so latencies are higher than on the node would be.
+
+| Feature | What was run | Result |
+|---|---|---|
+| Hibernatable WebSockets | A hibernatable and a regular socket held open across 12 s of idle, then across a deploy | The hibernatable socket's cell hibernated (its constructor ran again) and the socket still answered. After the deploy its cell ran the new version at once and the socket stayed open, served by the new code. The regular socket's cell never hibernated, moved to the new version 60 s later, and the socket was closed at the cut-over |
+| Alarms as a scheduler | Jobs due at 1.5, 3, 9 and 9 s through one alarm per cell, re-armed at the earliest job | Fired 1 to 76 ms late. A cell whose next alarm is under `CELLD_ALARM_RESIDENT_MS` (1 hour by default) stays resident; with 1 s, a job 12 s out woke a hibernated cell, 164 ms late |
+| Alarms after a crash | Node killed with SIGKILL 5 s after scheduling a job 20 s out; no requests afterwards | The job fired 51 s late, once the dead node's lease expired (about a minute). A request to the cell takes it over at once and fires an overdue alarm then |
+| Queues | 10 sends from a Worker, one message retried by its consumer | Each `send()` 160 to 430 ms, waiting for the bucket; delivery 0.9 to 1.5 s with a 1 s batch window; the retried message came back with `attempts=2` after 4.4 s. A consumer is a Worker `queue()` handler, not a cell, so it forwards to a world cell by RPC (open check 7 answered) |
+| Workflows | Step, 3 s sleep, `waitForEvent`, step; then the same killed with SIGKILL while waiting | Completed with the answer. After the kill and a restart, the answer sent at once completed the instance with its earlier step results intact |
+| `transactionSync` | Two inserts, then a throw | Both inserts rolled back |
+| Dynamic Workers | 0.57 s of CPU work in a cell, then in a loaded Worker, while timing a request to another cell | Work in a cell held the other cell's request until it finished (0.32 s); work in a loaded Worker did not (2 ms). Cells share an isolate; a loaded Worker has its own |
+| HTMLRewriter | Inject a script into `<head>` | Works with any case and attributes on `<head>`; a page without `<head>` gets nothing, so a fallback is still needed |
+
+What this changes:
+
+- Hibernatable WebSockets remove the deploy stall (open check 8) and let idle worlds hibernate. They are the first
+  change to make.
+- Scheduled world code on alarms works and survives a crash, but a crash delays it by about a minute on one node.
+- Pauses as Workflows (open decision 8) keep their state across a crash; the step results are the durable record,
+  not a heap continuation.
+- Running world code in a Dynamic Worker isolates its CPU from other worlds (open check 10), at the cost of crossing
+  an isolate for every host call.
+- The 64-request cell limit (open check 9) is the node setting `CELLD_MAX_CELL_REQUESTS`.
 
 ## Not verified
 

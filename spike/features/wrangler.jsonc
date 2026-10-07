@@ -1,0 +1,14 @@
+{
+	"name": "pi-world-features",
+	"main": "index.ts",
+	"compatibility_date": "2026-08-18",
+	"define": { "VERSION": "\"1\"" },
+	"durable_objects": { "bindings": [{ "name": "PROBE", "class_name": "Probe" }] },
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["Probe"] }],
+	"queues": {
+		"producers": [{ "binding": "JOBS", "queue": "spike-jobs" }],
+		"consumers": [{ "queue": "spike-jobs", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 3, "retry_delay": 1 }]
+	},
+	"workflows": [{ "binding": "PAUSE", "name": "pause", "class_name": "Pause" }],
+	"worker_loaders": [{ "binding": "LOADER" }]
+}
