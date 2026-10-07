@@ -67,33 +67,9 @@ The prelude, installed at revision 0, is how `develop` sources are written:
 | `undefine(name)` | Remove a definition |
 | `state(name, init, { version, migrate })` | A heap object that `init` creates once and later evaluations keep |
 | `data.get / set / delete / list(prefix)` | The world's persistent key-value store, JSON values; for calls only, never a `develop` |
-| `worlds.list() / functions(id) / call(id, name, ...args)` | The other worlds on the server; promises, for calls only. A call cannot come back to a world already in it, and passes through at most 4 worlds |
+| `worlds.list() / functions(id) / call(id, name, ...args)` | The other worlds on the server; promises, for calls only. See [Calls between worlds](#calls-between-worlds-built) |
 
 A world built before a prelude change is brought up to date by an `upgrade` revision when it next opens.
-
-### Worlds calling worlds
-
-A world's definitions are a service to every other world. In this example from the node, the agent built a
-*Currency* world and then a *Trip budget* world that found it with `worlds.list()` and `worlds.functions(id)`:
-
-```js
-// Currency
-define("convert", (amount, from, to) => { /* fixed rates kept in state */ }, { doc: "Convert between USD, JPY, EUR and CAD." });
-
-// Trip budget
-define("totals", async (currency) => {
-	const totalYen = listExpenses().reduce((s, e) => s + e.yen, 0);
-	const converted = await worlds.call("currency-edcacf", "convert", totalYen, "JPY", currency);
-	return { yen: totalYen, currency, converted };
-});
-```
-
-`POST /api/worlds/trip-budget-3a39bb/call/totals {"args": ["USD"]}` answers `{"yen": 40500, "currency": "USD",
-"converted": 270}` in about 60 ms, with no model. An error in Currency reaches the caller as a rejection naming the
-world and function: `currency-edcacf.convert: Error: Unknown currency: GBP`.
-
-Each world cell holds its own lock during a call, so a call that came back to a world already in the chain would
-wait for itself. The chain travels with the call, and such a call is refused at once.
 
 ```js
 const cache = state("lookup.cache", () => ({ hits: 0 }), { version: 1 });
@@ -134,6 +110,106 @@ so a migration that throws rejects the `develop`:
 -  x: 3, y: 4              @1
 +  rho: 5, theta: 0.927    @2
 ```
+
+## Calls between worlds (built)
+
+Every world's definitions are a service to every other world on the server. World code calls one with
+`await worlds.call(worldId, name, ...args)`; `worlds.list()` and `worlds.functions(worldId)` say what exists. This
+is an asynchronous request and response between two cells: the caller awaits a promise, the other world runs the
+function in its own cell and VM, and the result or the error comes back. No model is involved at any point.
+
+### How a call travels
+
+```mermaid
+sequenceDiagram
+    participant Caller as Caller world code
+    participant A as Caller cell (holds its lock)
+    participant B as Callee cell
+    participant VM as Callee world code
+    Caller->>A: await worlds.call("b", "convert", 40500, "JPY", "USD")
+    Note over A: the evaluation step ends; the promise is pending
+    A->>B: peerCall("convert", args, chain = [a]) over Durable Object RPC
+    B->>VM: call convert under the callee's lock
+    VM-->>B: 270, or a thrown error
+    B-->>A: { ok, value } or { ok: false, error }
+    A->>Caller: resolve (or reject) the promise, run the waiting code
+```
+
+- **It is asynchronous for the code.** `worlds.call` returns a promise, so a function that uses it is `async`. Calls
+  awaited together run at the same time: two 200 ms calls under `Promise.all` take about 200 ms
+  (`test/peers.test.ts`).
+- **The calling world is busy while it waits.** Its cell holds the world's lock for the whole call, because the VM is
+  in the middle of an evaluation. Other calls and develops on that world queue behind it; the cell's conversation and
+  sockets keep working. The called world is locked only while its function runs.
+- **Errors cross over as rejections.** A throw in the other world rejects the promise with an `Error` whose message
+  names where it came from, hop by hop.
+- **Cycles are refused.** A call carries the chain of worlds it has passed through. A call back into a world already
+  on the chain would wait for a lock the chain holds, so it is refused at once; a chain is at most four worlds.
+- **Only calls reach other worlds.** A `develop` or a check that touches `worlds` is rejected, as with `data`.
+
+### Use cases
+
+**A shared service.** One world owns a capability and others use it rather than copying it. The agent built a
+*Currency* world, then a *Trip budget* world that found it with `worlds.list()` and `worlds.functions(id)`:
+
+```js
+// Currency (currency-edcacf)
+define("convert", (amount, from, to) => { /* fixed rates kept in state */ }, { doc: "Convert between USD, JPY, EUR and CAD." });
+
+// Trip budget (trip-budget-3a39bb)
+define("totals", async (currency) => {
+	const totalYen = listExpenses().reduce((s, e) => s + e.yen, 0);
+	const converted = await worlds.call("currency-edcacf", "convert", totalYen, "JPY", currency);
+	return { yen: totalYen, currency, converted };
+});
+```
+
+`POST /api/worlds/trip-budget-3a39bb/call/totals {"args": ["USD"]}` answers
+`{"yen": 40500, "currency": "USD", "converted": 270}` in about 60 ms.
+
+**A view over several worlds, asked in parallel.** A *Dashboard* world reads two worlds at once; one of them calls
+a third:
+
+```js
+// Dashboard (dashboard-485394)
+define("overview", async (currency = "USD") => {
+	const [todos, trip] = await Promise.all([
+		worlds.call("demo-todos-031d08", "stats"),
+		worlds.call("trip-budget-3a39bb", "totals", currency),
+	]);
+	return { openTodos: todos.open, tripSpent: trip.converted, currency };
+}, { doc: "Todos and trip spending from two other worlds, asked in parallel." });
+```
+
+`overview("EUR")` answers `{"openTodos": 2, "tripSpent": 248.4, "currency": "EUR"}` in 70 to 100 ms on the node,
+across four worlds: Dashboard, Demo todos, Trip budget and Currency.
+
+**Handling another world's failure.** A caller decides what a failure means for it:
+
+```js
+define("tripIn", async (currency) => {
+	try {
+		return await worlds.call("trip-budget-3a39bb", "totals", currency);
+	} catch (error) {
+		return { error: error.message };
+	}
+});
+```
+
+`tripIn("GBP")` answers `{"error": "trip-budget-3a39bb.totals: Error: currency-edcacf.convert: Error: Unknown
+currency: GBP"}`: the message carries the path the error took.
+
+**Discovery.** The agent finds services the same way world code does, with `execute`:
+`worlds.list()` gives `[{ id, name }]`, and `worlds.functions(id)` gives each definition's name, kind, doc and
+parameters.
+
+### What it is not, yet
+
+A call is a query or a command that needs its answer now. It is not durable messaging: there is no queue, retry or
+idempotency key, a caller that crashes mid-call loses the call while data the other world wrote stays, and a world that
+does not answer within 30 s fails the call. Any world may call any other; there are no permissions. Which semantics
+calls between worlds should have (RPC under the lock, RPC without it, durable messages through celld Queues, or
+both) is open decision 14 in [`decisions.md`](decisions.md), with the trade-offs and the questions to research.
 
 ## A session, step by step (built)
 
@@ -321,6 +397,7 @@ are in [`research.md`](research.md).
 | Direct calls need no model | 62 to 71 ms per call, conversation unchanged; on a `celld dev` with no credential, calls work while agent messages fail |
 | A crash mid-run | celld restarted between tool rounds with nothing sent afterwards; the run finished, no revision accepted twice |
 | Worlds calling worlds | Trip budget's `totals` calls Currency's `convert` over Durable Object RPC: 270 USD for ¥40,500, the same as calling Currency directly |
+| Fan-out across worlds | Dashboard's `overview` asks Demo todos and Trip budget in parallel, and Trip budget asks Currency: 70 to 100 ms across four worlds |
 | Prelude upgrade | Demo todos, built on prelude 1, opened on the new version and got revision 6, "prelude 1 to 2" |
 | Snapshot rows | A 1.44 MB snapshot round-trips through the cell's SQLite |
 
