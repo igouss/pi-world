@@ -69,16 +69,24 @@ The rules the implementation obeys, each with the fact that forces it.
 - **Snapshots are tied to the exact `quickjs.wasm` build.** Keep the source log. After a runtime upgrade, rebuild by
   replaying accepted `develop` sources.
 - **Determinism:** pin the clock, random and timezone through quickjs-wasi's `wasi` and `timezoneOffset` options.
-- **Calls between worlds are request and response over Durable Object RPC, under the caller's lock.** World code
-  calls `worlds.call(id, name, ...args)` and gets a QuickJS promise; the evaluation step ends, the host sends
-  `peerCall` to the other world's cell, waits outside the VM, then resolves the promise and runs the waiting code
-  (`WorldVm.settle`). The caller holds its world's lock for the whole wait, because the VM is mid-evaluation and must
-  not be reset or entered by another operation. Consequences:
+- **Calls run concurrently, each on its own VM; changes run one at a time on the main VM.** A call takes a VM from the
+  world's pool (`VmPool`, 8 by default), restored from the head the call started at, and keeps it until it settles.
+  A develop, rollback, check or upgrade holds the world's lock and uses the main VM, which is always at the head
+  between changes. One VM cannot serve two calls at once: two evaluations would share one heap, and resetting it after
+  one would wipe the other. Consequences:
+  - A call that awaits another world does not block the world's other calls or its changes
+    (`test/concurrency.test.ts`).
+  - A call that started before a new revision finishes on the old one.
+  - Data is shared and not isolated: calls interleave at their awaits.
+  - Each running call costs a VM of about the snapshot's size (1.4 MB for a small world).
+- **Calls between worlds are request and response over Durable Object RPC.** World code calls
+  `worlds.call(id, name, ...args)` and gets a QuickJS promise; the evaluation step ends, the host sends `peerCall` to
+  the other world's cell, waits outside the VM, then resolves the promise and runs the waiting code
+  (`WorldVm.settle`). Consequences:
   - Calls awaited together overlap (`Promise.all` of two 200 ms calls takes about 200 ms, `test/peers.test.ts`).
-  - The caller world is busy for the whole call: its other calls and develops queue behind it. The cell itself is not
-    blocked; the conversation and sockets keep working.
-  - A call back into a world already in the call would wait for a lock the call holds, so the chain of worlds travels
-    with the call and such a call is refused (`chainedPeers`). A chain is at most four worlds.
+  - A waiting call holds a VM in each world on its chain, so a cycle could use up a world's VMs and wait for its own.
+    The chain travels with the call and a call back into a world on it is refused (`chainedPeers`). A chain is at
+    most four worlds.
   - Nothing is durable: no queue, no retry, no idempotency key. A caller that crashes mid-call loses the call; data
     the callee wrote stays. A callee that does not answer within 30 s fails the call (`PEER_DEADLINE_MS`).
   - Any world may call any world; there is no permission model.

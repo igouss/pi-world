@@ -123,7 +123,7 @@ function in its own cell and VM, and the result or the error comes back. No mode
 ```mermaid
 sequenceDiagram
     participant Caller as Caller world code
-    participant A as Caller cell (holds its lock)
+    participant A as Caller cell (one pooled VM)
     participant B as Callee cell
     participant VM as Callee world code
     Caller->>A: await worlds.call("b", "convert", 40500, "JPY", "USD")
@@ -138,13 +138,20 @@ sequenceDiagram
 - **It is asynchronous for the code.** `worlds.call` returns a promise, so a function that uses it is `async`. Calls
   awaited together run at the same time: two 200 ms calls under `Promise.all` take about 200 ms
   (`test/peers.test.ts`).
-- **The calling world is busy while it waits.** Its cell holds the world's lock for the whole call, because the VM is
-  in the middle of an evaluation. Other calls and develops on that world queue behind it; the cell's conversation and
-  sockets keep working. The called world is locked only while its function runs.
+- **A world answers many calls at once.** Each call runs on its own VM, taken from a pool and restored from the head
+  revision the call started at. A call that awaits another world keeps its VM, and the world's other calls run
+  meanwhile on other VMs. A world runs up to 8 calls at once; more wait for a VM.
+- **Changes do not wait for calls.** A develop, rollback or check runs on the world's main VM under the world's lock,
+  which calls no longer take. A call that started before a new revision finishes on the revision it started at; the
+  next call sees the new one.
+- **Data is shared, heap is not.** Heap changes a call makes vanish with its VM. Data writes are visible to other calls
+  at once. Between two awaits a call runs alone, so a read and a write with no `await` between them are atomic; a
+  read-modify-write that spans an `await` is not.
 - **Errors cross over as rejections.** A throw in the other world rejects the promise with an `Error` whose message
   names where it came from, hop by hop.
-- **Cycles are refused.** A call carries the chain of worlds it has passed through. A call back into a world already
-  on the chain would wait for a lock the chain holds, so it is refused at once; a chain is at most four worlds.
+- **Cycles are refused.** A call carries the chain of worlds it has passed through, and a call back into a world
+  already on it is refused at once. A waiting call holds a VM in every world on its chain, so a cycle could use up a
+  world's VMs and then wait for one of its own. A chain is at most four worlds.
 - **Only calls reach other worlds.** A `develop` or a check that touches `worlds` is rejected, as with `data`.
 
 ### Use cases
@@ -203,13 +210,25 @@ currency: GBP"}`: the message carries the path the error took.
 `worlds.list()` gives `[{ id, name }]`, and `worlds.functions(id)` gives each definition's name, kind, doc and
 parameters.
 
+### Limits on one node
+
+| Limit | Value | What happens past it |
+|---|---|---|
+| Calls one world runs at once | 8 VMs (`concurrentCalls`) | Further calls wait in the cell for a VM |
+| Requests in flight in one cell | 64, celld's own limit, counting incoming requests and the cell's own calls to other worlds | celld answers `503 cell request limit reached` at once |
+| One call's wait on other worlds | 30 s | The call fails |
+| CPU | Cells share a small pool of JavaScript isolates (two worker threads on the node) | A world busy computing slows unrelated worlds on its isolate until its time budget stops it |
+
+On the node, 20 concurrent calls that each call another world finished in about 0.25 s. At 40 concurrent calls, 28
+were answered and 12 refused with 503; at 60, 16 and 44. The cell answered again within seconds.
+
 ### What it is not, yet
 
 A call is a query or a command that needs its answer now. It is not durable messaging: there is no queue, retry or
 idempotency key, a caller that crashes mid-call loses the call while data the other world wrote stays, and a world that
-does not answer within 30 s fails the call. Any world may call any other; there are no permissions. Which semantics
-calls between worlds should have (RPC under the lock, RPC without it, durable messages through celld Queues, or
-both) is open decision 14 in [`decisions.md`](decisions.md), with the trade-offs and the questions to research.
+does not answer within 30 s fails the call. Any world may call any other; there are no permissions. Whether calls
+between worlds should also have durable messages through celld Queues is open decision 14 in
+[`decisions.md`](decisions.md), with the trade-offs and the questions to research.
 
 ## A session, step by step (built)
 

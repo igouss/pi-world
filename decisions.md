@@ -73,6 +73,8 @@ Made on 2026-10-06 under the prototype authorization above. Each is a default to
   accepted as well as the OAuth login.
 - **Data:** a key-value table per world (`data.get/set/delete/list`), JSON values, reachable from calls and
   `execute` only. `list` returns at most 1000 rows. A full SQL host API is not built.
+- **Concurrent calls:** a world runs up to 8 calls at once, each on its own VM; further calls wait in the cell. Two
+  idle VMs are kept warm. The numbers are guesses, not measured against the cell's memory.
 - **Worlds calling worlds:** any world may call any definition of any other world on the server, with no permission
   model; the call carries its chain, and a cycle or a chain of more than four worlds is refused. Calls between worlds
   are for calls only, never for a develop or a check.
@@ -130,13 +132,14 @@ the task graph panel, and gzip of blobs.
     so checks read data and built-ins only, or allow it and re-run its counterexample every time that definition
     changes.
 14. **What a call between worlds is.** Recorded 2026-10-06; the operator is researching it. Today it is synchronous
-    request and response over Durable Object RPC, with the caller's world locked for the whole wait (`design.md`,
-    "Calls between worlds"). That is the simplest thing that works on one node, not a decision. The options:
+    request and response over Durable Object RPC. Since 2026-10-07 each call runs on its own pooled VM, so a waiting
+    call no longer blocks its world (option B below, built at the operator's request: "We should support concurrent
+    calls", 2026-10-07). What remains open is whether calls also need durable messages. The options:
 
     | Option | What it is | Gains | Costs |
     |---|---|---|---|
-    | A. Keep RPC under the lock | What is built | Simple; the answer arrives inside the calling function; errors propagate | The caller world is busy while it waits; no durability; a slow world stalls its callers |
-    | B. RPC without the lock | Release the caller's lock while it waits, running the evaluation on a forked VM | Other calls to the caller proceed | One VM per waiting call (about 1.4 MB each); two evaluations in flight against one data store; the "VM at the head" rule needs rework |
+    | A. RPC under the lock | Built first, replaced by B | Simple | The caller world is busy while it waits |
+    | B. RPC on pooled VMs | What is built: each call has its own VM at the head it started from | Other calls and changes proceed while a call waits | One VM per running call (about 1.4 MB each); calls share data between their awaits; no durability |
     | C. Durable messages | `worlds.send(id, name, ...args)`: fire and forget through celld Queues or an outbox the cell drains from an alarm | Survives crashes; the caller is never blocked; retries | At-least-once delivery, so the callee needs idempotency keys; no return value in the calling function, so replies are messages too |
     | D. A and C both | `call` for queries, `send` for commands | Each use gets the semantics it needs | Two mechanisms to explain to the agent; the agent must choose correctly |
 
