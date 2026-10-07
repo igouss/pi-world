@@ -144,6 +144,8 @@ sequenceDiagram
 - **Changes do not wait for calls.** A develop, rollback or check runs on the world's main VM under the world's lock,
   which calls no longer take. A call that started before a new revision finishes on the revision it started at; the
   next call sees the new one.
+- **`execute` is a preview.** Its data writes are rolled back and listed in the result; other worlds it calls write
+  for real.
 - **Data is shared, heap is not.** Heap changes a call makes vanish with its VM. Data writes are visible to other calls
   at once. Between two awaits a call runs alone, so a read and a write with no `await` between them are atomic; a
   read-modify-write that spans an `await` is not.
@@ -217,7 +219,7 @@ parameters.
 | Calls one world runs at once | 8 VMs (`concurrentCalls`) | Further calls wait in the cell for a VM |
 | Requests in flight in one cell | 64, celld's own limit, counting incoming requests and the cell's own calls to other worlds | celld answers `503 cell request limit reached` at once |
 | One call's wait on other worlds | 30 s | The call fails |
-| CPU | Cells share a small pool of JavaScript isolates (two worker threads on the node) | A world busy computing slows unrelated worlds on its isolate until its time budget stops it |
+| CPU | Each world's calls run in an isolate of the world's own | A world busy computing slows only its own calls; develops and checks still run in the shared cell isolate |
 
 On the node, 20 concurrent calls that each call another world finished in about 0.25 s. At 40 concurrent calls, 28
 were answered and 12 refused with 503; at 60, 16 and 44. The cell answered again within seconds.
@@ -381,29 +383,47 @@ flowchart LR
     C --> H["pi-durable harness<br/>tools: develop, execute, ..."]
     C --> WS["World service<br/>lock, attempts, revisions, checks"]
     H --> WS
-    WS --> VM["WorldVm: QuickJS in WASM<br/>prelude, registry"]
+    WS --> MAIN["Main VM<br/>develops and checks"]
+    WS -- "calls, previews, data" --> RT
+    subgraph ISO["The world's own isolate (a facet, loaded through a Worker Loader)"]
+        RT["RuntimeFacet<br/>VM pool"] --> D[("world_data<br/>the facet's SQLite")]
+    end
+    RT -. "snapshots, other worlds" .-> HOST["WorldHost<br/>capability"]
+    HOST --> C
     H --> M["Claude, via the subscription"]
     C -. access token .-> A
-    WS --> B[("Snapshot blobs<br/>content-addressed")]
-    VM --> D[("world_data table<br/>data from calls")]
+    WS --> B[("Head snapshot<br/>cell SQLite")]
+    B -. "older snapshots, gzipped" .-> R2[("R2<br/>snapshots/&lt;hash&gt;.gz")]
 ```
 
-A direct call goes from the Worker to the cell to the VM and never reaches the harness or the model. Every operation
-on a world holds its lock, and after a call the VM returns to the head snapshot.
+- **Changes run in the world's cell.** Develops, rollbacks and checks hold the world's lock and use the main VM.
+- **Calls run in the world's own isolate.** Calls, `execute` previews and the world's data live in a facet of the
+  cell, loaded through a Worker Loader under a loader id of the world's own. CPU work there does not hold up other
+  worlds: on the node, a world computing for 1.75 s left two other worlds answering in 63 to 82 ms. The facet keeps the
+  world's data in its own SQLite, asks the cell for snapshots by hash, and reaches other worlds through `WorldHost`, a
+  capability the cell lends it. The domain sees all of this as a `CallRunner` port; tests use the in-process
+  `LocalCallRunner`, which the facet also runs.
+- **Snapshots are tiered.** The head's snapshot stays in the cell's SQLite, so a world opens from local storage.
+  Every other snapshot moves to R2, gzipped (1.4 MB to about 146 KB), after each revision, and is read back from there
+  for a rollback.
+- **A direct call never reaches the harness or the model.**
 
 | Directory | What it does |
 |---|---|
-| `src/world/` | `WorldVm`, the prelude, attempts, the `World` service |
-| `src/revision/` | Revision manifests, the head, the blob store port, the pi-durable documents |
+| `src/world/` | `WorldVm`, the prelude, attempts, the `World` service, the `CallRunner` port and its in-process runner |
+| `src/isolate/` | The world's runtime isolate: the facet, the host capability, the loader, and the host's runner |
+| `src/revision/` | Revision manifests, the head, the blob stores (local, R2, tiered), the pi-durable documents |
 | `src/check/` | The check type |
 | `src/agent/` | The agent's tools, its standing instructions and the `world` section |
 | `src/conversation/` | The transcript the UI shows |
-| `src/cell/` | The world cell: SQLite adapter, routes, WebSocket fan-out, world pages |
+| `src/cell/` | The world cell: SQLite adapter, routes, WebSocket fan-out, world pages, the R2 archive |
 | `src/account/`, `src/directory/` | The Claude credential, the world list |
 | `src/api/` | The wire contract shared with the UI |
 | `ui/` | The web UI |
 
-Revisions are stored as `world.head` and `world.revision` documents holding a manifest and a pointer to a blob.
+`npm run build` bundles the runtime isolate's code (`dist/runtime/`) and the UI (`public/app.js`); `dev`, `typecheck`
+and `deploy` run it. Revisions are stored as `world.head` and `world.revision` documents holding a manifest and a
+pointer to a blob.
 
 ## Verified on the node
 
@@ -417,6 +437,10 @@ are in [`research.md`](research.md).
 | An agent session | A todo app with seven functions, a check and a page, built through the UI; a todo added on the page read back by a direct call |
 | Direct calls need no model | 62 to 71 ms per call, conversation unchanged; on a `celld dev` with no credential, calls work while agent messages fail |
 | A crash mid-run | celld restarted between tool rounds with nothing sent afterwards; the run finished, no revision accepted twice |
+| CPU isolation between worlds | A world computing for 1.75 s; two other worlds answered in 63 to 82 ms. Before, an unrelated world waited 1.47 s |
+| Data moved into each world's isolate | Every world's revision, function count and data identical before and after the deploy that moved them |
+| Snapshots in R2 | Seven older snapshots archived, gzipped; a rollback to an archived revision read it back in 0.82 s |
+| `execute` is a preview | An `addTodo` in `execute` reported its write as rolled back; the todo count was unchanged afterwards |
 | Worlds calling worlds | Trip budget's `totals` calls Currency's `convert` over Durable Object RPC: 270 USD for ¥40,500, the same as calling Currency directly |
 | Fan-out across worlds | Dashboard's `overview` asks Demo todos and Trip budget in parallel, and Trip budget asks Currency: 70 to 100 ms across four worlds |
 | Prelude upgrade | Demo todos, built on prelude 1, opened on the new version and got revision 6, "prelude 1 to 2" |
@@ -444,7 +468,7 @@ Growth is linear, about 1.5 KB per definition. Snapshots are stored raw in the p
 - celld is in beta. Open checks that remain (memory and CPU per cell, what wakes a cell after a restart, a run moving
   to another node, the OAuth refresh at expiry, streaming lag) are in [`research.md`](research.md).
 - Checks cannot read data, so a behaviour that depends on stored data is hard to protect with one.
-- `execute` keeps its data writes, so an agent that tries its functions can leave test rows behind, or delete yours.
+- `execute` rolls back its own world's data writes, but a world it calls through `worlds.call` writes for real.
 - A snapshot belongs to the exact `quickjs.wasm` build. After a runtime upgrade, the world is rebuilt by replaying the
   source log.
 - Only instances built with `new` through a class are tracked and migrated.

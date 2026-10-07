@@ -69,6 +69,17 @@ The rules the implementation obeys, each with the fact that forces it.
 - **Snapshots are tied to the exact `quickjs.wasm` build.** Keep the source log. After a runtime upgrade, rebuild by
   replaying accepted `develop` sources.
 - **Determinism:** pin the clock, random and timezone through quickjs-wasi's `wasi` and `timezoneOffset` options.
+- **Calls run in the world's own isolate.** Calls, previews and data belong to a `CallRunner`. In the cell it is a
+  facet loaded through a Worker Loader with a loader id per world, because loaded code with one id shares one isolate,
+  and a shared isolate would let one world's CPU work hold up the others. The facet owns the world's data in its own
+  SQLite (synchronous, as world code needs), fetches snapshots from the cell by content hash, and reaches other worlds
+  only through the `WorldHost` capability. Develops and checks stay on the cell's main VM: they touch no data and are
+  bounded by the time budget.
+- **`execute` is a preview.** Its data writes go to an overlay that is dropped afterwards (`OverlayDataPort`), and
+  the result lists them. An overlay rather than a SQL transaction, because an evaluation can span awaits.
+- **Snapshots are tiered.** The head's blob stays in the cell's SQLite; every other blob moves to R2, gzipped, and the
+  local copy is deleted only once R2 holds it (`TieredBlobStore`). Blobs are content-addressed, so a key never needs
+  rewriting and identical snapshots of different worlds share one object.
 - **Calls run concurrently, each on its own VM; changes run one at a time on the main VM.** A call takes a VM from the
   world's pool (`VmPool`, 8 by default), restored from the head the call started at, and keeps it until it settles.
   A develop, rollback, check or upgrade holds the world's lock and uses the main VM, which is always at the head

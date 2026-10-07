@@ -107,6 +107,21 @@ deployment pointer every 30 s), within 0.2 s of each other. Both sockets stayed 
 the new code; their REST summaries changed at the same moment. Before, with regular sockets, such a cell moved 60 s
 after the others and its sockets were closed (open check 8).
 
+## Isolation and R2 on the node
+
+2026-10-07, build `df726fb`. Spike first (`spike/isolation/`, on the local spike fleet): QuickJS ran in a facet loaded
+through a Worker Loader; a 1.38 MB snapshot crossed host to facet over RPC and restored in 20 ms; the facet fetched
+1.5 MB from the host through a capability in 9 ms; the facet's SQLite worked; 9 s of CPU in a host cell held another
+cell's request for 9 s, the same work in a facet held it for 2 ms; R2 stored a gzipped snapshot (1.38 MB to 110 KB,
+189 ms put, 143 ms get). Then on the node:
+
+- Data: every world's revision, function count and data were identical before and after the deploy that moved the
+  data into each world's facet, compared once every world reported the new build.
+- CPU: a world computing for 1.75 s; two other worlds answered in 63 to 82 ms over the tailnet. Before the change the
+  same test held Demo todos for 1.47 s.
+- R2: seven older snapshots archived under `snapshots/<hash>.gz`; a rollback to an archived revision took 0.82 s.
+- Preview: `addTodo` inside `execute` reported its write as rolled back, and the todo count stayed the same.
+
 ## celld features not yet used
 
 Recorded 2026-10-07 as candidates for later sessions. pi-world uses Workers, SQLite-backed Durable Objects (key-value,
@@ -127,9 +142,9 @@ For planned features:
 
 | Feature | What it is | What it would give pi-world |
 |---|---|---|
-| R2 | Object storage | Old snapshot blobs moved out of the cell's SQLite (`plan.md`, milestone 9); files a world stores or serves |
-| Dynamic Workers | Code loaded at runtime into its own isolate, with only the capabilities the loader passes | The compiled tier (`plan.md`, milestone 9); effectful host functions such as `fetch` or email granted one capability at a time (open decision 6). Possibly isolates a world's CPU from other worlds (open check 10); untested |
-| Durable Object Facets | A child object with its own SQLite inside a Durable Object, for generated or untrusted code | Storage for code loaded through Dynamic Workers, separate from the world cell's tables |
+| R2 | Object storage | Adopted 2026-10-07 for every snapshot but the head. Still open: files a world stores or serves |
+| Dynamic Workers | Code loaded at runtime into its own isolate, with only the capabilities the loader passes | Adopted 2026-10-07: each world's calls run in an isolate of the world's own (open check 10). Still open: the compiled tier, and effectful host functions granted one capability at a time (open decision 6) |
+| Durable Object Facets | A child object with its own SQLite inside a Durable Object, for generated or untrusted code | Adopted 2026-10-07: the world's runtime is a facet, and its data lives in the facet's SQLite |
 | HTMLRewriter | Streaming HTML rewriting | Injecting the `world.call` client into world pages; today a regular expression finds `<head>` |
 | TCP sockets, EventSource, Streams | Outbound TCP, server-sent events, streamed bodies | Host functions that reach databases or services; streaming a long call's output |
 
