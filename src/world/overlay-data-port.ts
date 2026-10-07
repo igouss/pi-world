@@ -1,4 +1,4 @@
-import type { DataPort, DataRow } from "./data-port.ts";
+import { byKey, type DataPort, type DataRow } from "./data-port.ts";
 
 /** What an evaluation wrote, as keys. */
 export interface DataChanges {
@@ -38,14 +38,12 @@ export class OverlayDataPort implements DataPort {
 			if (json === null) rows.delete(key);
 			else rows.set(key, JSON.parse(json) as unknown);
 		}
-		return [...rows]
-			.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-			.map(([key, value]) => ({ key, value }));
+		return [...rows].sort(([a], [b]) => byKey(a, b)).map(([key, value]) => ({ key, value }));
 	}
 
 	/** The writes that were discarded, sorted by key. */
 	changes(): DataChanges {
-		const entries = [...this.writes].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+		const entries = [...this.writes].sort(([a], [b]) => byKey(a, b));
 		return {
 			set: entries.filter(([, json]) => json !== null).map(([key]) => key),
 			deleted: entries.filter(([, json]) => json === null).map(([key]) => key),

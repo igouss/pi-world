@@ -14,6 +14,11 @@ export interface DataRow {
 	readonly value: unknown;
 }
 
+/** Ascending key order, the order every data store lists in. */
+export function byKey(a: string, b: string): number {
+	return a < b ? -1 : a > b ? 1 : 0;
+}
+
 /** A data store held in memory, for tests. */
 export class MemoryDataPort implements DataPort {
 	private readonly rows: Map<string, string> = new Map();
@@ -33,7 +38,7 @@ export class MemoryDataPort implements DataPort {
 	list(prefix: string): readonly DataRow[] {
 		return [...this.rows]
 			.filter(([key]) => key.startsWith(prefix))
-			.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+			.sort(([a], [b]) => byKey(a, b))
 			.map(([key, json]) => ({ key, value: JSON.parse(json) as unknown }));
 	}
 }

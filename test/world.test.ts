@@ -1,18 +1,9 @@
-import { createSession, MemoryStorage, type Session } from "@earendil-works/pi-durable";
 import { describe, expect, it } from "vitest";
-import { MemoryBlobStore } from "../src/revision/blob-store.ts";
-import { MemoryDataPort } from "../src/world/data-port.ts";
-import { World, type WorldDeps } from "../src/world/world.ts";
-import { wasm } from "./wasm.ts";
+import { World } from "../src/world/world.ts";
+import { worldDeps } from "./world-deps.ts";
 
 const operator = { by: "operator" } as const;
-const fixture = (): WorldDeps & { session: Session; data: MemoryDataPort } => ({
-	session: createSession(new MemoryStorage()),
-	blobs: new MemoryBlobStore(),
-	data: new MemoryDataPort(),
-	wasm,
-	now: () => 1_750_000_000_000,
-});
+const fixture = () => worldDeps({ now: () => 1_750_000_000_000 });
 
 describe("World", () => {
 	it("starts at revision 0 with an empty catalogue", async () => {

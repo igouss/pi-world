@@ -1,10 +1,7 @@
-import { createSession, MemoryStorage } from "@earendil-works/pi-durable";
 import { describe, expect, it } from "vitest";
-import { MemoryBlobStore } from "../src/revision/blob-store.ts";
 import { chainedPeers, type PeerTransport } from "../src/world/chained-peers.ts";
-import { MemoryDataPort } from "../src/world/data-port.ts";
 import { World } from "../src/world/world.ts";
-import { wasm } from "./wasm.ts";
+import { worldDeps } from "./world-deps.ts";
 
 const operator = { by: "operator" } as const;
 const DELAY_MS: number = 300;
@@ -20,14 +17,7 @@ const slowPeer: PeerTransport = {
 };
 
 async function world(concurrentCalls?: number): Promise<World> {
-	const opened = await World.open({
-		session: createSession(new MemoryStorage()),
-		blobs: new MemoryBlobStore(),
-		data: new MemoryDataPort(),
-		peers: (chain) => chainedPeers("a", chain, slowPeer),
-		wasm,
-		...(concurrentCalls ? { concurrentCalls } : {}),
-	});
+	const opened = await World.open(worldDeps({ peers: (chain) => chainedPeers("a", chain, slowPeer), ...(concurrentCalls ? { concurrentCalls } : {}) }));
 	await opened.develop(
 		`define("version", () => 1); define("viaSlow", async () => { await worlds.call("b", "x"); return version(); }); define("quick", () => "quick");`,
 		"setup",

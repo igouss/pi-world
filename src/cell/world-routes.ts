@@ -1,5 +1,6 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { MODELS, type Transcript, type WorldSummary } from "../api/types.ts";
+import type { DataAdmin } from "../world/call-runner.ts";
 import type { Fanout } from "./fanout.ts";
 import { errorMessage, json, read } from "./http.ts";
 import type { OpenedWorld } from "./open-world.ts";
@@ -7,6 +8,7 @@ import type { OpenedWorld } from "./open-world.ts";
 /** What the routes need of an open world cell. */
 export interface WorldRuntime {
 	readonly opened: OpenedWorld;
+	readonly data: DataAdmin;
 	readonly fanout: Fanout;
 	/** Hand a socket to the cell, which keeps it across hibernation. */
 	accept(socket: WebSocket): void;
@@ -118,10 +120,10 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 			return json({ ok: true });
 		}
 		case "GET data":
-			return json(await world.data(url.searchParams.get("prefix") ?? ""));
+			return json(await runtime.data.list(url.searchParams.get("prefix") ?? ""));
 		case "DELETE data": {
 			if (!arg) return json({ error: "name the key: /data/:key" }, 400);
-			return json({ deleted: await world.deleteData(arg) });
+			return json({ deleted: await runtime.data.delete(arg) });
 		}
 		default:
 			return json({ error: `no route ${method} /${parts.join("/")}` }, 404);

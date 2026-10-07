@@ -10,7 +10,17 @@ export interface Env {
 	readonly ASSETS: Fetcher;
 	/** Snapshot blobs other than each world's head. */
 	readonly SNAPSHOTS: R2Bucket;
-	readonly LOADER: { get(id: string, code: () => object): { getDurableObjectClass(name: string): unknown } };
+	readonly LOADER: WorkerLoader;
+}
+
+declare global {
+	namespace Cloudflare {
+		/** Types `ctx.exports`: the loopback bindings of the main module's exports. */
+		interface GlobalProps {
+			mainModule: typeof import("./worker.ts");
+			durableNamespaces: "WorldCell" | "AccountCell" | "DirectoryCell";
+		}
+	}
 }
 
 export const ACCOUNT_NAME: string = "account";

@@ -1,22 +1,21 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { AgentDoc, type AgentState } from "@earendil-works/pi-durable";
-import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite";
+import { SqliteStorage, type SqliteDatabase } from "@earendil-works/pi-durable/storage/sqlite";
 import { DurableObject } from "cloudflare:workers";
 import wasm from "quickjs-wasi/quickjs.wasm";
 import { DEFAULT_MODEL, type Transcript, type WorldSummary } from "../api/types.ts";
 import { build } from "../build.ts";
 import { toTranscript } from "../conversation/transcript.ts";
 import { ACCOUNT_NAME, type Env } from "../env.ts";
-import type { DataRecord } from "../isolate/host-api.ts";
-import { FacetCallRunner } from "../isolate/facet-call-runner.ts";
-import { runtimeFacet } from "../isolate/runtime-loader.ts";
+import { FacetCallRunner } from "../isolate/host/facet-call-runner.ts";
+import { runtimeFacet, type RuntimeFacetStub } from "../isolate/host/runtime-loader.ts";
+import { sqlDataRecords } from "../isolate/runtime/sql-data-port.ts";
 import type { CatalogueEntry, Outcome } from "../world/world-vm.ts";
 import { appPage, hasApp } from "./app-page.ts";
 import { claudeModels } from "./claude-models.ts";
 import { Fanout } from "./fanout.ts";
 import { openWorld } from "./open-world.ts";
 import { TieredBlobStore } from "../revision/tiered-blob-store.ts";
-import { Mutex } from "../world/mutex.ts";
 import { r2Archive } from "./r2-archive.ts";
 import { sqlBlobStore } from "./sql-blob-store.ts";
 import { cellDatabase } from "./sqlite-database.ts";
@@ -39,6 +38,8 @@ const PROGRESS_MS: number = 400;
  */
 export class WorldCell extends DurableObject<Env> {
 	private runtime: Promise<WorldRuntime> | undefined;
+	/** One database facade per cell, so its queue orders every SQL operation of the cell. */
+	private stores: Promise<{ db: SqliteDatabase; blobs: TieredBlobStore }> | undefined;
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
@@ -70,15 +71,11 @@ export class WorldCell extends DurableObject<Env> {
 		return (await this.live()).opened.world.catalogue();
 	}
 
-	/** The capability this world's runtime isolate calls back through. */
-	private hostFor(worldId: string): unknown {
-		const exports = this.ctx.exports as unknown as { WorldHost(options: { props: { worldId: string } }): unknown };
-		return exports.WorldHost({ props: { worldId } });
-	}
-
-	/** A snapshot blob for this world's runtime isolate. */
+	/** A snapshot blob for this world's runtime isolate, straight from the blob store. */
 	async blobBytes(hash: string): Promise<Uint8Array> {
-		return (await this.live()).opened.world.blobBytes(hash);
+		const bytes = await (await this.storage()).blobs.get(hash);
+		if (!bytes) throw new Error(`no snapshot blob ${hash}`);
+		return bytes;
 	}
 
 	async fetch(request: Request): Promise<Response> {
@@ -94,15 +91,23 @@ export class WorldCell extends DurableObject<Env> {
 	}
 
 	/**
-	 * Data written before calls ran in the world's own isolate lives in this cell's `world_data` table; the runtime
-	 * takes it over once. The table is left in place.
+	 * A cell created by an older build keeps the world's data in its own data table; the runtime takes those rows
+	 * over once. The flag saves the table read on every wake; the runtime's own guard makes a repeat harmless. The
+	 * table is left in place. Every world on the node has moved, so this can go once older cells cannot appear.
 	 */
-	private async moveDataToRuntime(facet: { importData(records: DataRecord[]): Promise<number> | number }): Promise<void> {
+	private async moveDataToRuntime(facet: RuntimeFacetStub): Promise<void> {
 		if (await this.ctx.storage.get<boolean>("dataMovedToRuntime")) return;
-		const table = this.ctx.storage.sql.exec<{ n: number }>("SELECT count(*) AS n FROM sqlite_master WHERE name = 'world_data'").one().n;
-		const records = table ? this.ctx.storage.sql.exec<{ key: string; value: string }>("SELECT key, value FROM world_data").toArray() : [];
-		await facet.importData(records.map(({ key, value }) => ({ key, json: value })));
+		await facet.importData(sqlDataRecords(this.ctx.storage.sql));
 		await this.ctx.storage.put("dataMovedToRuntime", true);
+	}
+
+	private storage(): Promise<{ db: SqliteDatabase; blobs: TieredBlobStore }> {
+		this.stores ??= (async () => {
+			const db = cellDatabase(this.ctx.storage);
+			const archiveError = (error: unknown) => console.warn("archiving snapshots failed; the next revision retries", error);
+			return { db, blobs: new TieredBlobStore(await sqlBlobStore(db), r2Archive(this.env.SNAPSHOTS), archiveError) };
+		})();
+		return this.stores;
 	}
 
 	private async meta(): Promise<Meta | undefined> {
@@ -120,15 +125,15 @@ export class WorldCell extends DurableObject<Env> {
 	private async open(): Promise<WorldRuntime> {
 		const meta = await this.meta();
 		if (!meta) throw new Error("the world was not initialised");
-		const db = cellDatabase(this.ctx.storage);
+		const { db, blobs } = await this.storage();
 		const account = this.env.ACCOUNT.getByName(ACCOUNT_NAME);
-		const facet = () => runtimeFacet(this.env.LOADER, this.ctx.facets as never, meta.id, this.hostFor(meta.id));
-		await this.moveDataToRuntime(facet());
-		const blobs = new TieredBlobStore(await sqlBlobStore(db), r2Archive(this.env.SNAPSHOTS));
+		const facet = runtimeFacet(this.env.LOADER, this.ctx.facets, meta.id, this.ctx.exports.WorldHost({ props: { worldId: meta.id } }));
+		await this.moveDataToRuntime(facet);
+		const runtime = new FacetCallRunner(facet);
 		const opened = await openWorld({
 			storage: await SqliteStorage.open(db),
 			blobs,
-			calls: new FacetCallRunner(meta.id, facet),
+			calls: runtime,
 			wasm,
 			models: claudeModels(() => account.accessToken()),
 			model: { provider: "anthropic", modelId: DEFAULT_MODEL },
@@ -157,11 +162,7 @@ export class WorldCell extends DurableObject<Env> {
 			fanout.publish("world", () => ({ type: "world", world: summary() }));
 		});
 		world.subscribe(() => fanout.publish("world", () => ({ type: "world", world: summary() })));
-		const archiving = new Mutex();
-		const archive = () =>
-			void archiving
-				.run(() => blobs.archiveAllBut(world.head().blob))
-				.catch((error: unknown) => console.warn(`archiving snapshots of ${meta.id} failed; the next revision retries`, error));
+		const archive = () => void blobs.archiveFor(world.head().blob);
 		world.subscribe(archive);
 		archive();
 		// Sockets that outlived a hibernation or a deploy get the current state from this version of the code.
@@ -169,6 +170,7 @@ export class WorldCell extends DurableObject<Env> {
 		fanout.publish("transcript", () => ({ type: "transcript", transcript: transcript() }));
 		return {
 			opened,
+			data: runtime,
 			fanout,
 			transcript,
 			summary,

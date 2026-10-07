@@ -30,7 +30,8 @@ export class VmPool {
 	) {}
 
 	async run<T>(head: PoolHead, body: (vm: WorldVm) => Promise<T>): Promise<T> {
-		if (!this.newest || head.revision >= this.newest.revision) this.newest = head;
+		const newest = !this.newest || head.revision >= this.newest.revision ? head : this.newest;
+		this.newest = newest;
 		await this.slot();
 		let vm: WorldVm | undefined;
 		try {
@@ -55,11 +56,11 @@ export class VmPool {
 		}
 	}
 
-	/** Return a used VM to the head it may have changed, or drop it when enough are warm. */
+	/** Return a used VM to the newest head, or drop it when enough are warm. */
 	private async recycle(vm: WorldVm): Promise<void> {
 		try {
-			const head = this.newest;
-			if (!head || this.idle.length >= this.warm) {
+			const head = this.newest!;
+			if (this.idle.length >= this.warm) {
 				vm.dispose();
 				return;
 			}

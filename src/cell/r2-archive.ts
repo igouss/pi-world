@@ -1,7 +1,10 @@
-import type { ArchiveStore } from "../revision/tiered-blob-store.ts";
+import type { BlobStore } from "../revision/blob-store.ts";
 
-/** Snapshot blobs in R2, gzipped (a 1.38 MB snapshot is about 110 KB), under `snapshots/<hash>.gz`. */
-export function r2Archive(bucket: R2Bucket): ArchiveStore {
+/**
+ * Snapshot blobs in R2, gzipped (a 1.4 MB snapshot is about 146 KB), under `snapshots/<hash>.gz`. Content-addressed,
+ * so a put of a key that exists writes the same bytes again.
+ */
+export function r2Archive(bucket: R2Bucket): BlobStore {
 	const key = (hash: string): string => `snapshots/${hash}.gz`;
 	return {
 		put: async (hash, bytes) => {
@@ -11,7 +14,6 @@ export function r2Archive(bucket: R2Bucket): ArchiveStore {
 			const object = await bucket.get(key(hash));
 			return object ? gunzip(object.body) : undefined;
 		},
-		has: async (hash) => (await bucket.head(key(hash))) !== null,
 	};
 }
 

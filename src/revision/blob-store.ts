@@ -27,10 +27,6 @@ export class MemoryBlobStore implements LocalBlobStore {
 		return this.blobs.get(hash);
 	}
 
-	async has(hash: string): Promise<boolean> {
-		return this.blobs.has(hash);
-	}
-
 	async hashes(): Promise<readonly string[]> {
 		return [...this.blobs.keys()];
 	}

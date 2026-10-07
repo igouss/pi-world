@@ -1,10 +1,7 @@
-import { createSession, MemoryStorage } from "@earendil-works/pi-durable";
 import { describe, expect, it } from "vitest";
-import { MemoryBlobStore } from "../src/revision/blob-store.ts";
 import { chainedPeers, type PeerTransport } from "../src/world/chained-peers.ts";
-import { MemoryDataPort } from "../src/world/data-port.ts";
 import { World } from "../src/world/world.ts";
-import { wasm } from "./wasm.ts";
+import { worldDeps } from "./world-deps.ts";
 
 const operator = { by: "operator" } as const;
 
@@ -21,16 +18,7 @@ async function fleet(...ids: string[]) {
 		functions: async (id) => worlds.get(id)?.catalogue() ?? [],
 	};
 	for (const id of ids) {
-		worlds.set(
-			id,
-			await World.open({
-				session: createSession(new MemoryStorage()),
-				blobs: new MemoryBlobStore(),
-				data: new MemoryDataPort(),
-				peers: (chain) => chainedPeers(id, chain, transport),
-				wasm,
-			}),
-		);
+		worlds.set(id, await World.open(worldDeps({ peers: (chain) => chainedPeers(id, chain, transport) })));
 	}
 	return (id: string) => worlds.get(id)!;
 }
@@ -81,13 +69,7 @@ describe("calls between worlds", () => {
 			list: async () => [],
 			functions: async () => [],
 		};
-		const world = await World.open({
-			session: createSession(new MemoryStorage()),
-			blobs: new MemoryBlobStore(),
-			data: new MemoryDataPort(),
-			peers: (chain) => chainedPeers("a", chain, slow),
-			wasm,
-		});
+		const world = await World.open(worldDeps({ peers: (chain) => chainedPeers("a", chain, slow) }));
 		await world.develop(`define("both", () => Promise.all([worlds.call("b", "x"), worlds.call("c", "y")]));`, "both", operator);
 		const started = Date.now();
 		expect(await world.call("both", [])).toEqual({ ok: true, value: ["x", "y"] });

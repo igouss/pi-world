@@ -11,14 +11,18 @@ export interface HeadRef {
 export type ExecuteResult = Outcome & { readonly rolledBack: DataChanges };
 
 /**
- * Where a world's calls run, and where its data lives: in the world's own process, or in an isolate of its own. A call
- * from another world brings `chain`, the worlds it passed through; a call that starts here passes an empty one.
+ * Where a world's calls run: in this process, or in an isolate of the world's own. A call from another world brings
+ * `chain`, the worlds it passed through; a call that starts here passes an empty one.
  */
 export interface CallRunner {
 	call(name: string, args: readonly unknown[], chain: readonly string[], head: HeadRef): Promise<Outcome>;
 	/** A preview: heap changes and data writes are rolled back; the result names the writes. */
-	execute(expression: string, chain: readonly string[], head: HeadRef): Promise<ExecuteResult>;
-	dataList(prefix: string): Promise<readonly DataRow[]>;
-	dataDelete(key: string): Promise<boolean>;
+	execute(expression: string, head: HeadRef): Promise<ExecuteResult>;
 	dispose(): void;
+}
+
+/** The world's data as its owner manages it, outside any call. */
+export interface DataAdmin {
+	list(prefix: string): Promise<readonly DataRow[]>;
+	delete(key: string): Promise<boolean>;
 }

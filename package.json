@@ -12,7 +12,7 @@
 		"build:ui": "esbuild ui/main.tsx --bundle --format=esm --target=es2022 --jsx=automatic --jsx-import-source=preact --minify --sourcemap --outfile=public/app.js",
 		"dev": "npm run build && celld dev . --port 8791",
 		"deploy": "npm run typecheck && npm test && npm run build && sh scripts/deploy.sh",
-		"build:runtime": "mkdir -p dist/runtime && esbuild src/isolate/runtime-entry.ts --bundle --format=esm --platform=neutral --external:cloudflare:workers --external:./quickjs.wasm --minify --outfile=dist/runtime/world-runtime.txt && cp node_modules/quickjs-wasi/quickjs.wasm dist/runtime/quickjs.bin",
+		"build:runtime": "mkdir -p dist/runtime && esbuild src/isolate/runtime/runtime-entry.ts --bundle --format=esm --platform=neutral --external:cloudflare:workers --external:./quickjs.wasm --minify --outfile=dist/runtime/world-runtime.txt && sha256sum dist/runtime/world-runtime.txt | cut -c1-16 > dist/runtime/world-runtime-hash.txt && cp node_modules/quickjs-wasi/quickjs.wasm dist/runtime/quickjs.bin",
 		"build": "npm run build:runtime && npm run build:ui"
 	},
 	"dependencies": {
