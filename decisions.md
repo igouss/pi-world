@@ -78,7 +78,8 @@ Made on 2026-10-06 under the prototype authorization above. Each is a default to
 - **Calls discard heap changes** by restoring the head snapshot after every call and `execute`. This costs a restore
   per call.
 - **`execute` keeps its data writes**, so an agent that tries its functions leaves test rows behind unless it cleans
-  up.
+  up. Seen on the node: while testing `countOpen()`, the agent deleted a todo it had not created. This argues for open
+  decision 3 (preview isolation of data writes).
 - **Snapshots are stored raw**, not gzipped, in the cell's SQLite. A row of about 1.4 MB worked on the node.
 - **Operator develop:** the UI's console can develop a source by hand; it goes through the same attempt as the agent's.
 

@@ -282,7 +282,7 @@ Growth is linear, about 1.5 KB per definition. Real worlds may differ.
 - celld is in beta. Open checks that remain (memory and CPU per cell, eviction timing, streaming lag) are in
   [`research.md`](research.md).
 - Checks cannot read data, so a behaviour that depends on stored data is hard to protect with one.
-- `execute` keeps its data writes, so an agent that tries its functions can leave test rows behind.
+- `execute` keeps its data writes, so an agent that tries its functions can leave test rows behind, or delete yours.
 - A snapshot belongs to the exact `quickjs.wasm` build. After a runtime upgrade, the world is rebuilt by replaying the
   source log.
 - Only instances built with `new` through a class are tracked and migrated.

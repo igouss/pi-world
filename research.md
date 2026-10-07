@@ -31,6 +31,12 @@ Three spikes ran against quickjs-wasi 3.6.2 under Node 25.2.1. Nothing has run o
   One answered input took about 1 s end to end on the node, with its durable commits.
 - A full session ran on the node through the web UI: the agent defined seven functions over three revisions, enrolled a
   check, and the page it built added a todo that a direct call then read back.
+- The copy-code OAuth login was completed by a person from a phone, and the agent then ran on that credential.
+- **A run survives a crash.** The celld service was restarted while a run was between tool rounds, in a world no
+  browser had open, and nothing was sent to it afterwards. The world cell was active again 3 s after the node came up,
+  the run continued from its last committed tool result, and it finished: one more `develop` accepted, no revision
+  accepted twice. The same held in a second world. In both runs the cell came back before the heartbeat alarm was due,
+  so what woke it (the alarm, or celld reactivating its cells at startup) is not established.
 
 ## Deployment target: celld
 
@@ -66,9 +72,8 @@ These are undocumented or unknown. Measure them early, at milestone 6.
 
 ## Not verified
 
-- Failover, eviction and a run resuming on another owner: the heartbeat alarm is built but has not been seen firing
-  after an eviction.
-- The copy-code OAuth login: the authorize URL is built as pi builds it, but the exchange has not been completed by a
-  person.
+- Which mechanism wakes a cell after a restart (see above), idle eviction, and a run resuming on another node: the
+  fleet has one node.
+- The OAuth refresh: the credential has not yet reached its expiry on the node.
 - Merge-by-replay, tiering and pauses are designs, not code.
 - jiti's handling of checks was read in its source at commit `a9f46a6`, not run.
