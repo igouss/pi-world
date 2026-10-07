@@ -1,3 +1,4 @@
+import { build } from "./build.ts";
 import { BadRequest, errorMessage, json, read } from "./cell/http.ts";
 import { WORLD_ID } from "./directory/world-id.ts";
 import { ACCOUNT_NAME, DIRECTORY_NAME, type Env } from "./env.ts";
@@ -15,6 +16,7 @@ export default {
 		const url = new URL(request.url);
 		const segments = url.pathname.split("/").slice(1);
 		try {
+			if (segments[0] === "api" && segments[1] === "version") return json({ build });
 			if (segments[0] === "api" && segments[1] === "account") {
 				// The account cell's errors describe what the person entered: a bad code, a rejected token.
 				return await account(request, env, segments.slice(2).join("/")).catch((error: unknown) => {

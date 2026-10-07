@@ -4,6 +4,7 @@ import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite";
 import { DurableObject } from "cloudflare:workers";
 import wasm from "quickjs-wasi/quickjs.wasm";
 import { DEFAULT_MODEL, type Transcript, type WorldSummary } from "../api/types.ts";
+import { build } from "../build.ts";
 import { toTranscript } from "../conversation/transcript.ts";
 import { ACCOUNT_NAME, DIRECTORY_NAME, type Env } from "../env.ts";
 import { chainedPeers, type PeerTransport } from "../world/chained-peers.ts";
@@ -34,6 +35,20 @@ const PROGRESS_MS: number = 400;
  */
 export class WorldCell extends DurableObject<Env> {
 	private runtime: Promise<WorldRuntime> | undefined;
+
+	constructor(ctx: DurableObjectState, env: Env) {
+		super(ctx, env);
+		// Keep-alive pings are answered by celld without waking a hibernated cell.
+		ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
+	}
+
+	/** A socket message that the auto-response did not answer: the UI sends nothing else, so it is ignored. */
+	async webSocketMessage(): Promise<void> {}
+
+	/** Codes 1005, 1006 and 1015 report what happened and must not be sent back. */
+	async webSocketClose(socket: WebSocket, code: number): Promise<void> {
+		socket.close([1005, 1006, 1015].includes(code) ? 1000 : code);
+	}
 
 	async init(id: string, name: string): Promise<void> {
 		await this.ctx.storage.put("meta", { id, name } satisfies Meta);
@@ -104,7 +119,7 @@ export class WorldCell extends DurableObject<Env> {
 		});
 		const { world, root } = opened;
 		const view = await root.viewState(BACKGROUND_CONTEXT);
-		const fanout = new Fanout();
+		const fanout = new Fanout(() => this.ctx.getWebSockets());
 		const summary = (): WorldSummary => {
 			const catalogue = world.catalogue();
 			const agent = view.value.docs[AgentDoc.definition.kind] as AgentState | undefined;
@@ -116,6 +131,7 @@ export class WorldCell extends DurableObject<Env> {
 				checks: world.checks().checks,
 				hasApp: hasApp(catalogue),
 				model: agent?.model?.modelId ?? DEFAULT_MODEL,
+				build,
 			};
 		};
 		const transcript = (): Transcript => toTranscript(view.value);
@@ -124,6 +140,9 @@ export class WorldCell extends DurableObject<Env> {
 			fanout.publish("world", () => ({ type: "world", world: summary() }));
 		});
 		world.subscribe(() => fanout.publish("world", () => ({ type: "world", world: summary() })));
+		// Sockets that outlived a hibernation or a deploy get the current state from this version of the code.
+		fanout.publish("world", () => ({ type: "world", world: summary() }));
+		fanout.publish("transcript", () => ({ type: "transcript", transcript: transcript() }));
 		return {
 			opened,
 			data,
@@ -131,6 +150,7 @@ export class WorldCell extends DurableObject<Env> {
 			transcript,
 			summary,
 			setModel: (modelId) => root.configure({ model: { provider: "anthropic", modelId } }, BACKGROUND_CONTEXT),
+			accept: (socket) => this.ctx.acceptWebSocket(socket),
 			armHeartbeat: () => this.ctx.storage.setAlarm(Date.now() + HEARTBEAT_MS),
 			app: (path, query) => appPage(world, meta.id, path, query),
 		};

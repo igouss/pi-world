@@ -2,3 +2,4 @@ node_modules/
 .celld/
 public/app.js
 public/app.js.map
+wrangler.deploy.jsonc

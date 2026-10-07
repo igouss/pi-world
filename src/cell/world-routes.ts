@@ -10,6 +10,8 @@ export interface WorldRuntime {
 	readonly opened: OpenedWorld;
 	readonly data: DataPort;
 	readonly fanout: Fanout;
+	/** Hand a socket to the cell, which keeps it across hibernation. */
+	accept(socket: WebSocket): void;
 	transcript(): Transcript;
 	summary(): WorldSummary;
 	setModel(modelId: string): Promise<void>;
@@ -46,10 +48,11 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 		case "GET ws": {
 			if (request.headers.get("upgrade") !== "websocket") return json({ error: "expected a WebSocket upgrade" }, 426);
 			const pair = new WebSocketPair();
-			runtime.fanout.add(pair[1], [
+			runtime.accept(pair[1]);
+			for (const frame of [
 				{ type: "world", world: runtime.summary() },
 				{ type: "transcript", transcript: runtime.transcript() },
-			]);
+			]) pair[1].send(JSON.stringify(frame));
 			return new Response(null, { status: 101, webSocket: pair[0] });
 		}
 		case "GET transcript":

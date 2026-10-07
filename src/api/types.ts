@@ -27,6 +27,8 @@ export interface WorldSummary {
 	readonly checks: readonly Check[];
 	readonly hasApp: boolean;
 	readonly model: string;
+	/** The build of the code serving this world, so a client can see a deploy reach it. */
+	readonly build: string;
 }
 
 /** A direct call's or an evaluation's result; `failure` says why it failed. */
