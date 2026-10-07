@@ -99,6 +99,14 @@ These are undocumented or unknown. Measure them early, at milestone 6.
 10. **CPU in one world slows others.** On the node, a world computing for about 1.5 s delayed calls to unrelated worlds
     by the same time: cells share a small pool of JavaScript isolates (`worker_count=2`). The time budget bounds it.
 
+## Hibernatable sockets on the node
+
+2026-10-07, build `a88526e` deployed to `3867c06` while a client held the UI's socket open on Dashboard and on Trip
+budget, pinging every 5 s. Both cells served the new build about 23 s after the deploy was written (the node reads the
+deployment pointer every 30 s), within 0.2 s of each other. Both sockets stayed open and received a `world` frame from
+the new code; their REST summaries changed at the same moment. Before, with regular sockets, such a cell moved 60 s
+after the others and its sockets were closed (open check 8).
+
 ## celld features not yet used
 
 Recorded 2026-10-07 as candidates for later sessions. pi-world uses Workers, SQLite-backed Durable Objects (key-value,
@@ -109,7 +117,7 @@ Closest fits:
 
 | Feature | What it is | What it would give pi-world |
 |---|---|---|
-| Hibernatable WebSockets (`ctx.acceptWebSocket`) | Sockets that let a cell hibernate and swap to a new deploy | Removes the deploy cut-over stall (open check 8); idle worlds with an open page can hibernate. Cost: the transcript subscription must be re-attached when the cell wakes |
+| Hibernatable WebSockets (`ctx.acceptWebSocket`) | Sockets that let a cell hibernate and swap to a new deploy | Adopted 2026-10-07 for the UI's sockets |
 | Queues | Durable delivery, at least once, with retries and dead-letter queues | Durable messages between worlds, `worlds.send(...)`: open decision 14, option C |
 | Alarms, beyond the heartbeat | One scheduled wake-up per cell | Scheduled world code (a daily digest, expiring items); world code has no timers. A per-world schedule fits alarms better than fleet-wide cron |
 | Workflows | Durable functions of steps, sleeps and waits for events; each instance is a cell | Pauses (`restart`) as recorded facts with a rerun from the start, the alternative in open decision 8; long jobs that span several worlds |
