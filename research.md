@@ -32,6 +32,13 @@ Three spikes ran against quickjs-wasi 3.6.2 under Node 25.2.1. Nothing has run o
 - A full session ran on the node through the web UI: the agent defined seven functions over three revisions, enrolled a
   check, and the page it built added a todo that a direct call then read back.
 - The copy-code OAuth login was completed by a person from a phone, and the agent then ran on that credential.
+- **Worlds calling worlds.** On the node, the agent built a Currency world, then a Trip budget world that found it with
+  `worlds.list()` and `worlds.functions(id)` and called its `convert` from `totals`. A direct call to `totals` answered
+  in about 60 ms with the same value as calling `convert` directly, and Currency's error for an unknown currency
+  reached the caller as a rejection.
+- **Prelude upgrade.** Demo todos, built on prelude 1, opened on prelude 2 as revision 6 ("prelude 1 to 2"). The first
+  deploy failed here: a restored heap already had the new host callback registered. `test/world-vm.test.ts` now
+  upgrades a restored heap.
 - **Direct calls need no model.** On a `celld dev` server with no Claude credential, `POST /call/tip` answered while an
   agent message in the same world failed with "not logged in". On the node, six calls to `stats()` took 62 to 71 ms
   each over the tailnet and left the conversation unchanged (31 items before and after). `test/agent.test.ts` asserts

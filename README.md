@@ -44,6 +44,7 @@ result is validated and iterated on immediately. It is one station of a larger l
 | Grow an app by talking | The agent writes `develop` sources; each accepted one is a revision | on the node |
 | Checkpoint and restore | A failed attempt leaves no trace; snapshot and restore take a few milliseconds | on the node |
 | Direct calls without a model | `POST /api/worlds/:id/call/:fn` runs the function in the cell, 62 to 71 ms over the tailnet | on the node |
+| Worlds calling worlds | `await worlds.call(id, name, ...args)` uses another world's service; cycles are refused | on the node |
 | Pages served by the world | `define("app", (path, query) => html)` is served at `/w/:id/` | on the node |
 | Checks the agent cannot weaken | Enrolled only after failing on a counterexample; removed only by you, with a reason | on the node |
 | Immutable revisions and rollback | Rollback creates a new revision | on the node |
@@ -66,6 +67,33 @@ The prelude, installed at revision 0, is how `develop` sources are written:
 | `undefine(name)` | Remove a definition |
 | `state(name, init, { version, migrate })` | A heap object that `init` creates once and later evaluations keep |
 | `data.get / set / delete / list(prefix)` | The world's persistent key-value store, JSON values; for calls only, never a `develop` |
+| `worlds.list() / functions(id) / call(id, name, ...args)` | The other worlds on the server; promises, for calls only. A call cannot come back to a world already in it, and passes through at most 4 worlds |
+
+A world built before a prelude change is brought up to date by an `upgrade` revision when it next opens.
+
+### Worlds calling worlds
+
+A world's definitions are a service to every other world. In this example from the node, the agent built a
+*Currency* world and then a *Trip budget* world that found it with `worlds.list()` and `worlds.functions(id)`:
+
+```js
+// Currency
+define("convert", (amount, from, to) => { /* fixed rates kept in state */ }, { doc: "Convert between USD, JPY, EUR and CAD." });
+
+// Trip budget
+define("totals", async (currency) => {
+	const totalYen = listExpenses().reduce((s, e) => s + e.yen, 0);
+	const converted = await worlds.call("currency-edcacf", "convert", totalYen, "JPY", currency);
+	return { yen: totalYen, currency, converted };
+});
+```
+
+`POST /api/worlds/trip-budget-3a39bb/call/totals {"args": ["USD"]}` answers `{"yen": 40500, "currency": "USD",
+"converted": 270}` in about 60 ms, with no model. An error in Currency reaches the caller as a rejection naming the
+world and function: `currency-edcacf.convert: Error: Unknown currency: GBP`.
+
+Each world cell holds its own lock during a call, so a call that came back to a world already in the chain would
+wait for itself. The chain travels with the call, and such a call is refused at once.
 
 ```js
 const cache = state("lookup.cache", () => ({ hits: 0 }), { version: 1 });
@@ -232,7 +260,7 @@ section lists the revision, the definitions with their docs, and the checks. Des
 | `GET /api/worlds/:id/ws` | WebSocket: `world` and `transcript` frames |
 | `POST /api/worlds/:id/messages {content, requestId}` | Submit to the agent; `requestId` makes a retry a no-op |
 | `POST /api/worlds/:id/abort`, `POST /api/worlds/:id/reset` | Stop the run; start a new context |
-| `POST /api/worlds/:id/call/:fn {args}` | Call a definition directly, no model |
+| `POST /api/worlds/:id/call/:fn {args}` | Call a definition directly, no model; world code reaches other worlds with `worlds.call` |
 | `POST /api/worlds/:id/execute {expression}` | Evaluate an expression against the world |
 | `POST /api/worlds/:id/develop {source, summary}` | Develop by hand, through the same attempt |
 | `GET /api/worlds/:id/revisions[/:n]`, `POST /api/worlds/:id/rollback {revision, reason}` | History and rollback |
@@ -292,10 +320,13 @@ are in [`research.md`](research.md).
 | An agent session | A todo app with seven functions, a check and a page, built through the UI; a todo added on the page read back by a direct call |
 | Direct calls need no model | 62 to 71 ms per call, conversation unchanged; on a `celld dev` with no credential, calls work while agent messages fail |
 | A crash mid-run | celld restarted between tool rounds with nothing sent afterwards; the run finished, no revision accepted twice |
+| Worlds calling worlds | Trip budget's `totals` calls Currency's `convert` over Durable Object RPC: 270 USD for ¥40,500, the same as calling Currency directly |
+| Prelude upgrade | Demo todos, built on prelude 1, opened on the new version and got revision 6, "prelude 1 to 2" |
 | Snapshot rows | A 1.44 MB snapshot round-trips through the cell's SQLite |
 
-The test suite (`npm test`, 41 tests) covers the VM, attempts, the `World` service, the agent with a scripted model,
-and that a direct call makes no model request. There are no property-based tests, Gherkin scenarios or mutation runs
+The test suite (`npm test`, 47 tests) covers the VM, attempts, the `World` service, the agent with a scripted model,
+that a direct call makes no model request, calls between worlds (results, errors, cycles, discovery), and the
+upgrade of a heap built by an older prelude. There are no property-based tests, Gherkin scenarios or mutation runs
 yet.
 
 ## Measurements (Node 25.2.1, synthetic definitions)

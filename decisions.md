@@ -73,6 +73,11 @@ Made on 2026-10-06 under the prototype authorization above. Each is a default to
   accepted as well as the OAuth login.
 - **Data:** a key-value table per world (`data.get/set/delete/list`), JSON values, reachable from calls and
   `execute` only. `list` returns at most 1000 rows. A full SQL host API is not built.
+- **Worlds calling worlds:** any world may call any definition of any other world on the server, with no permission
+  model; the call carries its chain, and a cycle or a chain of more than four worlds is refused. Calls between worlds
+  are for calls only, never for a develop or a check.
+- **Prelude upgrades:** a world built on an older prelude gets an `upgrade` revision when it opens, and a rollback to
+  such a revision applies the upgrade to the restored heap.
 - **Pages:** a world serves a page by defining `app(path, query)`, which returns HTML. The page is served at
   `/w/:id/`, with a `world.call(name, ...args)` client injected.
 - **Calls discard heap changes** by restoring the head snapshot after every call and `execute`. This costs a restore
