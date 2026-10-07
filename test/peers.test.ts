@@ -71,4 +71,27 @@ describe("calls between worlds", () => {
 		expect(await world("a").execute(`worlds.list()`)).toEqual({ ok: true, value: [{ id: "b", name: "b" }] });
 		expect(await world("a").execute(`worlds.functions("b")`)).toEqual({ ok: true, value: [{ name: "hello", kind: "function", doc: "Greets", params: "n" }] });
 	});
+
+	it("runs two calls awaited together at the same time", async () => {
+		const slow: PeerTransport = {
+			call: async (_id, name) => {
+				await new Promise((resolve) => setTimeout(resolve, 200));
+				return { ok: true, value: name };
+			},
+			list: async () => [],
+			functions: async () => [],
+		};
+		const world = await World.open({
+			session: createSession(new MemoryStorage()),
+			blobs: new MemoryBlobStore(),
+			data: new MemoryDataPort(),
+			peers: chainedPeers("a", [], slow),
+			wasm,
+		});
+		await world.develop(`define("both", () => Promise.all([worlds.call("b", "x"), worlds.call("c", "y")]));`, "both", operator);
+		const started = Date.now();
+		expect(await world.call("both", [])).toEqual({ ok: true, value: ["x", "y"] });
+		expect(Date.now() - started).toBeLessThan(380);
+	});
 });
+
