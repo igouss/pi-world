@@ -32,6 +32,8 @@ Three spikes ran against quickjs-wasi 3.6.2 under Node 25.2.1. Nothing has run o
 - A full session ran on the node through the web UI: the agent defined seven functions over three revisions, enrolled a
   check, and the page it built added a todo that a direct call then read back.
 - The copy-code OAuth login was completed by a person from a phone, and the agent then ran on that credential.
+- **The OAuth refresh.** On 2026-10-07 the stored access token had expired two hours earlier; one agent message
+  answered, and the stored expiry moved eight hours ahead, so the account cell refreshed the credential.
 - **Worlds calling worlds.** On the node, the agent built a Currency world, then a Trip budget world that found it with
   `worlds.list()` and `worlds.functions(id)` and called its `convert` from `totals`. A direct call to `totals` answered
   in about 60 ms with the same value as calling `convert` directly, and Currency's error for an unknown currency
@@ -196,6 +198,5 @@ What this changes:
 
 - Which mechanism wakes a cell after a restart (see above), idle eviction, and a run resuming on another node: the
   fleet has one node.
-- The OAuth refresh: the credential has not yet reached its expiry on the node.
 - Merge-by-replay, tiering and pauses are designs, not code.
 - jiti's handling of checks was read in its source at commit `a9f46a6`, not run.

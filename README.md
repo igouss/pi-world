@@ -434,7 +434,7 @@ are in [`research.md`](research.md).
 | What | Evidence |
 |---|---|
 | The stack runs in a cell | quickjs-wasi, pi-durable over the cell's SQLite, and pi-ai's Anthropic provider; one answered input in about 1 s |
-| Login | The copy-code OAuth login, completed by a person from a phone; a fake pasted token is refused with 400 |
+| Login | The copy-code OAuth login, completed by a person from a phone; an expired access token refreshed on the next model request; a fake pasted token is refused with 400 |
 | An agent session | A todo app with seven functions, a check and a page, built through the UI; a todo added on the page read back by a direct call |
 | Direct calls need no model | 62 to 71 ms per call, conversation unchanged; on a `celld dev` with no credential, calls work while agent messages fail |
 | A crash mid-run | celld restarted between tool rounds with nothing sent afterwards; the run finished, no revision accepted twice |
@@ -467,7 +467,7 @@ Growth is linear, about 1.5 KB per definition. Snapshots are stored raw in the p
 - A prototype: no authentication, one node, no pauses, forks or replay. The defaults chosen for open questions are
   listed in [`decisions.md`](decisions.md) under "Prototype assumptions".
 - celld is in beta. Open checks that remain (memory and CPU per cell, what wakes a cell after a restart, a run moving
-  to another node, the OAuth refresh at expiry, streaming lag) are in [`research.md`](research.md).
+  to another node, memory per world isolate, streaming lag) are in [`research.md`](research.md).
 - Checks cannot read data, so a behaviour that depends on stored data is hard to protect with one.
 - `execute` rolls back its own world's data writes, but a world it calls through `worlds.call` writes for real.
 - A snapshot belongs to the exact `quickjs.wasm` build. After a runtime upgrade, the world is rebuilt by replaying the

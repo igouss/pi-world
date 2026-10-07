@@ -81,7 +81,12 @@ Made on 2026-10-06 under the prototype authorization above. Each is a default to
 - **Credential:** one `AccountCell` holds the fleet's single Claude credential. A pasted `claude setup-token` token is
   accepted as well as the OAuth login.
 - **Data:** a key-value table per world (`data.get/set/delete/list`), JSON values, reachable from calls and
-  `execute` only. `list` returns at most 1000 rows. A full SQL host API is not built.
+  `execute` only, kept in the SQLite of the world's runtime facet. `list` returns at most 1000 rows. A full SQL host
+  API is not built.
+- **Runtime isolate:** each world's calls run in a facet loaded under a loader id of the world's own, so each world
+  compiles its own QuickJS wasm in its own isolate. Memory per world is not measured (research, open check 1). The
+  host cell's old `world_data` tables are left in place as backups of the data moved on 2026-10-07; the code that
+  moves them can go once no cell from an older build can appear.
 - **Concurrent calls:** a world runs up to 8 calls at once, each on its own VM; further calls wait in the cell. Two
   idle VMs are kept warm. The numbers are guesses, not measured against the cell's memory.
 - **Worlds calling worlds:** any world may call any definition of any other world on the server, with no permission
@@ -91,16 +96,15 @@ Made on 2026-10-06 under the prototype authorization above. Each is a default to
   such a revision applies the upgrade to the restored heap.
 - **Pages:** a world serves a page by defining `app(path, query)`, which returns HTML. The page is served at
   `/w/:id/`, with a `world.call(name, ...args)` client injected.
-- **Calls discard heap changes** by restoring the head snapshot after every call and `execute`. This costs a restore
-  per call.
-- **`execute` keeps its data writes**, so an agent that tries its functions leaves test rows behind unless it cleans
-  up. Seen on the node: while testing `countOpen()`, the agent deleted a todo it had not created. This argues for open
-  decision 3 (preview isolation of data writes).
-- **Snapshots are stored raw**, not gzipped, in the cell's SQLite. A row of about 1.4 MB worked on the node.
+- **Calls discard heap changes:** each call runs on a pooled VM restored from its head, and the VM returns to the
+  newest head after the call.
+- **`execute` is a preview:** its data writes are rolled back and listed in its result (open decision 3). A world it
+  calls through `worlds.call` writes for real.
+- **Snapshots are tiered:** the head's blob in the cell's SQLite, every other blob gzipped in R2.
 - **Operator develop:** the UI's console can develop a source by hand; it goes through the same attempt as the agent's.
 
-Not built in the prototype: pauses (`restart`), forks and merge by replay, source-log rebuild, preview isolation,
-the task graph panel, and gzip of blobs.
+Not built in the prototype: pauses (`restart`), forks and merge by replay, source-log rebuild, the task graph panel,
+scheduled world code, and durable messages between worlds.
 
 ## Open decisions
 

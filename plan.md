@@ -26,6 +26,7 @@
    - A pending pause survives a move to another node.
 9. **Later.** Content-addressed pages and R2 offload, per-user forks with promotion by replay, and a compiled tier via
    Dynamic Workers (builds in an experimental container): a stable, hot function gets a version compiled to wasm,
-   and the registry swaps it in like any redefinition.
+   and the registry swaps it in like any redefinition. Built on 2026-10-07: R2 offload of whole snapshots (not pages),
+   and Dynamic Workers as each world's runtime isolate (not the compiled tier).
 
 Stop after milestone 6 and review before the fleet deployment.
