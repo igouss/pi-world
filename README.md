@@ -2,9 +2,10 @@
 
 **A live application world that an agent grows by talking to it. The world is a snapshotable WASM heap, so every change is checked, versioned and reversible.**
 
-> **Status: working prototype, deployed on one celld node.** The web UI, the agent, revisions, checks, direct calls and
-> world pages run on celld at `http://oracle-arm.mist-walleye.ts.net:8787`. Pauses, forks and replay are still designs.
-> Sections below say *built* (code and tests exist), *verified* (a spike shows it) or *designed* (a document says it).
+> **Status: working prototype, running on one celld node** at `http://oracle-arm.mist-walleye.ts.net:8787`. The web UI,
+> the agent on a Claude subscription, revisions, checks, direct calls and world pages work there. Pauses, forks and
+> replay are still designs. Sections below say *on the node* (seen working on the deployed node), *built* (code and
+> tests exist), *spike* (a spike shows it) or *designed* (a document says it).
 
 ---
 
@@ -24,11 +25,11 @@ no model request. The target is [celld](https://celld.dev/) (self-hosted Durable
 ```text
 develop(source)
   checkpoint = snapshot of the heap          # in memory, a few milliseconds
-  evaluate source                            # synchronous, in a function scope, under an instruction budget
-  if it made a host call, broke an invariant, or ran out of budget
+  evaluate source                            # synchronous, in a function scope, under a time budget
+  if it threw, touched data, broke a check, or ran out of budget
     restore checkpoint
     return rejected, with the reason
-  write the snapshot blob                    # gzipped, content-addressed, idempotent
+  write the snapshot blob                    # content-addressed, idempotent
   commit the revision manifest and the head pointer
   return accepted as revision N+1
 ```
@@ -40,21 +41,31 @@ result is validated and iterated on immediately. It is one station of a larger l
 
 | Capability | What it means | Status |
 |---|---|---|
-| Checkpoint and restore | A failed attempt leaves no trace; snapshot and restore take a few milliseconds | built |
+| Grow an app by talking | The agent writes `develop` sources; each accepted one is a revision | on the node |
+| Checkpoint and restore | A failed attempt leaves no trace; snapshot and restore take a few milliseconds | on the node |
+| Direct calls without a model | `POST /api/worlds/:id/call/:fn` runs the function in the cell, 62 to 71 ms over the tailnet | on the node |
+| Pages served by the world | `define("app", (path, query) => html)` is served at `/w/:id/` | on the node |
+| Checks the agent cannot weaken | Enrolled only after failing on a counterexample; removed only by you, with a reason | on the node |
+| Immutable revisions and rollback | Rollback creates a new revision | on the node |
+| Runs that survive a crash | A run interrupted by a celld restart continues and finishes, with no revision accepted twice | on the node |
+| Claude through your subscription | OAuth as pi does it, or a `claude setup-token` token, checked with Anthropic before it is saved | on the node |
 | Deterministic snapshots | Same source on the same base gives byte-identical snapshots | built |
 | Live redefinition | A redefinition reaches captured references, callbacks, old instances and subclasses | built |
 | State that survives re-evaluation | `state(name, init, { version, migrate })` keeps its value across re-runs | built |
 | Runaway code stopped | A time budget interrupts a loop; the VM stays usable | built |
-| Checks the agent cannot weaken | Enrolled only after failing on a counterexample; removed only by you, with a reason | built |
-| Pages served by the world | `define("app", (path, query) => html)` is served at `/w/:id/` | built |
-| Pauses that survive crashes | `await restart(id, question, options)` is a pending promise in a stored snapshot | verified in a spike (survives snapshot, serialize, dispose, restore); the durable path is designed |
-| Immutable revisions and rollback | Rollback creates a new revision | built |
+| Pauses that survive crashes | `await restart(id, question, options)` is a pending promise in a stored snapshot | spike; the durable path is designed |
 | Cheap forks | Forks merge by replaying accepted `develop` sources | designed |
-| Direct calls without a model | `POST /api/worlds/:id/call/:fn` | built |
 
 ## The prelude
 
-The prelude, installed at revision 0, is how `develop` sources are written. This is the designed form:
+The prelude, installed at revision 0, is how `develop` sources are written:
+
+| Function | What it does |
+|---|---|
+| `define(name, impl, { doc, version, migrate })` | Add or replace a global function or class; every caller reaches the newest impl |
+| `undefine(name)` | Remove a definition |
+| `state(name, init, { version, migrate })` | A heap object that `init` creates once and later evaluations keep |
+| `data.get / set / delete / list(prefix)` | The world's persistent key-value store, JSON values; for calls only, never a `develop` |
 
 ```js
 const cache = state("lookup.cache", () => ({ hits: 0 }), { version: 1 });
@@ -99,25 +110,26 @@ so a migration that throws rejects the `develop`:
 ## A session, step by step (built)
 
 This is the example session from jiti's README, as it runs in pi-world (`test/agent.test.ts` replays it with a
-scripted model). You talk to the agent through the web UI or `POST /api/worlds/:id/messages`. The last two steps do not involve the agent or a model at all.
+scripted model). You talk to the agent through the web UI or `POST /api/worlds/:id/messages`.
+The last two steps do not involve the agent or a model at all.
 
 ```text
 you>  Add uppercaseString. Return an uppercased copy of the input.
 you>  Add reverseString. Return a reversed copy without modifying the input.
 you>  Uppercase "Hello", then reverse the result using those functions.
 you>  Save that combination as shoutBackwards.
-GET   /worlds/:id/functions
-POST  /worlds/:id/call/shoutBackwards      {"args": ["Hello"]}
+GET   /api/worlds/:id/functions
+POST  /api/worlds/:id/call/shoutBackwards      {"args": ["Hello"]}
 ```
 
 | Step | Who acts | What happens | Result |
 |---|---|---|---|
-| 1 | Agent calls `develop` | The source below is evaluated against a checkpoint. It makes no host call and the checks pass. | Accepted as revision 1 |
+| 1 | Agent calls `develop` | The source below is evaluated against a checkpoint. It touches no data and the checks pass. | Accepted as revision 1 |
 | 2 | Agent calls `develop` | Same path. JavaScript strings cannot be modified, so the input is safe by construction. | Accepted as revision 2 |
 | 3 | Agent calls `execute` | Runs `reverseString(uppercaseString("Hello"))` in the world. Nothing in the world changes. | `"OLLEH"`, no revision |
-| 4 | Agent calls `save_as` | Turns the expression from step 3 into a named definition, through the same attempt path as `develop`. | Accepted as revision 3 |
+| 4 | Agent calls `develop` | Defines the combination from step 3 as a named function. | Accepted as revision 3 |
 | 5 | You, no model | The catalogue lists `shoutBackwards` with its source and the revision that introduced it. The world inspector in the web UI shows the same. | A catalogue entry |
-| 6 | You, no model | The cell calls the accepted function directly, under the same instruction budget. | `"OLLEH"`, no revision |
+| 6 | You, no model | The cell calls the accepted function directly, under the same time budget. | `"OLLEH"`, no revision |
 
 The sources the agent writes in steps 1, 2 and 4:
 
@@ -133,8 +145,8 @@ What differs from jiti:
 
 - **Names.** jiti's `uppercase-string` becomes `uppercaseString`, because a definition is a JavaScript global.
 - **Slash commands.** jiti's `/describe` and `/execute` are terminal commands. Here they are a `GET` of the catalogue and
-  a direct `POST` call. The body shape of the call is not fixed yet.
-- **A failed step.** If a `develop` breaks a check, makes a host call or runs out of budget, the checkpoint is
+  a direct `POST` call with `{"args": [...]}`.
+- **A failed step.** If a `develop` throws, touches data, breaks a check or runs out of budget, the checkpoint is
   restored and the agent gets the reason. The world stays at the last accepted revision.
 - **Later changes.** `shoutBackwards` calls the other two through their stubs. If you later ask for a different
   `reverseString`, `shoutBackwards` uses the new one without being touched.
@@ -147,10 +159,10 @@ What differs from jiti:
    can observe an uncommitted heap.
 3. **Definitions dispatch through a registry.** `define` never replaces a global binding. A stable stub calls the
    registry entry, and a class keeps one prototype patched in place, so a redefinition reaches every caller.
-4. **Data is not heap.** Rows written by end-user calls live in SQLite through host functions. Heap instances stay few,
-   which keeps eager migration at a class redefinition affordable.
+4. **Data is not heap.** What calls store goes through `data` into the cell's SQLite. A call's heap changes are
+   discarded, so only revisions change the heap. Heap instances stay few, which keeps eager migration affordable.
 5. **Only `develop` sources replay.** Merge and rebuild after a runtime upgrade replay accepted `develop` sources; a
-   `develop` whose evaluation made host calls is rejected.
+   `develop` that touches data is rejected.
 6. **Write blobs first, then commit the pointer.** A crash can leave an orphan blob, never a pointer to a missing one.
 
 The full constraint list, each with the fact that forces it, is in [`design.md`](design.md).
@@ -172,10 +184,11 @@ it resumes. `decisions.md` (open decision 8) records the choice still to make.
 
 Open `http://oracle-arm.mist-walleye.ts.net:8787` from a machine on the tailnet.
 
-1. **Log in with Claude** (bottom left). This uses your Pro/Max subscription the way pi does: a tab opens on
-   claude.ai, you approve, and you paste the code Anthropic shows back into the box. Or run `claude setup-token` and
-   paste the token it prints.
-2. **Create a world** (top left) and ask for something: *"Keep a todo list: add, toggle, delete, list. Then make an
+1. **Connect Claude** (the button in the sidebar or on the welcome page). This uses your Pro/Max subscription the way
+   pi does. Either tap **Open claude.ai**, approve, and paste the code Anthropic shows; or run `claude setup-token` on
+   a computer with Claude Code and paste the token, which is checked with Anthropic before it is saved. One login
+   serves every world on the server.
+2. **Create a world** (top of the sidebar) and ask for something: *"Keep a todo list: add, toggle, delete, list. Then make an
    app page for it."*
 3. Watch the agent's `develop` and `execute` calls in the chat. Each accepted `develop` is a revision; a rejected one
    shows its reason and changes nothing.
@@ -188,13 +201,15 @@ Open `http://oracle-arm.mist-walleye.ts.net:8787` from a machine on the tailnet.
    - **App:** the world's page.
 5. **Open app** opens the page the world serves at `/w/:id/`.
 
+The UI works on a phone: the chat and the inspector switch with the Chat and Inspect buttons.
+
 ## Develop it
 
 ```sh
 npm install
 npm test            # vitest: the VM, attempts, the World service, the agent with a scripted model
 npm run typecheck
-npm run dev         # builds the UI and runs `celld dev` on 127.0.0.1:8791
+npm run dev         # builds the UI and runs `celld dev` on 127.0.0.1:8791 (restart it after a UI change)
 npm run deploy      # typecheck, test, build, then `celld deploy` to gs://pi-world-celld
 ```
 
@@ -265,7 +280,25 @@ on a world holds its lock, and after a call the VM returns to the head snapshot.
 
 Revisions are stored as `world.head` and `world.revision` documents holding a manifest and a pointer to a blob.
 
-## Measurements (verified, Node 25.2.1, synthetic definitions)
+## Verified on the node
+
+Each line was seen on the deployed node (celld 0.6.1, one aarch64 node, GCS bucket) unless it says otherwise. Details
+are in [`research.md`](research.md).
+
+| What | Evidence |
+|---|---|
+| The stack runs in a cell | quickjs-wasi, pi-durable over the cell's SQLite, and pi-ai's Anthropic provider; one answered input in about 1 s |
+| Login | The copy-code OAuth login, completed by a person from a phone; a fake pasted token is refused with 400 |
+| An agent session | A todo app with seven functions, a check and a page, built through the UI; a todo added on the page read back by a direct call |
+| Direct calls need no model | 62 to 71 ms per call, conversation unchanged; on a `celld dev` with no credential, calls work while agent messages fail |
+| A crash mid-run | celld restarted between tool rounds with nothing sent afterwards; the run finished, no revision accepted twice |
+| Snapshot rows | A 1.44 MB snapshot round-trips through the cell's SQLite |
+
+The test suite (`npm test`, 41 tests) covers the VM, attempts, the `World` service, the agent with a scripted model,
+and that a direct call makes no model request. There are no property-based tests, Gherkin scenarios or mutation runs
+yet.
+
+## Measurements (Node 25.2.1, synthetic definitions)
 
 | Definitions | Raw snapshot | Gzipped |
 |---|---|---|
@@ -273,14 +306,14 @@ Revisions are stored as `world.head` and `world.revision` documents holding a ma
 | 200 | 1.64 MB | 176 KB |
 | 2000 | 4.39 MB | 620 KB |
 
-Growth is linear, about 1.5 KB per definition. Real worlds may differ.
+Growth is linear, about 1.5 KB per definition. Snapshots are stored raw in the prototype. Real worlds may differ.
 
 ## Limitations
 
 - A prototype: no authentication, one node, no pauses, forks or replay. The defaults chosen for open questions are
   listed in [`decisions.md`](decisions.md) under "Prototype assumptions".
-- celld is in beta. Open checks that remain (memory and CPU per cell, eviction timing, streaming lag) are in
-  [`research.md`](research.md).
+- celld is in beta. Open checks that remain (memory and CPU per cell, what wakes a cell after a restart, a run moving
+  to another node, the OAuth refresh at expiry, streaming lag) are in [`research.md`](research.md).
 - Checks cannot read data, so a behaviour that depends on stored data is hard to protect with one.
 - `execute` keeps its data writes, so an agent that tries its functions can leave test rows behind, or delete yours.
 - A snapshot belongs to the exact `quickjs.wasm` build. After a runtime upgrade, the world is rebuilt by replaying the
@@ -299,8 +332,12 @@ agent is needed to grow the application.
 layout, which invalidates the previous snapshot. Compiled code is planned as a tier for stable, hot functions
 (`plan.md`, milestone 9).
 
-**What happens when a job is waiting for an answer and the node dies?** The pause is a pending promise in a stored
-snapshot. It resumes on the new owner when the answer arrives. The kill-and-reopen test is milestone 4.
+**What happens to an agent run when the node dies?** It continues from its last committed step when the cell comes
+back; this was seen on the node.
+
+**What happens when a job is waiting for an answer and the node dies?** Designed, not built: the pause is a pending
+promise in a stored snapshot, and it resumes on the new owner when the answer arrives. The kill-and-reopen test is
+milestone 4.
 
 ```mermaid
 sequenceDiagram
@@ -325,8 +362,8 @@ counterexample. Removing or loosening one is an operator call with a reason. The
 One case is still open: a check that calls a function the agent defined, which is open decision 13 in
 [`decisions.md`](decisions.md).
 
-**Where will it live, and how is the REST API authenticated?** Undecided. `decisions.md` lists these and the other
-open decisions.
+**How is the REST API authenticated?** In the prototype it is not: the node is reachable only on the tailnet. The real
+answer, and where the package lives, are open decisions in `decisions.md`.
 
 ## Documents
 
