@@ -5,7 +5,9 @@ import { DurableObject } from "cloudflare:workers";
 import wasm from "quickjs-wasi/quickjs.wasm";
 import { DEFAULT_MODEL, type Transcript, type WorldSummary } from "../api/types.ts";
 import { toTranscript } from "../conversation/transcript.ts";
-import { ACCOUNT_NAME, type Env } from "../env.ts";
+import { ACCOUNT_NAME, DIRECTORY_NAME, type Env } from "../env.ts";
+import { chainedPeers, type PeerTransport } from "../world/chained-peers.ts";
+import type { CatalogueEntry, Outcome } from "../world/world-vm.ts";
 import { appPage, hasApp } from "./app-page.ts";
 import { claudeModels } from "./claude-models.ts";
 import { Fanout } from "./fanout.ts";
@@ -36,6 +38,28 @@ export class WorldCell extends DurableObject<Env> {
 	async init(id: string, name: string): Promise<void> {
 		await this.ctx.storage.put("meta", { id, name } satisfies Meta);
 		await this.live();
+	}
+
+	/** A call from another world; `chain` lists the worlds it passed through, the caller last. */
+	async peerCall(name: string, args: unknown[], chain: string[]): Promise<Outcome> {
+		const meta = await this.meta();
+		if (!meta) return { ok: false, failure: "threw", error: "no such world" };
+		const { opened } = await this.live();
+		return opened.world.call(name, args, chainedPeers(meta.id, chain, this.peerTransport()));
+	}
+
+	async peerFunctions(): Promise<readonly CatalogueEntry[]> {
+		if (!(await this.meta())) throw new Error("no such world");
+		return (await this.live()).opened.world.catalogue();
+	}
+
+	/** Other worlds are other cells: reached by name over Durable Object RPC. */
+	private peerTransport(): PeerTransport {
+		return {
+			call: (id, name, args, chain) => this.env.WORLD.getByName(id).peerCall(name, [...args], [...chain]),
+			list: async () => (await this.env.DIRECTORY.getByName(DIRECTORY_NAME).list()).map(({ id, name }) => ({ id, name })),
+			functions: (id) => this.env.WORLD.getByName(id).peerFunctions(),
+		};
 	}
 
 	async fetch(request: Request): Promise<Response> {
@@ -72,6 +96,7 @@ export class WorldCell extends DurableObject<Env> {
 			storage: await SqliteStorage.open(db),
 			blobs: await sqlBlobStore(db),
 			data,
+			peers: chainedPeers(meta.id, [], this.peerTransport()),
 			wasm,
 			models: claudeModels(() => account.accessToken()),
 			model: { provider: "anthropic", modelId: DEFAULT_MODEL },

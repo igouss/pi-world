@@ -1,16 +1,18 @@
-import { QuickJS, type Snapshot } from "quickjs-wasi";
+import { QuickJS, type Deferred, type Snapshot } from "quickjs-wasi";
 import type { DataPort } from "./data-port.ts";
-import { PRELUDE } from "./prelude.ts";
+import type { PeerPort } from "./peer-port.ts";
+import { PRELUDE, PRELUDE_VERSION } from "./prelude.ts";
+import { PRELUDE_UPGRADES } from "./prelude-upgrades.ts";
 
 /**
  * How the VM meets the outside world while code runs.
  * - `attempt`: a develop, a check or a counterexample. The clock is pinned and random is seeded, so the same source
  *   on the same base gives the same heap. Data is unreachable: touching it fails the evaluation as a host call.
- * - `live`: a direct call or an agent `execute`. Real clock, real random, the world's data store.
+ * - `live`: a direct call or an agent `execute`. Real clock, real random, the world's data store and the other worlds.
  */
 export type Mode =
 	| { readonly kind: "attempt"; readonly at: number; readonly seed: number }
-	| { readonly kind: "live"; readonly data: DataPort };
+	| { readonly kind: "live"; readonly data: DataPort; readonly peers: PeerPort };
 
 export type Failure = "threw" | "budget" | "host-call" | "pending";
 
@@ -37,9 +39,20 @@ export const DEFAULT_LIMITS: VmLimits = { budget: 30_000, memoryBytes: 128 * 102
 
 const INIT_TIME_NS: bigint = 1_700_000_000_000n * 1_000_000n;
 
+/** How long a live evaluation may wait on other worlds in total. */
+const PEER_DEADLINE_MS: number = 30_000;
+
+const HOST_FUNCTIONS: readonly string[] = ["__hostData", "__hostRandom", ...PRELUDE_UPGRADES.flatMap((u) => u.hostFunctions)];
+
+/** A request to another world that world code is awaiting. */
+interface PeerRequest {
+	readonly deferred: Deferred;
+	readonly done: Promise<{ readonly ok: boolean; readonly text: string }>;
+}
+
 /**
- * One QuickJS heap with the prelude installed. Synchronous from entry to return: an evaluation never yields, so a
- * caller holding the world's lock sees no interleaving.
+ * One QuickJS heap with the prelude installed. Each step of an evaluation is synchronous; a live evaluation that
+ * awaits another world yields between steps, and its caller holds the world's lock throughout.
  */
 export class WorldVm {
 	private vm!: QuickJS;
@@ -49,6 +62,7 @@ export class WorldVm {
 	private hostCalls: string[] = [];
 	private rng: () => number = mulberry32(1);
 	private clockNs: () => bigint = () => INIT_TIME_NS;
+	private requests: PeerRequest[] = [];
 
 	private constructor(
 		private readonly wasm: WebAssembly.Module,
@@ -59,10 +73,34 @@ export class WorldVm {
 	static async create(wasm: WebAssembly.Module, limits: VmLimits = DEFAULT_LIMITS): Promise<WorldVm> {
 		const world = new WorldVm(wasm, limits);
 		world.vm = await QuickJS.create(world.options());
-		world.vm.newFunction("__hostData", world.hostData).consume((h) => world.vm.setProp(world.vm.global, "__hostData", h));
-		world.vm.newFunction("__hostRandom", world.hostRandom).consume((h) => world.vm.setProp(world.vm.global, "__hostRandom", h));
+		world.installHostFunctions(["__hostData", "__hostRandom"]);
 		world.vm.evalCode(PRELUDE, "prelude.js").dispose();
+		world.upgrade(1);
 		return world;
+	}
+
+	/**
+	 * Apply the prelude upgrades after version `from`, in order. A heap built by an older prelude needs them before it
+	 * can use what they add; the caller records the result as a revision.
+	 */
+	upgrade(from: number): void {
+		for (const step of PRELUDE_UPGRADES.filter((u) => u.version > from)) {
+			this.installHostFunctions(step.hostFunctions);
+			this.vm.evalCode(step.source, `prelude-${step.version}.js`).dispose();
+		}
+	}
+
+	static readonly preludeVersion: number = PRELUDE_VERSION;
+
+	private installHostFunctions(names: readonly string[]): void {
+		for (const name of names) this.vm.newFunction(name, this.hostFunction(name)).consume((h) => this.vm.setProp(this.vm.global, name, h));
+	}
+
+	private hostFunction(name: string) {
+		const functions: Record<string, (...args: never[]) => unknown> = { __hostData: this.hostData, __hostRandom: this.hostRandom, __hostPeer: this.hostPeer };
+		const fn = functions[name];
+		if (!fn) throw new Error(`no host function ${name}`);
+		return fn as Parameters<QuickJS["newFunction"]>[1];
 	}
 
 	static async fromBytes(bytes: Uint8Array, wasm: WebAssembly.Module, limits: VmLimits = DEFAULT_LIMITS): Promise<WorldVm> {
@@ -80,8 +118,7 @@ export class WorldVm {
 
 	private async load(snapshot: Snapshot): Promise<QuickJS> {
 		const vm = await QuickJS.restore(snapshot, this.options());
-		vm.registerHostCallback("__hostData", this.hostData);
-		vm.registerHostCallback("__hostRandom", this.hostRandom);
+		for (const name of HOST_FUNCTIONS) vm.registerHostCallback(name, this.hostFunction(name));
 		return vm;
 	}
 
@@ -111,14 +148,14 @@ export class WorldVm {
 	}
 
 	/** Evaluate an expression and return its JSON value; a promise is settled by running pending jobs. */
-	evaluate(expression: string, mode: Mode): Outcome {
+	evaluate(expression: string, mode: Mode): Promise<Outcome> {
 		return this.settle(mode, () => {
 			this.vm.evalCode(`__world.evaluate(() => (\n${expression}\n))`, "execute.js").dispose();
 		});
 	}
 
 	/** Call a definition with JSON arguments. */
-	invoke(name: string, args: readonly unknown[], mode: Mode): Outcome {
+	invoke(name: string, args: readonly unknown[], mode: Mode): Promise<Outcome> {
 		return this.settle(mode, () => {
 			this.vm
 				.evalCode(`__world.invoke(${JSON.stringify(name)}, ${JSON.stringify(JSON.stringify(args))})`, "call.js")
@@ -130,17 +167,37 @@ export class WorldVm {
 		return this.read<CatalogueEntry[]>("__world.catalogue()");
 	}
 
-	private settle(mode: Mode, start: () => void): Outcome {
+	/**
+	 * Start an evaluation, then run its jobs until it settles. While world code awaits other worlds, wait for their
+	 * answers, hand them to the waiting promises and run the jobs again, until nothing is outstanding or the deadline
+	 * passes.
+	 */
+	private async settle(mode: Mode, start: () => void): Promise<Outcome> {
+		this.requests = [];
 		const started = this.run(mode, start);
 		if (!started.ok) return started;
-		const taken = this.run(mode, () => {
-			this.vm.executePendingJobs();
-			return this.read<{ status: string; value?: unknown; error?: string }>("__world.take()");
-		});
+		const deadline = Date.now() + PEER_DEADLINE_MS;
+		for (;;) {
+			const stepped = this.run(mode, () => this.vm.executePendingJobs());
+			if (!stepped.ok) return stepped;
+			if (this.requests.length === 0) break;
+			const outstanding = this.requests;
+			this.requests = [];
+			const answers = await Promise.race([
+				Promise.all(outstanding.map((request) => request.done)),
+				new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), Math.max(0, deadline - Date.now()))),
+			]);
+			if (!answers) return { ok: false, failure: "pending", error: `other worlds did not answer within ${PEER_DEADLINE_MS / 1000} s` };
+			outstanding.forEach((request, i) => {
+				const answer = answers[i]!;
+				this.vm.newString(answer.text).consume((h) => (answer.ok ? request.deferred.resolve(h) : request.deferred.reject(h)));
+			});
+		}
+		const taken = this.run(mode, () => this.read<{ status: string; value?: unknown; error?: string }>("__world.take()"));
 		if (!taken.ok) return taken;
 		const box = taken.value as { status: string; value?: unknown; error?: string };
 		if (box.status === "ok") return { ok: true, value: box.value ?? null };
-		if (box.status === "pending") return { ok: false, failure: "pending", error: "the promise did not settle; awaiting anything but world code is not supported" };
+		if (box.status === "pending") return { ok: false, failure: "pending", error: "the promise did not settle; world code can await only world code and other worlds" };
 		return { ok: false, failure: "threw", error: box.error ?? "unknown error" };
 	}
 
@@ -165,7 +222,7 @@ export class WorldVm {
 		return {
 			ok: false,
 			failure: "host-call",
-			error: `a develop must not reach the outside world, but it called ${[...new Set(this.hostCalls)].join(", ")}. Data is for calls; give state(...) an init instead.`,
+			error: `a develop must not reach the outside world, but it called ${[...new Set(this.hostCalls)].join(", ")}. Data and other worlds are for calls; give state(...) an init instead.`,
 		};
 	}
 
@@ -234,6 +291,39 @@ export class WorldVm {
 	};
 
 	private readonly hostRandom = () => this.vm.newNumber(this.rng());
+
+	/** `worlds.call/list/functions`: answers a promise that `settle` resolves once the other world replies. */
+	private readonly hostPeer = (
+		opHandle: { toString(): string },
+		idHandle: { toString(): string },
+		nameHandle: { toString(): string },
+		argsHandle: { toString(): string },
+	) => {
+		const op = opHandle.toString();
+		if (this.mode.kind !== "live") {
+			this.hostCalls.push(`worlds.${op}`);
+			throw new Error(`worlds.${op} is not available here`);
+		}
+		const peers = this.mode.peers;
+		const id = idHandle.toString();
+		const name = nameHandle.toString();
+		const args = JSON.parse(argsHandle.toString()) as unknown[];
+		const answer = async (): Promise<unknown> => {
+			if (op === "list") return peers.list();
+			if (op === "functions") return (await peers.functions(id)).map(({ name, kind, doc, params }) => ({ name, kind, doc, params }));
+			if (op !== "call") throw new Error(`unknown worlds operation ${op}`);
+			const outcome = await peers.call(id, name, args);
+			if (!outcome.ok) throw new Error(`${id}.${name}: ${outcome.error.split("\n")[0]}`);
+			return outcome.value;
+		};
+		const deferred = this.vm.newPromise();
+		const done = answer().then(
+			(value) => ({ ok: true, text: JSON.stringify(value ?? null) }),
+			(error: unknown) => ({ ok: false, text: error instanceof Error ? error.message : String(error) }),
+		);
+		this.requests.push({ deferred, done });
+		return deferred.handle;
+	};
 }
 
 function describe(error: unknown): string {

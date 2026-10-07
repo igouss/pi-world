@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { Check } from "../src/check/check.ts";
 import { attemptDevelop, attemptEnrolment, type AttemptMode } from "../src/world/attempt.ts";
 import { MemoryDataPort } from "../src/world/data-port.ts";
+import { NO_PEERS } from "../src/world/peer-port.ts";
 import { WorldVm } from "../src/world/world-vm.ts";
 import { wasm } from "./wasm.ts";
 
 const mode: AttemptMode = { kind: "attempt", at: 1_750_000_000_000, seed: 7 };
-const live = { kind: "live", data: new MemoryDataPort() } as const;
+const live = { kind: "live", data: new MemoryDataPort(), peers: NO_PEERS } as const;
 const positive: Check = {
 	name: "double stays positive",
 	expression: "double(2) === 4",
@@ -26,7 +27,7 @@ describe("attemptDevelop", () => {
 		await attemptDevelop(vm, `define("double", (x) => 2 * x);`, [], mode);
 		const attempt = await attemptDevelop(vm, `define("double", (x) => -x);`, [positive], mode);
 		expect(attempt.accepted === false && attempt.check).toBe("double stays positive");
-		expect(vm.invoke("double", [3], live)).toEqual({ ok: true, value: 6 });
+		expect(await vm.invoke("double", [3], live)).toEqual({ ok: true, value: 6 });
 	});
 
 	it("restores the checkpoint when the source throws halfway", async () => {
@@ -49,7 +50,7 @@ describe("attemptEnrolment", () => {
 		const vm = await WorldVm.create(wasm);
 		await attemptDevelop(vm, `define("double", (x) => 2 * x);`, [], mode);
 		expect(await attemptEnrolment(vm, positive.expression, positive.counterexample, mode)).toEqual({ enrolled: true });
-		expect(vm.invoke("double", [3], live)).toEqual({ ok: true, value: 6 });
+		expect(await vm.invoke("double", [3], live)).toEqual({ ok: true, value: 6 });
 	});
 
 	it("refuses a check that passes on its own counterexample", async () => {

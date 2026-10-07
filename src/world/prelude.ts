@@ -9,7 +9,10 @@
  * - `__hostData(op, key, json)`: the world's data store; op is get, set, delete or list.
  * - `__hostRandom()`: a number in [0, 1); seeded during an attempt, so attempts stay deterministic.
  */
-export const PRELUDE_VERSION: number = 1;
+import { PRELUDE_UPGRADES } from "./prelude-upgrades.ts";
+
+/** The base prelude is version 1; each upgrade raises it by one. */
+export const PRELUDE_VERSION: number = 1 + PRELUDE_UPGRADES.length;
 
 export const PRELUDE: string = String.raw`
 (() => {
@@ -21,7 +24,7 @@ export const PRELUDE: string = String.raw`
 
 	const NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 	const VERSION = Symbol("version");
-	const RESERVED = new Set(["define", "undefine", "state", "data", "versionOf", "__world"]);
+	const RESERVED = new Set(["define", "undefine", "state", "data", "versionOf", "worlds", "__world"]);
 	const defs = new Map();   // name -> { impl, version, doc, instances, removed, stub }
 	const states = new Map(); // name -> { value, version }
 

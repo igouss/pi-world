@@ -4,12 +4,14 @@ import { createRegistry, Harness, type Conversation, type HarnessSettings, type 
 import { worldExtension } from "../agent/world-extension.ts";
 import type { BlobStore } from "../revision/blob-store.ts";
 import type { DataPort } from "../world/data-port.ts";
+import type { PeerPort } from "../world/peer-port.ts";
 import { World } from "../world/world.ts";
 
 export interface OpenWorldDeps {
 	readonly storage: Storage;
 	readonly blobs: BlobStore;
 	readonly data: DataPort;
+	readonly peers?: PeerPort;
 	readonly wasm: WebAssembly.Module;
 	readonly models: Models;
 	readonly model: ModelRef;
@@ -38,6 +40,7 @@ export async function openWorld(deps: OpenWorldDeps): Promise<OpenedWorld> {
 		session: harness,
 		blobs: deps.blobs,
 		data: deps.data,
+		...(deps.peers ? { peers: deps.peers } : {}),
 		wasm: deps.wasm,
 		...(deps.now ? { now: deps.now } : {}),
 	});

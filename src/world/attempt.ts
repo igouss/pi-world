@@ -34,7 +34,7 @@ export async function attemptDevelop(vm: WorldVm, source: string, checks: readon
 		return { accepted: false, failure: evaluated.failure, reason: evaluated.error };
 	}
 	for (const check of checks) {
-		const verdict = runCheck(vm, check, mode);
+		const verdict = await runCheck(vm, check, mode);
 		if (verdict !== true) {
 			await vm.reset(checkpoint);
 			return { accepted: false, failure: "check", check: check.name, reason: `check "${check.name}" failed: ${verdict}` };
@@ -45,8 +45,8 @@ export async function attemptDevelop(vm: WorldVm, source: string, checks: readon
 }
 
 /** `true` when the check holds, otherwise a description of what it returned or threw. */
-function runCheck(vm: WorldVm, check: Pick<Check, "expression">, mode: AttemptMode): true | string {
-	const outcome = vm.evaluate(check.expression, mode);
+async function runCheck(vm: WorldVm, check: Pick<Check, "expression">, mode: AttemptMode): Promise<true | string> {
+	const outcome = await vm.evaluate(check.expression, mode);
 	if (!outcome.ok) return `${outcome.failure}: ${outcome.error.split("\n")[0]}`;
 	return outcome.value === true ? true : `returned ${JSON.stringify(outcome.value)}`;
 }
@@ -58,13 +58,13 @@ export type Enrolment = { readonly enrolled: true } | { readonly enrolled: false
  * the counterexample is applied on a checkpoint. The world is restored either way.
  */
 export async function attemptEnrolment(vm: WorldVm, expression: string, counterexample: string, mode: AttemptMode): Promise<Enrolment> {
-	const now = runCheck(vm, { expression }, mode);
+	const now = await runCheck(vm, { expression }, mode);
 	if (now !== true) return { enrolled: false, reason: `the check does not hold on the current world: ${now}` };
 	const checkpoint = vm.snapshot();
 	try {
 		const applied = vm.develop(counterexample, mode);
 		if (!applied.ok) return { enrolled: false, reason: `the counterexample did not apply (${applied.failure}): ${applied.error.split("\n")[0]}` };
-		const broken = runCheck(vm, { expression }, mode);
+		const broken = await runCheck(vm, { expression }, mode);
 		if (broken === true) return { enrolled: false, reason: "the check still holds after the counterexample, so it was never seen failing" };
 		return { enrolled: true };
 	} finally {

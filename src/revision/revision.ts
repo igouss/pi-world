@@ -18,11 +18,15 @@ interface RevisionBase {
 	readonly changes: CatalogueChanges;
 }
 
-/** One immutable revision of a world. Only `develop` sources replay; a rollback names the revision it restored. */
+/**
+ * One immutable revision of a world. Only `develop` sources replay; a rollback names the revision it restored; an
+ * upgrade brings the heap to a newer prelude.
+ */
 export type Revision =
 	| (RevisionBase & { readonly kind: "genesis" })
 	| (RevisionBase & { readonly kind: "develop"; readonly source: string })
-	| (RevisionBase & { readonly kind: "rollback"; readonly target: number; readonly reason: string });
+	| (RevisionBase & { readonly kind: "rollback"; readonly target: number; readonly reason: string })
+	| (RevisionBase & { readonly kind: "upgrade"; readonly from: number });
 
 export interface Head {
 	readonly revision: number;

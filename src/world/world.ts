@@ -8,6 +8,7 @@ import type { Head, Origin, Revision } from "../revision/revision.ts";
 import { attemptDevelop, attemptEnrolment, type AttemptMode } from "./attempt.ts";
 import { diffCatalogues } from "./catalogue-diff.ts";
 import type { DataPort } from "./data-port.ts";
+import { NO_PEERS, type PeerPort } from "./peer-port.ts";
 import { Mutex } from "./mutex.ts";
 import { PRELUDE_VERSION } from "./prelude.ts";
 import { DEFAULT_LIMITS, WorldVm, type CatalogueEntry, type Failure, type Outcome, type VmLimits } from "./world-vm.ts";
@@ -19,6 +20,8 @@ export interface WorldDeps {
 	readonly session: Pick<Session, "commit" | "snapshot">;
 	readonly blobs: BlobStore;
 	readonly data: DataPort;
+	/** The other worlds, for calls that start here; a call from another world brings its own. */
+	readonly peers?: PeerPort;
 	readonly wasm: WebAssembly.Module;
 	readonly limits?: VmLimits;
 	readonly now?: () => number;
@@ -61,7 +64,9 @@ export class World {
 			const bytes = await deps.blobs.get(head.blob);
 			if (!bytes) throw new Error(`world head points at blob ${head.blob}, which is missing`);
 			const vm = await WorldVm.fromBytes(bytes, deps.wasm, limits);
-			return new World(deps, vm, vm.snapshot(), head, vm.catalogue(), checks);
+			const world = new World(deps, vm, vm.snapshot(), head, vm.catalogue(), checks);
+			await world.upgradePrelude();
+			return world;
 		}
 		const vm = await WorldVm.create(deps.wasm, limits);
 		const snapshot = vm.snapshot();
@@ -128,8 +133,8 @@ export class World {
 			const bytes = await this.deps.blobs.get(revision.blob);
 			if (!bytes) throw new Error(`revision ${target} points at blob ${revision.blob}, which is missing`);
 			const before = this.catalogue();
-			const snapshot = WorldVm.deserialize(bytes);
-			await this.vm.reset(snapshot);
+			await this.vm.reset(WorldVm.deserialize(bytes));
+			if (revision.prelude < WorldVm.preludeVersion) this.vm.upgrade(revision.prelude);
 			const catalogue = this.vm.catalogue();
 			return this.accept(
 				this.vm.snapshot(),
@@ -141,13 +146,16 @@ export class World {
 	}
 
 	/** Evaluate an expression against the world and its data. Heap changes are discarded; data writes are kept. */
-	async execute(expression: string): Promise<Outcome> {
-		return this.live(() => this.vm.evaluate(expression, { kind: "live", data: this.deps.data }));
+	async execute(expression: string, peers: PeerPort = this.deps.peers ?? NO_PEERS): Promise<Outcome> {
+		return this.live(() => this.vm.evaluate(expression, { kind: "live", data: this.deps.data, peers }));
 	}
 
-	/** Call a definition directly, as an end user would. Heap changes are discarded; data writes are kept. */
-	async call(name: string, args: readonly unknown[]): Promise<Outcome> {
-		return this.live(() => this.vm.invoke(name, args, { kind: "live", data: this.deps.data }));
+	/**
+	 * Call a definition directly, as an end user or another world would. Heap changes are discarded; data writes are
+	 * kept. `peers` is how this call reaches other worlds; a call from another world passes one that knows the chain.
+	 */
+	async call(name: string, args: readonly unknown[], peers: PeerPort = this.deps.peers ?? NO_PEERS): Promise<Outcome> {
+		return this.live(() => this.vm.invoke(name, args, { kind: "live", data: this.deps.data, peers }));
 	}
 
 	/**
@@ -211,7 +219,19 @@ export class World {
 		this.vm.dispose();
 	}
 
-	private async live(body: () => Outcome): Promise<Outcome> {
+	/** Bring a heap built by an older prelude up to date, as a revision of its own. */
+	private async upgradePrelude(): Promise<void> {
+		const head = await this.requireRevision(this.current.revision);
+		if (head.prelude >= WorldVm.preludeVersion) return;
+		await this.exclusive(async () => {
+			this.vm.upgrade(head.prelude);
+			const changes = { added: [], changed: [], removed: [] };
+			const summary = `prelude ${head.prelude} to ${WorldVm.preludeVersion}`;
+			await this.accept(this.vm.snapshot(), { kind: "upgrade", from: head.prelude, summary, at: this.now(), origin: { by: "host" }, changes }, this.currentCatalogue, this.sessionCommit);
+		});
+	}
+
+	private async live(body: () => Promise<Outcome>): Promise<Outcome> {
 		return this.exclusive(async () => {
 			this.dirty = true;
 			return body();
