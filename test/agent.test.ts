@@ -62,6 +62,7 @@ describe("the agent grows the world", () => {
 		]);
 		expect(world.catalogue().map((entry) => entry.name)).toEqual(["uppercaseString", "reverseString", "shoutBackwards"]);
 		expect(await world.call("shoutBackwards", ["Hello"])).toEqual({ ok: true, value: "OLLEH" });
+		expect(faux.state.callCount).toBe(8);
 	});
 
 	it("reports a rejected develop to the agent and leaves the world unchanged", async () => {
@@ -90,4 +91,14 @@ describe("the agent grows the world", () => {
 		expect(system).toContain("area(w, h): Rectangle area");
 		expect(system).toContain("Revision 1.");
 	});
+
+	it("answers a direct call without a model request or a conversation entry", async () => {
+		const { faux, world, root } = await setup();
+		await world.develop(`define("shout", (s) => s.toUpperCase());`, "shout", { by: "operator" });
+		const before = (await root.context(BACKGROUND_CONTEXT)).entries.length;
+		expect(await world.call("shout", ["hi"])).toEqual({ ok: true, value: "HI" });
+		expect(faux.state.callCount).toBe(0);
+		expect((await root.context(BACKGROUND_CONTEXT)).entries.length).toBe(before);
+	});
 });
+

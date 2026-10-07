@@ -32,6 +32,10 @@ Three spikes ran against quickjs-wasi 3.6.2 under Node 25.2.1. Nothing has run o
 - A full session ran on the node through the web UI: the agent defined seven functions over three revisions, enrolled a
   check, and the page it built added a todo that a direct call then read back.
 - The copy-code OAuth login was completed by a person from a phone, and the agent then ran on that credential.
+- **Direct calls need no model.** On a `celld dev` server with no Claude credential, `POST /call/tip` answered while an
+  agent message in the same world failed with "not logged in". On the node, six calls to `stats()` took 62 to 71 ms
+  each over the tailnet and left the conversation unchanged (31 items before and after). `test/agent.test.ts` asserts
+  that a direct call makes no model request and adds no conversation entry.
 - **A run survives a crash.** The celld service was restarted while a run was between tool rounds, in a world no
   browser had open, and nothing was sent to it afterwards. The world cell was active again 3 s after the node came up,
   the run continued from its last committed tool result, and it finished: one more `develop` accepted, no revision
