@@ -121,4 +121,17 @@ describe("WorldVm", () => {
 		vm.develop(`Array.prototype.every = () => true;`, attempt);
 		expect(await vm.evaluate("[1, 2].every((x) => x > 1)", live())).toEqual({ ok: true, value: false });
 	});
+
+	it("upgrades a restored heap built by an older prelude", async () => {
+		const old = await WorldVm.create(wasm, undefined, 1);
+		old.develop(`define("kept", () => "yes");`, attempt);
+		expect(await old.evaluate("typeof worlds", live())).toEqual({ ok: true, value: "undefined" });
+		const restored = await WorldVm.fromBytes(WorldVm.serialize(old.snapshot()), wasm);
+		restored.upgrade(1);
+		expect(await restored.evaluate("typeof worlds", live())).toEqual({ ok: true, value: "object" });
+		expect(await restored.invoke("kept", [], live())).toEqual({ ok: true, value: "yes" });
+		const again = await WorldVm.fromBytes(WorldVm.serialize(restored.snapshot()), wasm);
+		expect(await again.evaluate("worlds.list()", live())).toEqual({ ok: true, value: [] });
+	});
 });
+

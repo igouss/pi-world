@@ -69,13 +69,13 @@ export class WorldVm {
 		private readonly limits: VmLimits,
 	) {}
 
-	/** A fresh world: the prelude at revision 0. */
-	static async create(wasm: WebAssembly.Module, limits: VmLimits = DEFAULT_LIMITS): Promise<WorldVm> {
+	/** A fresh world: the prelude at revision 0, at `prelude` (the newest version unless an older one is asked for). */
+	static async create(wasm: WebAssembly.Module, limits: VmLimits = DEFAULT_LIMITS, prelude: number = PRELUDE_VERSION): Promise<WorldVm> {
 		const world = new WorldVm(wasm, limits);
 		world.vm = await QuickJS.create(world.options());
 		world.installHostFunctions(["__hostData", "__hostRandom"]);
 		world.vm.evalCode(PRELUDE, "prelude.js").dispose();
-		world.upgrade(1);
+		world.upgrade(1, prelude);
 		return world;
 	}
 
@@ -83,8 +83,8 @@ export class WorldVm {
 	 * Apply the prelude upgrades after version `from`, in order. A heap built by an older prelude needs them before it
 	 * can use what they add; the caller records the result as a revision.
 	 */
-	upgrade(from: number): void {
-		for (const step of PRELUDE_UPGRADES.filter((u) => u.version > from)) {
+	upgrade(from: number, to: number = PRELUDE_VERSION): void {
+		for (const step of PRELUDE_UPGRADES.filter((u) => u.version > from && u.version <= to)) {
 			this.installHostFunctions(step.hostFunctions);
 			this.vm.evalCode(step.source, `prelude-${step.version}.js`).dispose();
 		}
@@ -92,8 +92,12 @@ export class WorldVm {
 
 	static readonly preludeVersion: number = PRELUDE_VERSION;
 
+	/** A restored heap already has every host callback registered by name; a new function of that name replaces it. */
 	private installHostFunctions(names: readonly string[]): void {
-		for (const name of names) this.vm.newFunction(name, this.hostFunction(name)).consume((h) => this.vm.setProp(this.vm.global, name, h));
+		for (const name of names) {
+			this.vm.unregisterHostCallback(name);
+			this.vm.newFunction(name, this.hostFunction(name)).consume((h) => this.vm.setProp(this.vm.global, name, h));
+		}
 	}
 
 	private hostFunction(name: string) {
