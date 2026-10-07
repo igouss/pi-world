@@ -3,8 +3,9 @@
 **A live application world that an agent grows by talking to it. The world is a snapshotable WASM heap, so every change is checked, versioned and reversible.**
 
 > **Status: working prototype, running on one celld node** at `http://oracle-arm.mist-walleye.ts.net:8787`. The web UI,
-> the agent on a Claude subscription, revisions, checks, direct calls and world pages work there. Pauses, forks and
-> replay are still designs. Sections below say *on the node* (seen working on the deployed node), *built* (code and
+> the agent on a Claude subscription, revisions, checks, direct calls, calls between worlds and world pages work there,
+> with each world's calls in an isolate of its own. Pauses, forks, replay, scheduled world code and durable messages
+> between worlds are still designs. Sections below say *on the node* (seen working on the deployed node), *built* (code and
 > tests exist), *spike* (a spike shows it) or *designed* (a document says it).
 
 ---
@@ -43,7 +44,10 @@ result is validated and iterated on immediately. It is one station of a larger l
 |---|---|---|
 | Grow an app by talking | The agent writes `develop` sources; each accepted one is a revision | on the node |
 | Checkpoint and restore | A failed attempt leaves no trace; snapshot and restore take a few milliseconds | on the node |
-| Direct calls without a model | `POST /api/worlds/:id/call/:fn` runs the function in the cell, 62 to 71 ms over the tailnet | on the node |
+| Direct calls without a model | `POST /api/worlds/:id/call/:fn` runs the function in the world's own isolate, 62 to 71 ms over the tailnet | on the node |
+| Worlds that do not slow each other | Each world's calls run in an isolate of its own; a world computing for 1.75 s left others answering in 63 to 82 ms | on the node |
+| Trying without touching data | `execute` is a preview: its data writes are rolled back and listed in its result | on the node |
+| History that stays small | The head snapshot stays local; older ones move to R2, gzipped from 1.4 MB to about 146 KB | on the node |
 | Worlds calling worlds | `await worlds.call(id, name, ...args)` uses another world's service; cycles are refused | on the node |
 | Pages served by the world | `define("app", (path, query) => html)` is served at `/w/:id/` | on the node |
 | Checks the agent cannot weaken | Enrolled only after failing on a counterexample; removed only by you, with a reason | on the node |
@@ -115,35 +119,52 @@ so a migration that throws rejects the `develop`:
 
 Every world's definitions are a service to every other world on the server. World code calls one with
 `await worlds.call(worldId, name, ...args)`; `worlds.list()` and `worlds.functions(worldId)` say what exists. This
-is an asynchronous request and response between two cells: the caller awaits a promise, the other world runs the
-function in its own cell and VM, and the result or the error comes back. No model is involved at any point.
+is an asynchronous request and response between two worlds, each running in an isolate of its own: the caller awaits
+a promise, the other world runs the function on a VM in its own isolate, and the result or the error comes back. No
+model is involved at any point.
 
 ### How a call travels
 
 ```mermaid
 sequenceDiagram
-    participant Caller as Caller world code
-    participant A as Caller cell (one pooled VM)
-    participant B as Callee cell
-    participant VM as Callee world code
-    Caller->>A: await worlds.call("b", "convert", 40500, "JPY", "USD")
-    Note over A: the evaluation step ends; the promise is pending
-    A->>B: peerCall("convert", args, chain = [a]) over Durable Object RPC
-    B->>VM: call convert under the callee's lock
-    VM-->>B: 270, or a thrown error
-    B-->>A: { ok, value } or { ok: false, error }
-    A->>Caller: resolve (or reject) the promise, run the waiting code
+    participant CA as Caller's code<br/>(world A's isolate)
+    participant HA as WorldHost of A<br/>(host isolate)
+    participant CB as World B's cell<br/>(host isolate)
+    participant RB as World B's runtime<br/>(world B's isolate)
+    CA->>CA: await worlds.call("b", "convert", 40500, "JPY", "USD")
+    Note over CA: chain [a] checked, the promise waits
+    CA->>HA: call("b", "convert", args, chain = [a])
+    HA->>CB: peerCall("convert", args, [a]) over Durable Object RPC
+    CB->>RB: call("convert", args, [a], head = { revision, blob })
+    opt the head is not cached in B's isolate
+        RB->>CB: blob(hash) through B's WorldHost
+        CB-->>RB: the head's snapshot bytes
+    end
+    Note over RB: a pooled VM runs convert on B's data
+    RB-->>CB: { ok: true, value: 270 } or { ok: false, error }
+    CB-->>HA: the outcome
+    HA-->>CA: the outcome
+    Note over CA: WorldVm resolves the promise, the code resumes
 ```
+
+In A's isolate, `chainedPeers` refuses a call that would loop back into the chain before anything is sent, and
+`WorldVm.settle` waits outside the VM for the answer, then resolves or rejects the promise. Each world has three parts
+on the node. Its **cell** holds the agent, the revisions and the head snapshot, and runs
+develops and checks. Its **runtime isolate**, a facet of the cell loaded through a Worker Loader, runs its calls and
+holds its data. Its **`WorldHost`** is a capability in the host isolate that the runtime calls back through: for
+snapshots by hash, and for every call that leaves the world. The runtime has no other way out.
 
 - **It is asynchronous for the code.** `worlds.call` returns a promise, so a function that uses it is `async`. Calls
   awaited together run at the same time: two 200 ms calls under `Promise.all` take about 200 ms
   (`test/peers.test.ts`).
-- **A world answers many calls at once.** Each call runs on its own VM, taken from a pool and restored from the head
-  revision the call started at. A call that awaits another world keeps its VM, and the world's other calls run
-  meanwhile on other VMs. A world runs up to 8 calls at once; more wait for a VM.
-- **Changes do not wait for calls.** A develop, rollback or check runs on the world's main VM under the world's lock,
-  which calls no longer take. A call that started before a new revision finishes on the revision it started at; the
-  next call sees the new one.
+- **A world answers many calls at once.** Each call runs on its own VM in the world's runtime isolate, taken from a
+  pool and restored from the head revision the call started at. A call that awaits another world keeps its VM, and the
+  world's other calls run meanwhile on other VMs. A world runs up to 8 calls at once; more wait for a VM.
+- **Worlds do not slow each other.** Each world's calls run in its own isolate, so a world busy computing delays only
+  its own calls.
+- **Changes do not wait for calls.** A develop, rollback or check runs in the world's cell, on its main VM, under the
+  world's lock, which calls do not take. A call that started before a new revision finishes on the revision it
+  started at; the next call sees the new one.
 - **`execute` is a preview.** Its data writes are rolled back and listed in the result; other worlds it calls write
   for real.
 - **Data is shared, heap is not.** Heap changes a call makes vanish with its VM. Data writes are visible to other calls
@@ -217,12 +238,13 @@ parameters.
 | Limit | Value | What happens past it |
 |---|---|---|
 | Calls one world runs at once | 8 VMs (`concurrentCalls`) | Further calls wait in the cell for a VM |
-| Requests in flight in one cell | 64, celld's own limit, counting incoming requests and the cell's own calls to other worlds | celld answers `503 cell request limit reached` at once |
+| Requests in flight in one cell | 64 (the node setting `CELLD_MAX_CELL_REQUESTS`), counting incoming requests and the cell's own calls to other worlds | celld answers `503 cell request limit reached` at once |
 | One call's wait on other worlds | 30 s | The call fails |
 | CPU | Each world's calls run in an isolate of the world's own | A world busy computing slows only its own calls; develops and checks still run in the shared cell isolate |
 
 On the node, 20 concurrent calls that each call another world finished in about 0.25 s. At 40 concurrent calls, 28
-were answered and 12 refused with 503; at 60, 16 and 44. The cell answered again within seconds.
+were answered and 12 refused with 503; at 60, 16 and 44. The cell answered again within seconds. These numbers were
+measured before calls moved into each world's isolate.
 
 ### What it is not, yet
 
@@ -284,8 +306,8 @@ What differs from jiti:
    can observe an uncommitted heap.
 3. **Definitions dispatch through a registry.** `define` never replaces a global binding. A stable stub calls the
    registry entry, and a class keeps one prototype patched in place, so a redefinition reaches every caller.
-4. **Data is not heap.** What calls store goes through `data` into the cell's SQLite. A call's heap changes are
-   discarded, so only revisions change the heap. Heap instances stay few, which keeps eager migration affordable.
+4. **Data is not heap.** What calls store goes through `data` into the SQLite of the world's runtime isolate. A
+   call's heap changes are discarded, so only revisions change the heap. Heap instances stay few, which keeps eager migration affordable.
 5. **Only `develop` sources replay.** Merge and rebuild after a runtime upgrade replay accepted `develop` sources; a
    `develop` that touches data is rejected.
 6. **Write blobs first, then commit the pointer.** A crash can leave an orphan blob, never a pointer to a missing one.
@@ -322,7 +344,7 @@ Open `http://oracle-arm.mist-walleye.ts.net:8787` from a machine on the tailnet.
    - **Revisions:** each change with its source; roll back to any revision.
    - **Data:** what calls stored.
    - **Checks:** what every future change must keep true.
-   - **Console:** evaluate expressions, or develop a source by hand.
+   - **Console:** preview an expression (its data writes are rolled back), or develop a source by hand.
    - **App:** the world's page.
 5. **Open app** opens the page the world serves at `/w/:id/`.
 
@@ -332,9 +354,10 @@ The UI works on a phone: the chat and the inspector switch with the Chat and Ins
 
 ```sh
 npm install
-npm test            # vitest: the VM, attempts, the World service, the agent with a scripted model
-npm run typecheck
-npm run dev         # builds the UI and runs `celld dev` on 127.0.0.1:8791 (restart it after a UI change)
+npm test            # vitest: the VM, attempts, the World service, calls, the agent with a scripted model
+npm run typecheck   # builds the runtime bundle first, then tsc
+npm run build       # the runtime isolate's bundle (dist/runtime/) and the UI (public/app.js)
+npm run dev         # build, then `celld dev` on 127.0.0.1:8791 (restart it after a change)
 npm run deploy      # typecheck, test, build, then `celld deploy` to gs://pi-world-celld
 ```
 
@@ -345,9 +368,9 @@ without a restart. Keep the Worker `name` (`pi-world`) stable: celld derives eve
 
 ## Interfaces (built)
 
-**Agent tools:** `develop`, `execute`, `describe`, `history`, `rollback`, `propose_check`. The system prompt's `world`
-section lists the revision, the definitions with their docs, and the checks. Designed but not built: `preview`,
-`answer`, pauses.
+**Agent tools:** `develop`, `execute` (a preview: data writes rolled back), `describe`, `history`, `rollback`,
+`propose_check`. The system prompt's `world` section lists the revision, the definitions with their docs, and the
+checks. Designed but not built: `answer`, pauses.
 
 **REST API:**
 
@@ -360,11 +383,11 @@ section lists the revision, the definitions with their docs, and the checks. Des
 | `POST /api/worlds/:id/messages {content, requestId}` | Submit to the agent; `requestId` makes a retry a no-op |
 | `POST /api/worlds/:id/abort`, `POST /api/worlds/:id/reset` | Stop the run; start a new context |
 | `POST /api/worlds/:id/call/:fn {args}` | Call a definition directly, no model; world code reaches other worlds with `worlds.call` |
-| `POST /api/worlds/:id/execute {expression}` | Evaluate an expression against the world |
+| `POST /api/worlds/:id/execute {expression}` | Preview an expression against the world: data writes are rolled back and listed in `rolledBack` |
 | `POST /api/worlds/:id/develop {source, summary}` | Develop by hand, through the same attempt |
 | `GET /api/worlds/:id/revisions[/:n]`, `POST /api/worlds/:id/rollback {revision, reason}` | History and rollback |
 | `GET /api/worlds/:id/checks`, `DELETE /api/worlds/:id/checks/:name {reason}` | Checks; removal needs a reason |
-| `GET /api/worlds/:id/data?prefix=`, `DELETE /api/worlds/:id/data/:key` | The world's data |
+| `GET /api/worlds/:id/data?prefix=`, `DELETE /api/worlds/:id/data/:key` | The world's data, held in its runtime isolate |
 | `POST /api/worlds/:id/model {model}` | Choose the Claude model |
 | `GET /api/account`, `POST /api/account/login`, `POST /api/account/login/finish {code}`, `POST /api/account/token {token}`, `POST /api/account/logout` | Claude login |
 | `GET /w/:id/*` | The world's page |
@@ -447,10 +470,11 @@ are in [`research.md`](research.md).
 | Prelude upgrade | Demo todos, built on prelude 1, opened on the new version and got revision 6, "prelude 1 to 2" |
 | Snapshot rows | A 1.44 MB snapshot round-trips through the cell's SQLite |
 
-The test suite (`npm test`, 47 tests) covers the VM, attempts, the `World` service, the agent with a scripted model,
-that a direct call makes no model request, calls between worlds (results, errors, cycles, discovery), and the
-upgrade of a heap built by an older prelude. There are no property-based tests, Gherkin scenarios or mutation runs
-yet.
+The test suite (`npm test`, 63 tests) covers the VM, attempts, the `World` service, the agent with a scripted model,
+that a direct call makes no model request, calls between worlds (results, errors, cycles, discovery), concurrent
+calls, the `execute` preview, the tiered snapshot store, and the upgrade of a heap built by an older prelude. The
+runtime facet and the R2 archive run only on celld, so they are covered by runs under `celld dev` and on the node,
+not by unit tests. There are no property-based tests, Gherkin scenarios or mutation runs yet.
 
 ## Measurements (Node 25.2.1, synthetic definitions)
 
@@ -460,14 +484,18 @@ yet.
 | 200 | 1.64 MB | 176 KB |
 | 2000 | 4.39 MB | 620 KB |
 
-Growth is linear, about 1.5 KB per definition. Snapshots are stored raw in the prototype. Real worlds may differ.
+Growth is linear, about 1.5 KB per definition. The head's snapshot is stored raw in the cell; older snapshots are
+gzipped in R2. Real worlds may differ.
 
 ## Limitations
 
 - A prototype: no authentication, one node, no pauses, forks or replay. The defaults chosen for open questions are
   listed in [`decisions.md`](decisions.md) under "Prototype assumptions".
-- celld is in beta. Open checks that remain (memory and CPU per cell, what wakes a cell after a restart, a run moving
-  to another node, memory per world isolate, streaming lag) are in [`research.md`](research.md).
+- celld is in beta. Open checks that remain (memory per world, now that each world compiles QuickJS in an isolate of its
+  own; what wakes a cell after a restart; a run moving to another node; streaming lag) are in
+  [`research.md`](research.md).
+- Develops and checks still run in the shared cell isolate, so a long develop can delay other worlds' cells until its
+  time budget stops it.
 - Checks cannot read data, so a behaviour that depends on stored data is hard to protect with one.
 - `execute` rolls back its own world's data writes, but a world it calls through `worlds.call` writes for real.
 - A snapshot belongs to the exact `quickjs.wasm` build. After a runtime upgrade, the world is rebuilt by replaying the
@@ -489,9 +517,10 @@ layout, which invalidates the previous snapshot. Compiled code is planned as a t
 **What happens to an agent run when the node dies?** It continues from its last committed step when the cell comes
 back; this was seen on the node.
 
-**What happens when a job is waiting for an answer and the node dies?** Designed, not built: the pause is a pending
-promise in a stored snapshot, and it resumes on the new owner when the answer arrives. The kill-and-reopen test is
-milestone 4.
+**What happens when a job is waiting for an answer and the node dies?** Designed, not built (open decision 8). The
+design below keeps the pause as a pending promise in a stored snapshot. A spike on celld Workflows showed the
+alternative: the pause as a recorded step that survives a SIGKILL, with the job rerun from its start
+(`research.md`).
 
 ```mermaid
 sequenceDiagram
@@ -503,7 +532,7 @@ sequenceDiagram
     Cell->>Store: snapshot holding the pending promise
     Cell-->>Person: question shown as an open pause
     Note over Cell: evicted, crashed or moved. Memory is gone.
-    Person->>Cell: POST /worlds/:id/pauses/:pauseId/answer
+    Person->>Cell: POST /api/worlds/:id/pauses/:pauseId/answer
     Cell->>Store: load the snapshot
     Store-->>Cell: restore the VM
     Cell->>Job: resolve the promise with the answer

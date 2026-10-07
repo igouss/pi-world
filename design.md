@@ -94,9 +94,9 @@ The rules the implementation obeys, each with the fact that forces it.
   - Data is shared and not isolated: calls interleave at their awaits.
   - Each running call costs a VM of about the snapshot's size (1.4 MB for a small world).
 - **Calls between worlds are request and response over Durable Object RPC.** World code calls
-  `worlds.call(id, name, ...args)` and gets a QuickJS promise; the evaluation step ends, the host sends `peerCall` to
-  the other world's cell, waits outside the VM, then resolves the promise and runs the waiting code
-  (`WorldVm.settle`). Consequences:
+  `worlds.call(id, name, ...args)` and gets a QuickJS promise; the evaluation step ends, the runtime asks its
+  `WorldHost`, which sends `peerCall` to the other world's cell, and that cell runs the call in the other world's own
+  isolate. `WorldVm.settle` waits outside the VM, then resolves the promise and runs the waiting code. Consequences:
   - Calls awaited together overlap (`Promise.all` of two 200 ms calls takes about 200 ms, `test/peers.test.ts`).
   - A waiting call holds a VM in each world on its chain, so a cycle could use up a world's VMs and wait for its own.
     The chain travels with the call and a call back into a world on it is refused (`chainedPeers`). A chain is at
