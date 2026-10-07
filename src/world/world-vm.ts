@@ -108,8 +108,12 @@ export class WorldVm {
 	}
 
 	static async fromBytes(bytes: Uint8Array, wasm: WebAssembly.Module, limits: VmLimits = DEFAULT_LIMITS): Promise<WorldVm> {
+		return WorldVm.fromSnapshot(QuickJS.deserializeSnapshot(bytes), wasm, limits);
+	}
+
+	static async fromSnapshot(snapshot: Snapshot, wasm: WebAssembly.Module, limits: VmLimits = DEFAULT_LIMITS): Promise<WorldVm> {
 		const world = new WorldVm(wasm, limits);
-		world.vm = await world.load(QuickJS.deserializeSnapshot(bytes));
+		world.vm = await world.load(snapshot);
 		return world;
 	}
 

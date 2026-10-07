@@ -10,6 +10,7 @@ import { diffCatalogues } from "./catalogue-diff.ts";
 import type { DataPort } from "./data-port.ts";
 import { NO_PEERS, type PeerPort } from "./peer-port.ts";
 import { Mutex } from "./mutex.ts";
+import { VmPool } from "./vm-pool.ts";
 import { PRELUDE_VERSION } from "./prelude.ts";
 import { DEFAULT_LIMITS, WorldVm, type CatalogueEntry, type Failure, type Outcome, type VmLimits } from "./world-vm.ts";
 
@@ -25,7 +26,12 @@ export interface WorldDeps {
 	readonly wasm: WebAssembly.Module;
 	readonly limits?: VmLimits;
 	readonly now?: () => number;
+	/** How many calls one world runs at once; more wait. Each running call holds a VM of about the snapshot's size. */
+	readonly concurrentCalls?: number;
 }
+
+const CONCURRENT_CALLS: number = 8;
+const WARM_VMS: number = 2;
 
 export type DevelopResult =
 	| { readonly status: "accepted"; readonly revision: Revision; readonly replayed: boolean }
@@ -36,15 +42,19 @@ export type EnrolResult = { readonly status: "enrolled"; readonly check: Check }
 const KEPT_CALLS: number = 200;
 
 /**
- * One world: its VM at the head revision, and the only path that changes it. Every operation holds the world's
- * lock from start to finish, so a call never observes an attempt in progress. A call leaves the VM dirty, and the
- * next holder of the lock restores the head snapshot first, because only revisions persist heap state.
+ * One world: its head revision, and the only path that changes it.
+ *
+ * Changes (develop, rollback, checks, upgrades) run one at a time under the world's lock, on the main VM, which is
+ * always at the head between them. Calls run concurrently, each on its own VM from a pool, restored from the head
+ * the call started at: a call never observes an attempt in progress, a call that started before a new revision
+ * finishes on the old one, and heap changes a call makes vanish with its VM, because only revisions persist heap
+ * state. Data is shared: calls see each other's writes between their awaits.
  */
 export class World {
 	private readonly lock: Mutex = new Mutex();
 	private readonly listeners: Set<() => void> = new Set();
 	private readonly revisions: Map<number, Revision> = new Map();
-	private dirty: boolean = false;
+	private readonly pool: VmPool;
 
 	private constructor(
 		private readonly deps: WorldDeps,
@@ -53,7 +63,15 @@ export class World {
 		private current: Head,
 		private currentCatalogue: readonly CatalogueEntry[],
 		private checksState: ChecksState,
-	) {}
+	) {
+		const limits = deps.limits ?? DEFAULT_LIMITS;
+		this.pool = new VmPool(
+			(snapshot) => WorldVm.fromSnapshot(snapshot, deps.wasm, limits),
+			() => ({ revision: this.current.revision, snapshot: this.headSnapshot }),
+			deps.concurrentCalls ?? CONCURRENT_CALLS,
+			WARM_VMS,
+		);
+	}
 
 	/** Open the world at its head, creating revision 0 (the prelude alone) on first use. */
 	static async open(deps: WorldDeps): Promise<World> {
@@ -147,7 +165,7 @@ export class World {
 
 	/** Evaluate an expression against the world and its data. Heap changes are discarded; data writes are kept. */
 	async execute(expression: string, peers: PeerPort = this.deps.peers ?? NO_PEERS): Promise<Outcome> {
-		return this.live(() => this.vm.evaluate(expression, { kind: "live", data: this.deps.data, peers }));
+		return this.pool.run((vm) => vm.evaluate(expression, { kind: "live", data: this.deps.data, peers }));
 	}
 
 	/**
@@ -155,7 +173,7 @@ export class World {
 	 * kept. `peers` is how this call reaches other worlds; a call from another world passes one that knows the chain.
 	 */
 	async call(name: string, args: readonly unknown[], peers: PeerPort = this.deps.peers ?? NO_PEERS): Promise<Outcome> {
-		return this.live(() => this.vm.invoke(name, args, { kind: "live", data: this.deps.data, peers }));
+		return this.pool.run((vm) => vm.invoke(name, args, { kind: "live", data: this.deps.data, peers }));
 	}
 
 	/**
@@ -216,6 +234,7 @@ export class World {
 	}
 
 	dispose(): void {
+		this.pool.dispose();
 		this.vm.dispose();
 	}
 
@@ -231,22 +250,9 @@ export class World {
 		});
 	}
 
-	private async live(body: () => Promise<Outcome>): Promise<Outcome> {
-		return this.exclusive(async () => {
-			this.dirty = true;
-			return body();
-		});
-	}
-
-	/** Hold the lock with the VM at the head snapshot. */
+	/** Hold the lock for a change; the main VM is at the head. */
 	private exclusive<T>(body: () => Promise<T>): Promise<T> {
-		return this.lock.run(async () => {
-			if (this.dirty) {
-				await this.vm.reset(this.headSnapshot);
-				this.dirty = false;
-			}
-			return body();
-		});
+		return this.lock.run(body);
 	}
 
 	/** Blob first, then the revision and the head pointer in one commit: a crash leaves an orphan blob at worst. */

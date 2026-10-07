@@ -12,8 +12,10 @@ export interface PeerTransport {
 export const MAX_CHAIN: number = 4;
 
 /**
- * The peers of world `self` for a call that arrived through `chain`. A call back into a world already on the chain
- * would wait for that world's lock, which the chain holds, so it is refused; so is a chain longer than `MAX_CHAIN`.
+ * The peers of world `self` for a call that arrived through `chain`. A call back into a world already on the chain is
+ * refused, and so is a chain longer than `MAX_CHAIN`. Each call holds a VM of every world on its chain while it waits,
+ * so a cycle can use up a world's VMs and then wait for one of its own; refusing cycles keeps every chain finite and
+ * acyclic.
  */
 export function chainedPeers(self: string, chain: readonly string[], transport: PeerTransport): PeerPort {
 	const path = [...chain, self];
