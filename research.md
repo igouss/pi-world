@@ -99,6 +99,46 @@ These are undocumented or unknown. Measure them early, at milestone 6.
 10. **CPU in one world slows others.** On the node, a world computing for about 1.5 s delayed calls to unrelated worlds
     by the same time: cells share a small pool of JavaScript isolates (`worker_count=2`). The time budget bounds it.
 
+## celld features not yet used
+
+Recorded 2026-10-07 as candidates for later sessions. pi-world uses Workers, SQLite-backed Durable Objects (key-value,
+SQL, one alarm as a heartbeat), RPC between cells, regular WebSockets, static assets and WebAssembly. What each
+feature is comes from celld's documentation pages; what it would give pi-world is a proposal, not tested.
+
+Closest fits:
+
+| Feature | What it is | What it would give pi-world |
+|---|---|---|
+| Hibernatable WebSockets (`ctx.acceptWebSocket`) | Sockets that let a cell hibernate and swap to a new deploy | Removes the deploy cut-over stall (open check 8); idle worlds with an open page can hibernate. Cost: the transcript subscription must be re-attached when the cell wakes |
+| Queues | Durable delivery, at least once, with retries and dead-letter queues | Durable messages between worlds, `worlds.send(...)`: open decision 14, option C |
+| Alarms, beyond the heartbeat | One scheduled wake-up per cell | Scheduled world code (a daily digest, expiring items); world code has no timers. A per-world schedule fits alarms better than fleet-wide cron |
+| Workflows | Durable functions of steps, sleeps and waits for events; each instance is a cell | Pauses (`restart`) as recorded facts with a rerun from the start, the alternative in open decision 8; long jobs that span several worlds |
+| `transactionSync` | Several SQL writes that commit together or roll back on a throw | A call's data writes made all-or-nothing within each synchronous stretch; today a call that throws halfway keeps its earlier writes. Cannot span an `await` |
+
+For planned features:
+
+| Feature | What it is | What it would give pi-world |
+|---|---|---|
+| R2 | Object storage | Old snapshot blobs moved out of the cell's SQLite (`plan.md`, milestone 9); files a world stores or serves |
+| Dynamic Workers | Code loaded at runtime into its own isolate, with only the capabilities the loader passes | The compiled tier (`plan.md`, milestone 9); effectful host functions such as `fetch` or email granted one capability at a time (open decision 6). Possibly isolates a world's CPU from other worlds (open check 10); untested |
+| Durable Object Facets | A child object with its own SQLite inside a Durable Object, for generated or untrusted code | Storage for code loaded through Dynamic Workers, separate from the world cell's tables |
+| HTMLRewriter | Streaming HTML rewriting | Injecting the `world.call` client into world pages; today a regular expression finds `<head>` |
+| TCP sockets, EventSource, Streams | Outbound TCP, server-sent events, streamed bodies | Host functions that reach databases or services; streaming a long call's output |
+
+Little or no use now:
+
+| Feature | Why |
+|---|---|
+| KV | Read-mostly global data; the directory cell already holds the world list |
+| D1 | A SQL database shared across Workers; worlds keep their data in their own cells. Only cross-world queries would use it |
+| Cron Triggers | Fleet-wide schedules; per-world alarms fit better |
+| Containers (experimental) | Heavy tools, such as a build toolchain for the compiled tier |
+| Cache | celld's cache always misses |
+| `storage.sync()` | The output gate already holds responses until their writes are durable |
+
+Suggested order: hibernatable WebSockets (fixes a stall already seen), alarms for scheduled world code (the most visible
+missing capability), then Queues or Workflows once open decision 14 is settled.
+
 ## Not verified
 
 - Which mechanism wakes a cell after a restart (see above), idle eviction, and a run resuming on another node: the
