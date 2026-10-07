@@ -83,17 +83,17 @@ These are undocumented or unknown. Measure them early, at milestone 6.
 6. **Calls between worlds across nodes** (for open decision 14). One node forwards every `peerCall` locally. On a fleet
    of two or more nodes, measure the latency of a forwarded call and what the caller sees when the callee's node dies
    mid-call. celld says a remote RPC "retries only when the failed peer attempt did not start the method".
+8. **Deploy cut-over with open sockets.** After a deploy, idle cells moved to the new version at once; a world cell
+   with an open WebSocket from the UI moved 60 s later, and a request to it waited 38 s. The UI uses regular
+   WebSockets (`server.accept()`), which keep the cell busy. Hibernatable WebSockets (`ctx.acceptWebSocket`) would let
+   it swap and hibernate, at the cost of re-subscribing the view when the cell wakes. Not yet changed. It also stalls
+   other worlds' calls into such a cell: a Dashboard call waited out its 30 s deadline on a world that was mid-swap.
 9. **Cell limits under load.** celld refuses a request with `503 cell request limit reached` when a cell has 64 in
    flight (`in_flight=64 limit=64`), and the count appears to include the cell's own calls to other worlds: 40
    concurrent calls that each call another world got 28 answers and 12 refusals. Not documented; the 64 is from the
    log line.
 10. **CPU in one world slows others.** On the node, a world computing for about 1.5 s delayed calls to unrelated worlds
     by the same time: cells share a small pool of JavaScript isolates (`worker_count=2`). The time budget bounds it.
-8. **Deploy cut-over with open sockets.** After a deploy, idle cells moved to the new version at once; a world cell
-   with an open WebSocket from the UI moved 60 s later, and a request to it waited 38 s. The UI uses regular
-   WebSockets (`server.accept()`), which keep the cell busy. Hibernatable WebSockets (`ctx.acceptWebSocket`) would let
-   it swap and hibernate, at the cost of re-subscribing the view when the cell wakes. Not yet changed. It also stalls
-   other worlds' calls into such a cell: a Dashboard call waited out its 30 s deadline on a world that was mid-swap.
 7. **celld Queues as the durable path** (for open decision 14, option C). Documented: one writer per queue, at most 256
    concurrent producer calls, batches leased and retried, at-least-once delivery, dead-letter queues. Untested here:
    enqueue latency on one node (each write waits for the bucket), and whether a world cell can be a consumer or only a
