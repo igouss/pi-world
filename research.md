@@ -83,6 +83,10 @@ These are undocumented or unknown. Measure them early, at milestone 6.
 6. **Calls between worlds across nodes** (for open decision 14). One node forwards every `peerCall` locally. On a fleet
    of two or more nodes, measure the latency of a forwarded call and what the caller sees when the callee's node dies
    mid-call. celld says a remote RPC "retries only when the failed peer attempt did not start the method".
+7. **celld Queues as the durable path** (for open decision 14, option C). Documented: one writer per queue, at most 256
+   concurrent producer calls, batches leased and retried, at-least-once delivery, dead-letter queues. Untested here:
+   enqueue latency on one node (each write waits for the bucket), and whether a world cell can be a consumer or only a
+   Worker.
 8. **Deploy cut-over with open sockets.** After a deploy, idle cells moved to the new version at once; a world cell
    with an open WebSocket from the UI moved 60 s later, and a request to it waited 38 s. The UI uses regular
    WebSockets (`server.accept()`), which keep the cell busy. Hibernatable WebSockets (`ctx.acceptWebSocket`) would let
@@ -94,10 +98,6 @@ These are undocumented or unknown. Measure them early, at milestone 6.
    log line.
 10. **CPU in one world slows others.** On the node, a world computing for about 1.5 s delayed calls to unrelated worlds
     by the same time: cells share a small pool of JavaScript isolates (`worker_count=2`). The time budget bounds it.
-7. **celld Queues as the durable path** (for open decision 14, option C). Documented: one writer per queue, at most 256
-   concurrent producer calls, batches leased and retried, at-least-once delivery, dead-letter queues. Untested here:
-   enqueue latency on one node (each write waits for the bucket), and whether a world cell can be a consumer or only a
-   Worker.
 
 ## Not verified
 
