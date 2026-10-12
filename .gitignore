@@ -4,3 +4,5 @@ public/app.js
 public/app.js.map
 wrangler.deploy.jsonc
 dist/
+.stryker-tmp/
+reports/

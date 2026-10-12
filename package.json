@@ -13,7 +13,8 @@
 		"dev": "npm run build && celld dev . --port 8791",
 		"deploy": "npm run typecheck && npm test && npm run build && sh scripts/deploy.sh",
 		"build:runtime": "mkdir -p dist/runtime && esbuild src/isolate/runtime/runtime-entry.ts --bundle --format=esm --platform=neutral --external:cloudflare:workers --external:./quickjs.wasm --minify --outfile=dist/runtime/world-runtime.txt && sha256sum dist/runtime/world-runtime.txt | cut -c1-16 > dist/runtime/world-runtime-hash.txt && cp node_modules/quickjs-wasi/quickjs.wasm dist/runtime/quickjs.bin",
-		"build": "npm run build:runtime && npm run build:ui"
+		"build": "npm run build:runtime && npm run build:ui",
+		"mutate": "stryker run"
 	},
 	"dependencies": {
 		"@earendil-works/chord": "^1.0.4",
@@ -24,6 +25,8 @@
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^5.20261006.1",
+		"@stryker-mutator/core": "^10.0.0",
+		"@stryker-mutator/vitest-runner": "^10.0.0",
 		"typescript": "^7.0.2",
 		"vitest": "^4.1.11"
 	}
