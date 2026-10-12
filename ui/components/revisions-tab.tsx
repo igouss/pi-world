@@ -12,7 +12,7 @@ export function RevisionsTab(props: { id: string; head: number }) {
 			<NumberedList
 				load={(before?: number) => api.revisions(props.id, before)}
 				version={`${props.id}:${props.head}`}
-				label={(r: Revision) => ({ n: String(r.n), kind: r.kind, kindClass: r.kind })}
+				label={(r: Revision) => ({ n: String(r.n), kind: r.kind, kindClass: r.kind, summary: r.summary })}
 				highlight={(r: Revision) => r.n === props.head}
 				detail={(r: Revision) => <RevisionDetail id={props.id} revision={r} head={props.head} />}
 			/>

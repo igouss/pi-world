@@ -13,6 +13,8 @@ import { rewriteSource } from "../source/rewrite.ts";
 import { attemptDevelop, attemptEnrolment } from "./attempt.ts";
 import { diffCatalogues } from "./catalogue-diff.ts";
 import type { CallRunner, CallScope, ExecuteResult } from "./call-runner.ts";
+import { IncidentLog } from "../incident/incident-log.ts";
+import type { CallOutcome, Incidents } from "../incident/incident.ts";
 import { ANY_WORLD, type Grants } from "./grants.ts";
 import { Mutex } from "./mutex.ts";
 import { PRELUDE_VERSION } from "./prelude.ts";
@@ -60,7 +62,7 @@ const KEPT_CALLS: number = 200;
  * always at the head between them. Calls and previews belong to its `CallRunner`, which runs each call on a VM of its
  * own at the head the call started at, reading that head's snapshot from the blob store: a call never observes an attempt in progress, a call that
  * started before a new revision finishes on the old one, and heap changes a call makes vanish with its VM, because
- * only revisions persist heap state. Data is shared: calls see each other's writes between their awaits.
+ * only revisions persist heap state. A call's data writes are made when it succeeds; a failed call is an incident.
  */
 export class World {
 	private readonly lock: Mutex = new Mutex();
@@ -68,6 +70,9 @@ export class World {
 	private readonly revisions: NumberedLog<Revision>;
 	private readonly rejected: NumberedLog<Rejection>;
 	private graph: { readonly catalogue: readonly CatalogueEntry[]; readonly references: ReadonlyMap<string, References> } | undefined;
+
+	/** Calls that failed, kept so they can be fixed and retried. */
+	readonly incidents: IncidentLog;
 
 	private constructor(
 		private readonly deps: WorldDeps,
@@ -78,7 +83,9 @@ export class World {
 		private checksState: ChecksState,
 		private rejectionsState: Rejections,
 		private grantsState: Grants,
+		incidents: Incidents,
 	) {
+		this.incidents = new IncidentLog(deps.session, this.sessionCommit, incidents, () => this.now(), () => this.notify());
 		this.revisions = new NumberedLog(deps.session, WorldRevision, "revision");
 		this.rejected = new NumberedLog(deps.session, WorldRejection, "rejection");
 	}
@@ -90,16 +97,17 @@ export class World {
 		const checks = (await deps.session.snapshot(WorldChecks, BACKGROUND_CONTEXT)) ?? { checks: [], removed: [] };
 		const rejections = (await deps.session.snapshot(WorldRejections, BACKGROUND_CONTEXT)) ?? { count: 0, calls: {} };
 		const grants = (await deps.session.snapshot(WorldGrants, BACKGROUND_CONTEXT)) ?? ANY_WORLD;
+		const incidents = await IncidentLog.load(deps.session);
 		if (head && head.revision >= 0) {
 			const bytes = await requireBlob(deps.blobs, head.blob, "the world head");
 			const vm = await WorldVm.fromBytes(bytes, deps.wasm, limits);
-			const world = new World(deps, vm, vm.snapshot(), head, vm.catalogue(), checks, rejections, grants);
+			const world = new World(deps, vm, vm.snapshot(), head, vm.catalogue(), checks, rejections, grants, incidents);
 			await world.upgradePrelude();
 			return world;
 		}
 		const vm = await WorldVm.create(deps.wasm, limits);
 		const snapshot = vm.snapshot();
-		const world = new World(deps, vm, snapshot, { revision: -1, blob: "", calls: {} }, [], checks, rejections, grants);
+		const world = new World(deps, vm, snapshot, { revision: -1, blob: "", calls: {} }, [], checks, rejections, grants, incidents);
 		await world.accept(
 			snapshot,
 			{ kind: "genesis", summary: "the prelude", at: world.now(), origin: { by: "host" }, changes: { added: [], changed: [], removed: [] } },
@@ -113,7 +121,7 @@ export class World {
 		return this.current;
 	}
 
-	/** Called after every change of the head, the checks or the grants, and after every rejection. */
+	/** Called after every change of the head, the checks or the grants, and after every rejection and incident. */
 	subscribe(listener: () => void): () => void {
 		this.listeners.add(listener);
 		return () => this.listeners.delete(listener);
@@ -206,10 +214,35 @@ export class World {
 
 	/**
 	 * Call a definition directly, as an end user or another world would. Heap changes are discarded; data writes are
-	 * kept. A call from another world passes `chain`, the worlds it came through.
+	 * made only if the call succeeds. A call from another world passes `chain`, the worlds it came through. A failed
+	 * call of a definition is recorded as an incident, which the outcome names; a call of a name the world does not
+	 * define is the caller's mistake and is not recorded.
 	 */
-	async call(name: string, args: readonly unknown[], chain: readonly string[] = []): Promise<Outcome> {
-		return this.deps.calls.call(name, args, chain, this.scope());
+	async call(name: string, args: readonly unknown[], chain: readonly string[] = []): Promise<CallOutcome> {
+		const { outcome, revision, defined } = await this.run(name, args, chain);
+		if (outcome.ok || !defined) return outcome;
+		const incident = await this.incidents.record({ name, args, failure: outcome.failure, error: outcome.error, revision });
+		return { ...outcome, incident };
+	}
+
+	/**
+	 * Call an open incident's definition again with its arguments, at the head as it is now. A retry that succeeds
+	 * closes the incident with its value; one that fails leaves it open with the new error.
+	 */
+	async retryIncident(n: number, by: Origin["by"], commit: Commit = this.sessionCommit): Promise<Outcome> {
+		const incident = await this.incidents.requireOpen(n);
+		if (!incident.args) throw new Error(`incident ${n} kept no arguments (they were too large), so it cannot be retried`);
+		const { outcome, revision } = await this.run(incident.name, incident.args, []);
+		if (outcome.ok) await this.incidents.close(n, by, { kind: "retried", revision, value: outcome.value }, commit);
+		else await this.incidents.retryFailed(n, outcome.failure, outcome.error, revision, commit);
+		return outcome;
+	}
+
+	/** Run a call at the head as it is when the call starts, and say whether the head defines the name. */
+	private async run(name: string, args: readonly unknown[], chain: readonly string[]): Promise<{ outcome: Outcome; revision: number; defined: boolean }> {
+		const scope = this.scope();
+		const defined = this.currentCatalogue.some((entry) => entry.name === name);
+		return { outcome: await this.deps.calls.call(name, args, chain, scope), revision: scope.head.revision, defined };
 	}
 
 	/**

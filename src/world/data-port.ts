@@ -9,6 +9,12 @@ export interface DataPort {
 	list(prefix: string): readonly DataRow[];
 }
 
+/** Where a world's data is kept: a data port that can also make several writes as one transaction. */
+export interface DataStore extends DataPort {
+	/** Run `writes` as one transaction of the store: all of them are made, or none. */
+	transaction(writes: () => void): void;
+}
+
 export interface DataRow {
 	readonly key: string;
 	readonly value: unknown;
@@ -20,7 +26,7 @@ export function byKey(a: string, b: string): number {
 }
 
 /** A data store held in memory: the scratch store a check runs against, and the store of tests. */
-export class MemoryDataPort implements DataPort {
+export class MemoryDataPort implements DataStore {
 	private readonly rows: Map<string, string> = new Map();
 
 	get(key: string): string | undefined {
@@ -40,5 +46,9 @@ export class MemoryDataPort implements DataPort {
 			.filter(([key]) => key.startsWith(prefix))
 			.sort(([a], [b]) => byKey(a, b))
 			.map(([key, json]) => ({ key, value: JSON.parse(json) as unknown }));
+	}
+
+	transaction(writes: () => void): void {
+		writes();
 	}
 }

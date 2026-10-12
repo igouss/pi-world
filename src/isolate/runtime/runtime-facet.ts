@@ -4,7 +4,7 @@ import wasm from "./quickjs.wasm";
 import type { CallScope, ExecuteResult } from "../../world/call-runner.ts";
 import { chainedPeers } from "../../world/chained-peers.ts";
 import { grantedPeers } from "../../world/grants.ts";
-import type { DataPort, DataRow } from "../../world/data-port.ts";
+import type { DataRow, DataStore } from "../../world/data-port.ts";
 import { LocalCallRunner } from "../../world/local-call-runner.ts";
 import type { Outcome } from "../../world/world-vm.ts";
 import type { DataRecord, HostApi } from "../host-api.ts";
@@ -24,7 +24,7 @@ interface RuntimeEnv {
  * come from the host by content hash, and other worlds are reached through the host.
  */
 export class RuntimeFacet extends DurableObject<RuntimeEnv> {
-	private readonly data: DataPort = sqlDataPort(this.ctx.storage.sql);
+	private readonly data: DataStore = sqlDataPort(this.ctx.storage);
 	private readonly runner: LocalCallRunner = new LocalCallRunner({
 		wasm,
 		data: this.data,

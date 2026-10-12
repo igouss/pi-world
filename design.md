@@ -17,6 +17,12 @@ The rules the implementation obeys, each with the fact that forces it.
   result. The attempt traces host calls, and a `develop` whose evaluation made any is rejected.
 - **Direct calls never persist heap changes.** A call that mutates heap state, such as a global counter, loses it on
   the next eviction. Only revisions persist heap state; data a call writes goes through the host database functions.
+- **A failed call is an incident.** A call of a defined name that fails is recorded with its arguments (up to 64 KB),
+  error and revision, one durable commit per failure; while it is open, the same definition failing with the same
+  first line of error counts into it. Retrying runs the call again at the current head; because the failed call wrote
+  nothing, the retry is the call, not a second one. An incident closes when a retry succeeds, the owner answers it
+  with a value, or it is dismissed with a reason. A call of a name the world does not define is the caller's mistake
+  and is not recorded. The agent learns of an incident only when the owner asks it to fix one.
 - **Attempts are synchronous.** From checkpoint to accept or restore, an attempt never yields to the event loop, so no
   direct call can observe an uncommitted heap. A job that pauses on `restart` is snapshotted into a pending revision,
   which releases the VM.
@@ -116,7 +122,9 @@ The rules the implementation obeys, each with the fact that forces it.
   - A call that awaits another world does not block the world's other calls or its changes
     (`test/concurrency.test.ts`).
   - A call that started before a new revision finishes on the old one.
-  - Data is shared and not isolated: calls interleave at their awaits.
+  - A call is atomic: its data writes go to an overlay it reads back, and are made in one transaction of the
+    world's `DataStore` (the runtime's SQLite) when it succeeds; a call that fails leaves no write. Other calls see them only then, and of two
+    running calls that write one key, the one that finishes last wins.
   - Each running call costs a VM of about the snapshot's size: 2.4 MB of the server for a world whose snapshot is
     1.4 MB, against about 25 MB for the world's own isolate (research, "Memory per world").
   - The isolate is single-threaded: calls overlap only while they await another world, and a call that computes

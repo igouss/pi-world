@@ -2,6 +2,7 @@ import { useState } from "preact/hooks";
 import type { CallResult, FunctionInfo, WorldSummary } from "../../src/api/types.ts";
 import { callPath } from "../../src/api/paths.ts";
 import { api } from "../api.ts";
+import { parseArg } from "../parse-arg.ts";
 import { useAction } from "../use-action.ts";
 import { CallGraph } from "./call-graph.tsx";
 import { CallResultView } from "./call-result.tsx";
@@ -38,16 +39,6 @@ function paramNames(params: string): string[] {
 		.split(",")
 		.map((p) => p.trim().replace(/=.*$/, "").trim())
 		.filter(Boolean);
-}
-
-/** A typed argument: JSON when it parses, otherwise the text as a string. */
-function parseArg(text: string): unknown {
-	if (text.trim() === "") return undefined;
-	try {
-		return JSON.parse(text);
-	} catch {
-		return text;
-	}
 }
 
 function FunctionDetail(props: { id: string; fn: FunctionInfo }) {

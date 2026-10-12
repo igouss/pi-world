@@ -14,7 +14,7 @@ export function RejectedTab(props: { id: string; count: number }) {
 			<NumberedList
 				load={(before?: number) => api.rejections(props.id, before)}
 				version={`${props.id}:${props.count}`}
-				label={(r: Rejection) => ({ n: `#${r.n}`, kind: rejectionCause(r), kindClass: r.kind })}
+				label={(r: Rejection) => ({ n: `#${r.n}`, kind: rejectionCause(r), kindClass: r.kind, summary: r.summary })}
 				detail={(r: Rejection) => <RejectionDetail rejection={r} />}
 			/>
 		</div>

@@ -1,4 +1,4 @@
-import type { DataPort, DataRow } from "../../world/data-port.ts";
+import type { DataRow, DataStore } from "../../world/data-port.ts";
 import type { DataRecord } from "../host-api.ts";
 
 const LIST_LIMIT: number = 1000;
@@ -8,7 +8,8 @@ const TABLE: string = "world_data";
  * A world's data store: one table in a SQLite database, the runtime facet's. Synchronous, because world code calls it
  * from inside the VM, and the SQL API is synchronous.
  */
-export function sqlDataPort(sql: SqlStorage): DataPort {
+export function sqlDataPort(storage: DurableObjectStorage): DataStore {
+	const sql = storage.sql;
 	sql.exec(`CREATE TABLE IF NOT EXISTS ${TABLE} (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
 	return {
 		get: (key) => sql.exec<{ value: string }>(`SELECT value FROM ${TABLE} WHERE key = ?`, key).toArray()[0]?.value,
@@ -21,6 +22,7 @@ export function sqlDataPort(sql: SqlStorage): DataPort {
 				.exec<{ key: string; value: string }>(`SELECT key, value FROM ${TABLE} WHERE substr(key, 1, ?) = ? ORDER BY key LIMIT ?`, prefix.length, prefix, LIST_LIMIT)
 				.toArray()
 				.map((row): DataRow => ({ key: row.key, value: JSON.parse(row.value) as unknown })),
+		transaction: (writes) => storage.transactionSync(writes),
 	};
 }
 

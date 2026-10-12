@@ -3,6 +3,7 @@
  * Everything here is plain JSON.
  */
 import type { Check } from "../check/check.ts";
+import type { CallOutcome } from "../incident/incident.ts";
 import type { References } from "../source/references.ts";
 import type { Grants } from "../world/grants.ts";
 import type { CatalogueEntry, Outcome } from "../world/world-vm.ts";
@@ -12,6 +13,7 @@ export type { ChecksState } from "../revision/documents.ts";
 export type { Rejection } from "../revision/rejection.ts";
 export type { References } from "../source/references.ts";
 export type { Revision } from "../revision/revision.ts";
+export type { Incident, Resolution } from "../incident/incident.ts";
 export type { DataRow } from "../world/data-port.ts";
 export type { Grants } from "../world/grants.ts";
 export type { DevelopResult } from "../world/world.ts";
@@ -33,6 +35,8 @@ export interface WorldSummary {
 	readonly checks: readonly Check[];
 	/** How many attempts were rejected; the list is at `/rejections`. */
 	readonly rejections: number;
+	/** How many failed calls are open, waiting to be retried, answered or dismissed. */
+	readonly incidents: number;
 	/** The other worlds this world's code may call, as its owner granted them. */
 	readonly grants: Grants;
 	readonly hasApp: boolean;
@@ -41,8 +45,8 @@ export interface WorldSummary {
 	readonly build: string;
 }
 
-/** A direct call's or an evaluation's result; `failure` says why it failed. */
-export type CallResult = Outcome;
+/** A direct call's or an evaluation's result; `failure` says why it failed, and `incident` what it was recorded as. */
+export type CallResult = CallOutcome;
 
 export interface ToolCallItem {
 	readonly id: string;

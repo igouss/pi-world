@@ -4,6 +4,7 @@ import type { PeerPort } from "./peer-port.ts";
 import { PRELUDE, PRELUDE_VERSION } from "./prelude.ts";
 import { PRELUDE_UPGRADES } from "./prelude-upgrades.ts";
 import { mulberry32 } from "./random.ts";
+import { firstLine } from "../api/text.ts";
 
 /**
  * How the VM meets the outside world while code runs.
@@ -329,7 +330,7 @@ export class WorldVm {
 			if (op === "functions") return (await peers.functions(id)).map(({ name, kind, doc, params }) => ({ name, kind, doc, params }));
 			if (op !== "call") throw new Error(`unknown worlds operation ${op}`);
 			const outcome = await peers.call(id, name, args);
-			if (!outcome.ok) throw new Error(`${id}.${name}: ${outcome.error.split("\n")[0]}`);
+			if (!outcome.ok) throw new Error(`${id}.${name}: ${firstLine(outcome.error)}`);
 			return outcome.value;
 		};
 		const deferred = this.vm.newPromise();

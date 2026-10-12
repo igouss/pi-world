@@ -154,6 +154,7 @@ export class WorldCell extends DurableObject<Env> {
 				functions: catalogue,
 				checks: world.checks().checks,
 				rejections: world.rejectionCount(),
+				incidents: world.incidents.openCount(),
 				grants: world.grants(),
 				hasApp: hasApp(catalogue),
 				model: agent?.model?.modelId ?? DEFAULT_MODEL,

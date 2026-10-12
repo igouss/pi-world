@@ -196,6 +196,9 @@ button.wide, .button.wide { width: 100%; justify-content: center; padding: 9px 1
 .kind { font-size: 11px; padding: 0 6px; border-radius: 8px; background: var(--sunk); }
 .kind.develop { background: var(--accent-soft); color: var(--accent); }
 .kind.rollback { background: var(--warn-soft); }
+.kind.open { background: var(--warn-soft); }
+.count.alert { color: inherit; font-weight: 600; }
+.access label.row { gap: 6px; }
 .rev-summary { flex: 1; }
 .revisions li.head .rev-n::after { content: " ●"; color: var(--ok); font-size: 10px; }
 .changes { font-size: 12px; background: var(--sunk); padding: 6px 8px; border-radius: 6px; }

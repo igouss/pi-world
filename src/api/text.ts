@@ -5,3 +5,8 @@ export function hex(bytes: Uint8Array): string {
 export function escapeHtml(text: string): string {
 	return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
+
+/** The first line of an error or message, which is what names it. */
+export function firstLine(text: string): string {
+	return text.split("\n")[0]!;
+}

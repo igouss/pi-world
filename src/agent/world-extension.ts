@@ -5,6 +5,7 @@ import { describeTool } from "./tools/describe.ts";
 import { developTool } from "./tools/develop.ts";
 import { executeTool } from "./tools/execute.ts";
 import { historyTool } from "./tools/history.ts";
+import { incidentsTool, retryIncidentTool } from "./tools/incidents.ts";
 import { proposeCheckTool } from "./tools/propose-check.ts";
 import { rollbackTool } from "./tools/rollback.ts";
 import { renderWorld } from "./world-section.ts";
@@ -14,6 +15,15 @@ export function worldExtension(world: World) {
 	return defineExtension({
 		name: "world",
 		sections: [section("preamble", () => PREAMBLE, { tag: false }), section("world", () => renderWorld(world))],
-		tools: [developTool(world), executeTool(world), describeTool(world), historyTool(world), rollbackTool(world), proposeCheckTool(world)],
+		tools: [
+			developTool(world),
+			executeTool(world),
+			describeTool(world),
+			historyTool(world),
+			rollbackTool(world),
+			proposeCheckTool(world),
+			incidentsTool(world),
+			retryIncidentTool(world),
+		],
 	});
 }

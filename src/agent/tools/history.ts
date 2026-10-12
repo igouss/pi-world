@@ -3,6 +3,7 @@ import { defineTool } from "@earendil-works/pi-durable";
 import { rejectionCause, type Rejection } from "../../revision/rejection.ts";
 import type { World } from "../../world/world.ts";
 import { text } from "./result.ts";
+import { firstLine } from "../../api/text.ts";
 
 export function historyTool(world: World) {
 	return defineTool({
@@ -24,5 +25,5 @@ export function historyTool(world: World) {
 }
 
 function describeRejection(r: Rejection): string {
-	return `#${r.n} on revision ${r.base}, ${r.kind}: ${r.summary} (${rejectionCause(r)}): ${r.reason.split("\n")[0]}`;
+	return `#${r.n} on revision ${r.base}, ${r.kind}: ${r.summary} (${rejectionCause(r)}): ${firstLine(r.reason)}`;
 }

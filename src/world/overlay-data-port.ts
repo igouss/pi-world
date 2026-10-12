@@ -1,4 +1,4 @@
-import { byKey, type DataPort, type DataRow } from "./data-port.ts";
+import { byKey, type DataPort, type DataRow, type DataStore } from "./data-port.ts";
 
 /** What an evaluation wrote, as keys. */
 export interface DataChanges {
@@ -8,14 +8,14 @@ export interface DataChanges {
 
 /**
  * A data store that records writes instead of making them. Reads see the base store through the recorded writes, so
- * an evaluation behaves as if its writes happened; dropping the overlay discards them. Works across awaits, which a
- * SQL transaction cannot.
+ * an evaluation behaves as if its writes happened; committing makes them, and dropping the overlay discards them.
+ * Works across awaits, which a SQL transaction cannot.
  */
 export class OverlayDataPort implements DataPort {
 	/** Key to its JSON value, or null for a deletion. */
 	private readonly writes: Map<string, string | null> = new Map();
 
-	constructor(private readonly base: DataPort) {}
+	constructor(private readonly base: DataStore) {}
 
 	get(key: string): string | undefined {
 		return this.writes.has(key) ? (this.writes.get(key) ?? undefined) : this.base.get(key);
@@ -32,16 +32,29 @@ export class OverlayDataPort implements DataPort {
 	}
 
 	list(prefix: string): readonly DataRow[] {
-		const rows = new Map(this.base.list(prefix).map((row) => [row.key, row.value]));
-		for (const [key, json] of this.writes) {
-			if (!key.startsWith(prefix)) continue;
+		const base = this.base.list(prefix);
+		const mine = [...this.writes].filter(([key]) => key.startsWith(prefix));
+		if (mine.length === 0) return base;
+		const rows = new Map(base.map((row) => [row.key, row.value]));
+		for (const [key, json] of mine) {
 			if (json === null) rows.delete(key);
 			else rows.set(key, JSON.parse(json) as unknown);
 		}
 		return [...rows].sort(([a], [b]) => byKey(a, b)).map(([key, value]) => ({ key, value }));
 	}
 
-	/** The writes that were discarded, sorted by key. */
+	/** Make the recorded writes in the base store, in one transaction of it. */
+	commit(): void {
+		if (this.writes.size === 0) return;
+		this.base.transaction(() => {
+			for (const [key, json] of this.writes) {
+				if (json === null) this.base.delete(key);
+				else this.base.set(key, json);
+			}
+		});
+	}
+
+	/** The recorded writes as keys, sorted. */
 	changes(): DataChanges {
 		const entries = [...this.writes].sort(([a], [b]) => byKey(a, b));
 		return {

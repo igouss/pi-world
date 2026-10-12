@@ -4,6 +4,7 @@ import { diffCatalogues, type CatalogueChanges } from "./catalogue-diff.ts";
 import { checkFails, checkVerdict } from "./check-verdict.ts";
 import type { AttemptMode, CatalogueEntry, Failure } from "./world-vm.ts";
 import type { WorldVm } from "./world-vm.ts";
+import { firstLine } from "../api/text.ts";
 
 
 export type Attempt =
@@ -72,7 +73,7 @@ async function firstBrokenCheck(vm: WorldVm, checks: readonly Check[], mode: Att
  */
 async function seenFailing(vm: WorldVm, check: Pick<Check, "expression" | "counterexample" | "generator">, mode: AttemptMode): Promise<true | string> {
 	const applied = vm.develop(check.counterexample, mode);
-	if (!applied.ok) return `the counterexample did not apply (${applied.failure}): ${applied.error.split("\n")[0]}`;
+	if (!applied.ok) return `the counterexample did not apply (${applied.failure}): ${firstLine(applied.error)}`;
 	return (await checkFails(vm, check, mode)) ? true : "the check still holds after the counterexample, so it was never seen failing";
 }
 

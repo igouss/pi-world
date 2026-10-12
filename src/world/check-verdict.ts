@@ -5,6 +5,7 @@ import { shrink } from "../check/shrink.ts";
 import { MemoryDataPort } from "./data-port.ts";
 import { mulberry32 } from "./random.ts";
 import type { AttemptMode, WorldVm } from "./world-vm.ts";
+import { firstLine } from "../api/text.ts";
 
 /** How many inputs a property check tries each time it runs. */
 export const PROPERTY_CASES: number = 50;
@@ -79,6 +80,6 @@ function holdsFor(vm: WorldVm, expression: string, input: Json, mode: AttemptMod
 
 async function holds(vm: WorldVm, expression: string, mode: AttemptMode): Promise<true | string> {
 	const outcome = await vm.evaluate(expression, { kind: "check", at: mode.at, seed: mode.seed, data: new MemoryDataPort() });
-	if (!outcome.ok) return `${outcome.failure}: ${outcome.error.split("\n")[0]}`;
+	if (!outcome.ok) return `${outcome.failure}: ${firstLine(outcome.error)}`;
 	return outcome.value === true ? true : `returned ${JSON.stringify(outcome.value)}`;
 }

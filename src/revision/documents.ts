@@ -1,6 +1,7 @@
 import { defineDoc, defineDocFamily, type JsonObject } from "@earendil-works/pi-durable";
 import type { Check, RemovedCheck } from "../check/check.ts";
 import type { Grants } from "../world/grants.ts";
+import type { Incident, Incidents } from "../incident/incident.ts";
 import type { Rejection, Rejections } from "./rejection.ts";
 import type { Head, Revision } from "./revision.ts";
 
@@ -53,4 +54,19 @@ export const WorldGrants = defineDoc<Grants & JsonObject>({
 	version: 1,
 	scope: "session",
 	initial: () => ({ calls: "any" }),
+});
+
+export const WorldIncidents = defineDoc<Incidents & JsonObject>({
+	kind: "world.incidents",
+	version: 1,
+	scope: "session",
+	initial: () => ({ count: 0, open: {} }),
+});
+
+export const WorldIncident = defineDocFamily<Incident & JsonObject, Incident & JsonObject>({
+	kind: "world.incident",
+	version: 1,
+	scope: "session",
+	family: true,
+	initial: (seed) => seed,
 });

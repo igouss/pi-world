@@ -1,6 +1,6 @@
 import type { Snapshot } from "quickjs-wasi";
 import type { CallRunner, CallScope, DataAdmin, ExecuteResult, HeadRef } from "./call-runner.ts";
-import type { DataPort, DataRow } from "./data-port.ts";
+import type { DataRow, DataStore } from "./data-port.ts";
 import type { Grants } from "./grants.ts";
 import { OverlayDataPort } from "./overlay-data-port.ts";
 import { NO_PEERS, type PeerPort } from "./peer-port.ts";
@@ -10,7 +10,7 @@ import { DEFAULT_LIMITS, WorldVm, type Mode, type Outcome, type VmLimits } from 
 export interface LocalCallRunnerDeps {
 	readonly wasm: WebAssembly.Module;
 	readonly limits?: VmLimits;
-	readonly data: DataPort;
+	readonly data: DataStore;
 	/** A snapshot blob by its content hash. */
 	readonly blob: (hash: string) => Promise<Uint8Array>;
 	/** The other worlds, for a call that came through `chain`, as the world's grants let it reach them. */
@@ -33,14 +33,20 @@ export class LocalCallRunner implements CallRunner, DataAdmin {
 		this.pool = new VmPool((snapshot) => WorldVm.fromSnapshot(snapshot, deps.wasm, limits), deps.concurrentCalls ?? CONCURRENT_CALLS, WARM_VMS);
 	}
 
-	call(name: string, args: readonly unknown[], chain: readonly string[], scope: CallScope): Promise<Outcome> {
-		return this.run(scope, this.deps.data, chain, (vm, mode) => vm.invoke(name, args, mode));
+	/**
+	 * A call is atomic: its data writes are recorded while it runs, which it reads back, and made in one transaction
+	 * when it succeeds; a call that fails leaves no write. Other calls see its writes only once it has succeeded.
+	 */
+	async call(name: string, args: readonly unknown[], chain: readonly string[], scope: CallScope): Promise<Outcome> {
+		const { outcome, writes } = await this.run(scope, chain, (vm, mode) => vm.invoke(name, args, mode));
+		if (outcome.ok) writes.commit();
+		return outcome;
 	}
 
+	/** A preview: its data writes are recorded and dropped, and named in the result. */
 	async execute(expression: string, scope: CallScope): Promise<ExecuteResult> {
-		const overlay = new OverlayDataPort(this.deps.data);
-		const outcome = await this.run(scope, overlay, [], (vm, mode) => vm.evaluate(expression, mode));
-		return { ...outcome, rolledBack: overlay.changes() };
+		const { outcome, writes } = await this.run(scope, [], (vm, mode) => vm.evaluate(expression, mode));
+		return { ...outcome, rolledBack: writes.changes() };
 	}
 
 	async list(prefix: string): Promise<readonly DataRow[]> {
@@ -55,9 +61,15 @@ export class LocalCallRunner implements CallRunner, DataAdmin {
 		this.pool.dispose();
 	}
 
-	private async run({ head, grants }: CallScope, data: DataPort, chain: readonly string[], body: (vm: WorldVm, mode: Mode) => Promise<Outcome>): Promise<Outcome> {
-		const mode: Mode = { kind: "live", data, peers: this.deps.peers?.(chain, grants) ?? NO_PEERS };
-		return this.pool.run({ revision: head.revision, snapshot: await this.snapshotOf(head) }, (vm) => body(vm, mode));
+	private async run(
+		{ head, grants }: CallScope,
+		chain: readonly string[],
+		body: (vm: WorldVm, mode: Mode) => Promise<Outcome>,
+	): Promise<{ outcome: Outcome; writes: OverlayDataPort }> {
+		const writes = new OverlayDataPort(this.deps.data);
+		const mode: Mode = { kind: "live", data: writes, peers: this.deps.peers?.(chain, grants) ?? NO_PEERS };
+		const outcome = await this.pool.run({ revision: head.revision, snapshot: await this.snapshotOf(head) }, (vm) => body(vm, mode));
+		return { outcome, writes };
 	}
 
 	private snapshotOf(head: HeadRef): Promise<Snapshot> {

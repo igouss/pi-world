@@ -68,4 +68,61 @@ describe("concurrent calls to one world", () => {
 			{ ok: true, value: 1 },
 		]);
 	});
+
+	it("does not show a call's writes to another call until the first has succeeded", async () => {
+		const a = await world();
+		await a.develop(`define("writeThenWait", async () => { data.set("x", 1); await worlds.call("b", "x"); return data.get("x"); }); define("read", () => data.get("x") ?? null);`, "rw", operator);
+		const writing = a.call("writeThenWait", []);
+		await new Promise((resolve) => setTimeout(resolve, DELAY_MS / 3));
+		expect(await a.call("read", [])).toEqual({ ok: true, value: null });
+		expect(await writing).toEqual({ ok: true, value: 1 });
+		expect(await a.call("read", [])).toEqual({ ok: true, value: 1 });
+	});
+});
+
+describe("atomic calls", () => {
+	it("open no transaction when they write nothing", async () => {
+		const deps = worldDeps();
+		let transactions = 0;
+		deps.data.transaction = () => {
+			transactions++;
+		};
+		const a = await World.open(deps);
+		await a.develop(`define("read", () => data.get("x") ?? null);`, "r", operator);
+		expect(await a.call("read", [])).toEqual({ ok: true, value: null });
+		expect(transactions).toBe(0);
+	});
+
+	it("leave the owner's own data administration unaffected: listing and deleting rows", async () => {
+		const deps = worldDeps();
+		deps.data.set("todo:1", "1");
+		deps.data.set("todo:2", "2");
+		expect((await deps.calls.list("todo:")).map((row) => row.key)).toEqual(["todo:1", "todo:2"]);
+		expect(await deps.calls.delete("todo:1")).toBe(true);
+		expect(await deps.calls.delete("todo:1")).toBe(false);
+		expect((await deps.calls.list("")).map((row) => row.key)).toEqual(["todo:2"]);
+	});
+
+	it("leave no write when they fail", async () => {
+		const a = await world();
+		await a.develop(`define("writeThenThrow", () => { data.set("x", 1); data.set("y", 2); throw new Error("no"); }); define("read", () => [data.get("x") ?? null, data.get("y") ?? null]);`, "w", operator);
+		expect((await a.call("writeThenThrow", [])).ok).toBe(false);
+		expect(await a.call("read", [])).toEqual({ ok: true, value: [null, null] });
+	});
+
+	it("make every write of a call that succeeds, in one transaction of the store", async () => {
+		const transactions: number[] = [];
+		const deps = worldDeps();
+		const transaction = deps.data.transaction.bind(deps.data);
+		deps.data.transaction = (writes) => {
+			transactions.push(deps.data.list("").length);
+			transaction(writes);
+		};
+		const a = await World.open(deps);
+		await a.develop(`define("writeTwo", () => { data.set("x", 1); data.delete("gone"); data.set("y", 2); return data.list("").length; });`, "w", operator);
+		deps.data.set("gone", "0");
+		expect(await a.call("writeTwo", [])).toEqual({ ok: true, value: 2 });
+		expect(transactions).toEqual([1]);
+		expect(deps.data.list("").map((row) => row.key)).toEqual(["x", "y"]);
+	});
 });

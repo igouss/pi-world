@@ -4,7 +4,6 @@ import { useAction } from "../use-action.ts";
 
 interface Numbered {
 	readonly n: number;
-	readonly summary: string;
 	readonly at: number;
 }
 
@@ -15,7 +14,7 @@ interface Numbered {
 export function NumberedList<T extends Numbered>(props: {
 	load: (before?: number) => Promise<T[]>;
 	version: unknown;
-	label: (entry: T) => { readonly n: string; readonly kind: string; readonly kindClass: string };
+	label: (entry: T) => { readonly n: string; readonly kind: string; readonly kindClass: string; readonly summary: string };
 	highlight?: (entry: T) => boolean;
 	detail: (entry: T) => ComponentChildren;
 }) {
@@ -38,7 +37,7 @@ export function NumberedList<T extends Numbered>(props: {
 							<button class={open === entry.n ? "on" : ""} onClick={() => setOpen(open === entry.n ? undefined : entry.n)}>
 								<span class="rev-n">{label.n}</span>
 								<span class={`kind ${label.kindClass}`}>{label.kind}</span>
-								<span class="rev-summary">{entry.summary}</span>
+								<span class="rev-summary">{label.summary}</span>
 								<span class="muted small">{new Date(entry.at).toLocaleString()}</span>
 							</button>
 							{open === entry.n && props.detail(entry)}

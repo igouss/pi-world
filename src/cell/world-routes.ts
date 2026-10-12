@@ -1,4 +1,5 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { incidentPath } from "../api/paths.ts";
 import { MODELS, type Transcript, type WorldSummary } from "../api/types.ts";
 import type { DataAdmin } from "../world/call-runner.ts";
 import { parseGrants } from "../world/grants.ts";
@@ -41,7 +42,7 @@ export async function routeWorld(request: Request, runtime: WorldRuntime): Promi
 async function routeApi(request: Request, url: URL, parts: string[], runtime: WorldRuntime): Promise<Response> {
 	const { world, root } = runtime.opened;
 	const method = request.method;
-	const [head, arg] = parts;
+	const [head, arg, action] = parts;
 	const route = `${method} ${head ?? ""}`;
 	switch (route) {
 		case "GET ":
@@ -90,7 +91,34 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 			const { args = [] } = await read<{ args?: unknown[] }>(request);
 			if (!Array.isArray(args)) return json({ error: "args must be an array" }, 400);
 			const outcome = await world.call(arg, args);
+			// A caller that prefers to wait gets the incident to follow until it is retried or answered.
+			if (!outcome.ok && outcome.incident !== undefined && /\brespond-async\b/.test(request.headers.get("prefer") ?? ""))
+				return json({ incident: outcome.incident, status: "open", location: incidentPath(runtime.summary().id, outcome.incident) }, 202);
 			return json(outcome, outcome.ok ? 200 : 422);
+		}
+		case "GET incidents": {
+			if (arg !== undefined) {
+				const incident = await world.incidents.get(Number(arg));
+				return incident ? json(incident) : json({ error: `no incident ${arg}` }, 404);
+			}
+			const { limit, before } = page(url);
+			return json(await world.incidents.list(limit, before));
+		}
+		case "POST incidents": {
+			const n = Number(arg);
+			if (action === "retry") {
+				const outcome = await world.retryIncident(n, "operator");
+				return json(outcome, outcome.ok ? 200 : 422);
+			}
+			if (action === "return") {
+				const { value = null } = await read<{ value?: unknown }>(request);
+				return json(await world.incidents.close(n, "operator", { kind: "returned", value }));
+			}
+			if (action === "dismiss") {
+				const { reason } = await read<{ reason?: string }>(request);
+				return json(await world.incidents.close(n, "operator", { kind: "dismissed", reason: reason ?? "" }));
+			}
+			return json({ error: "use /incidents/:n/retry, /incidents/:n/return or /incidents/:n/dismiss" }, 404);
 		}
 		case "POST execute": {
 			const { expression } = await read<{ expression: string }>(request);

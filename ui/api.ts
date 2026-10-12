@@ -1,6 +1,6 @@
 import { hex } from "../src/api/text.ts";
-import { callPath } from "../src/api/paths.ts";
-import type { AccountStatus, CallResult, ChecksState, DataRow, DevelopResult, Grants, Rejection, Revision, WorldListing, WorldSummary } from "../src/api/types.ts";
+import { callPath, incidentPath } from "../src/api/paths.ts";
+import type { AccountStatus, CallResult, ChecksState, DataRow, DevelopResult, Grants, Incident, Rejection, Revision, WorldListing, WorldSummary } from "../src/api/types.ts";
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
 	const response = await fetch(path, {
@@ -45,6 +45,10 @@ export const api = {
 	revisions: (id: string, before?: number) => request<Revision[]>("GET", paged(`/api/worlds/${id}/revisions`, before)),
 	rejections: (id: string, before?: number) => request<Rejection[]>("GET", paged(`/api/worlds/${id}/rejections`, before)),
 	rollback: (id: string, revision: number, reason: string) => request<Revision>("POST", `/api/worlds/${id}/rollback`, { revision, reason }),
+	incidents: (id: string, before?: number) => request<Incident[]>("GET", paged(`/api/worlds/${id}/incidents`, before)),
+	retryIncident: (id: string, n: number) => request<CallResult>("POST", `${incidentPath(id, n)}/retry`),
+	returnFromIncident: (id: string, n: number, value: unknown) => request<Incident>("POST", `${incidentPath(id, n)}/return`, { value }),
+	dismissIncident: (id: string, n: number, reason: string) => request<Incident>("POST", `${incidentPath(id, n)}/dismiss`, { reason }),
 	setGrants: (id: string, grants: Grants) => request<Grants>("PUT", `/api/worlds/${id}/grants`, grants),
 	checks: (id: string) => request<ChecksState>("GET", `/api/worlds/${id}/checks`),
 	removeCheck: (id: string, name: string, reason: string) => request<unknown>("DELETE", `/api/worlds/${id}/checks/${encodeURIComponent(name)}`, { reason }),

@@ -5,8 +5,8 @@ import type { JsonObject, Session, SessionDocFamilyToken } from "@earendil-works
 const CACHED: number = 256;
 
 /**
- * A session document family numbered 0, 1, 2, …: the revisions or the rejections of a world. Entries are written once
- * by the owner's commit and never change, so a read can be cached.
+ * A session document family numbered 0, 1, 2, …: the revisions, rejections or incidents of a world. Only its owner
+ * writes entries, and it calls `remember` after each commit, so a read can be cached.
  */
 export class NumberedLog<T> {
 	private readonly cache: Map<number, T> = new Map();

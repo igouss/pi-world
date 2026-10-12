@@ -11,6 +11,33 @@ function base(): MemoryDataPort {
 }
 
 describe("OverlayDataPort", () => {
+	it("lists only the writes under the prefix asked for, and names its writes in key order", () => {
+		const base = new MemoryDataPort();
+		const overlay = new OverlayDataPort(base);
+		overlay.set("b:2", "2");
+		overlay.set("a:1", "1");
+		overlay.set("b:1", "1");
+		overlay.delete("a:0");
+		expect(overlay.list("b:").map((row) => row.key)).toEqual(["b:1", "b:2"]);
+		expect(overlay.changes()).toEqual({ set: ["a:1", "b:1", "b:2"], deleted: ["a:0"] });
+	});
+
+	it("makes its writes in the base store when committed, in one transaction of it", () => {
+		const base = new MemoryDataPort();
+		base.set("gone", "0");
+		const overlay = new OverlayDataPort(base);
+		overlay.set("x", "1");
+		overlay.delete("gone");
+		let inside = 0;
+		base.transaction = (writes) => {
+			inside++;
+			writes();
+		};
+		overlay.commit();
+		expect(inside).toBe(1);
+		expect(base.list("").map((row) => row.key)).toEqual(["x"]);
+	});
+
 	it("records no changes and reads the base when nothing was written", () => {
 		const overlay = new OverlayDataPort(base());
 		expect(overlay.get("todo:1")).toBe(JSON.stringify({ t: "milk" }));

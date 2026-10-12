@@ -57,6 +57,8 @@ result is validated and iterated on immediately. It is one station of a larger l
 | Grants per world | You choose which other worlds a world's code may call (Access tab or `PUT /api/worlds/:id/grants`); the agent cannot change it | built |
 | Who calls whom | `describe` and the Functions tab list what a definition calls and what calls it | built |
 | Memory per world, measured | A world that has run a call costs the server about 25 MB; each call it holds open about 2.4 MB more (`research.md`) | built |
+| Failed calls you can fix and retry | A failed call is an incident with its arguments and error; ask the agent to fix the definition, then retry the call at the new revision. A failed call wrote no data, so the retry is safe | built |
+| Atomic calls | A call's data writes are made together when it succeeds and dropped when it fails | built |
 | Rejections kept as records | Every rejected `develop` and refused check is numbered and kept with its source and reason, so compaction cannot lose it | built |
 | Immutable revisions and rollback | Rollback creates a new revision | on the node |
 | Runs that survive a crash | A run interrupted by a celld restart continues and finishes, with no revision accepted twice | on the node |
@@ -176,9 +178,10 @@ snapshots by hash, and for every call that leaves the world. The runtime has no 
   started at; the next call sees the new one.
 - **`execute` is a preview.** Its data writes are rolled back and listed in the result; other worlds it calls write
   for real.
-- **Data is shared, heap is not.** Heap changes a call makes vanish with its VM. Data writes are visible to other calls
-  at once. Between two awaits a call runs alone, so a read and a write with no `await` between them are atomic; a
-  read-modify-write that spans an `await` is not.
+- **Calls are atomic, heap is not kept.** Heap changes a call makes vanish with its VM. A call's data writes are made
+  together, in one transaction, when it succeeds, and dropped when it fails; until then the call reads its own writes
+  and other calls do not see them. Two calls that write the same key while both are running: the one that finishes
+  last wins.
 - **Errors cross over as rejections.** A throw in the other world rejects the promise with an `Error` whose message
   names where it came from, hop by hop.
 - **Cycles are refused.** A call carries the chain of worlds it has passed through, and a call back into a world
@@ -351,6 +354,8 @@ Open `http://oracle-arm.mist-walleye.ts.net:8787` from a machine on the tailnet.
 4. The **inspector** on the right has:
    - **Functions:** call any definition with arguments, no model involved.
    - **Revisions:** each change with its source; roll back to any revision.
+   - **Incidents:** calls that failed. Ask the agent to fix one, retry it, answer it yourself, or dismiss it. A caller
+     that sends `Prefer: respond-async` gets `202` and the incident to follow instead of the error.
    - **Rejected:** every attempt the world turned away, with its source and the reason.
    - **Data:** what calls stored.
    - **Checks:** what every future change must keep true.

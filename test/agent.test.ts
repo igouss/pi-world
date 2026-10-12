@@ -176,6 +176,61 @@ describe("the agent grows the world", () => {
 		expect(world.checks().checks[0]?.generator).toEqual({ int: [-100, 100] });
 	});
 
+	it("lists open incidents, shows one in full, and retries one after a fix", async () => {
+		const { faux, world, root } = await setup();
+		await world.develop(`function half(n) { if (n % 2) throw new Error("odd"); return n / 2; }`, "half", { by: "operator" });
+		faux.setResponses([
+			call("incidents", {}),
+			fauxAssistantMessage("None."),
+			call("retry_incident", { n: 0 }),
+			fauxAssistantMessage("Still failing."),
+			call("incidents", {}),
+			fauxAssistantMessage("One."),
+			call("incidents", { n: 0 }),
+			fauxAssistantMessage("Seen."),
+			call("develop", { source: `function half(n) { return n / 2; }`, summary: "allow odd" }),
+			call("retry_incident", { n: 0 }),
+			fauxAssistantMessage("Fixed."),
+			call("incidents", { n: 7 }),
+			fauxAssistantMessage("No such."),
+		]);
+		await ask(root, "Any incidents?");
+		await world.call("half", [3]);
+		await ask(root, "Retry it.");
+		await ask(root, "Any incidents now?");
+		await ask(root, "Show it.");
+		await ask(root, "Fix it.");
+		await ask(root, "Show 7.");
+		const results = await toolResults(root);
+		expect(results[0]).toBe("No open incident.");
+		expect(results[1]).toMatch(/^Still failing \(threw\): Error: odd/);
+		expect(results[2]).toMatch(/^#0 half at revision 1, 1× \(threw\): Error: odd$/);
+		expect(results[3]).toMatch(/^incident #0, open: half failed 1× \(threw\), last at revision 1, 1 failed retries\nargs: \[\n  3\n\]\nerror:\nError: odd/);
+		expect(results[5]).toBe("Incident 0 closed: the call returned 1.5");
+		expect((await world.incidents.get(0))?.resolution?.by).toBe("agent");
+		expect(results[6]).toBe("No incident 7.");
+		const errors = (await root.context(BACKGROUND_CONTEXT)).messages.filter((m) => m.role === "toolResult").map((m) => (m as { isError?: boolean }).isError === true);
+		expect(errors).toEqual([false, true, false, false, false, false, true]);
+	});
+
+	it("lists only open incidents, and shows a closed one as closed", async () => {
+		const { faux, world, root } = await setup();
+		await world.develop(`function boom(x) { throw new Error("no"); }`, "boom", { by: "operator" });
+		await world.call("boom", [1]);
+		await world.incidents.close(0, "operator", { kind: "dismissed", reason: "seen" });
+		await world.call("boom", ["y".repeat(70 * 1024)]);
+		await world.develop(`function bang() { throw new Error("bang"); }`, "bang", { by: "operator" });
+		await world.call("bang", []);
+		faux.setResponses([call("incidents", {}), fauxAssistantMessage("One."), call("incidents", { n: 0 }), fauxAssistantMessage("Closed."), call("incidents", { n: 1 }), fauxAssistantMessage("Big.")]);
+		await ask(root, "Open ones?");
+		await ask(root, "Show 0.");
+		await ask(root, "Show 1.");
+		const [open, closed, big] = await toolResults(root);
+		expect(open?.split("\n")).toEqual([expect.stringMatching(/^#2 bang/), expect.stringMatching(/^#1 boom/)]);
+		expect(closed).toMatch(/^incident #0, closed \(dismissed\): boom failed 1×/);
+		expect(big).toContain("args: not kept (too large)");
+	});
+
 	it("shows the world's definitions in the system prompt", async () => {
 		const { faux, world, root } = await setup();
 		await world.develop(`define("area", (w, h) => w * h, { doc: "Rectangle area" });`, "area", { by: "operator" });
