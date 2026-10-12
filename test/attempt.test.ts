@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Check } from "../src/check/check.ts";
-import { attemptDevelop, attemptEnrolment, type AttemptMode } from "../src/world/attempt.ts";
+import { attemptDevelop, attemptEnrolment } from "../src/world/attempt.ts";
 import { MemoryDataPort } from "../src/world/data-port.ts";
 import { NO_PEERS } from "../src/world/peer-port.ts";
-import { WorldVm } from "../src/world/world-vm.ts";
+import { WorldVm, type AttemptMode } from "../src/world/world-vm.ts";
 import { wasm } from "./wasm.ts";
 
 const mode: AttemptMode = { kind: "attempt", at: 1_750_000_000_000, seed: 7 };
@@ -94,23 +94,31 @@ describe("attemptDevelop", () => {
 });
 
 describe("attemptEnrolment", () => {
+	it("keeps no heap change the proposed check makes", async () => {
+		const vm = await WorldVm.create(wasm);
+		await attemptDevelop(vm, `const s = state("s", () => ({ n: 0 })); define("bump", () => ++s.n); define("count", () => s.n);`, [], mode);
+		const bumping = { expression: "bump() > 0", counterexample: `define("bump", () => 0);` };
+		expect(await attemptEnrolment(vm, bumping, mode)).toEqual({ enrolled: true });
+		expect(await vm.invoke("count", [], live)).toEqual({ ok: true, value: 0 });
+	});
+
 	it("enrols a check seen failing on its counterexample, and leaves the world as it was", async () => {
 		const vm = await WorldVm.create(wasm);
 		await attemptDevelop(vm, `define("double", (x) => 2 * x);`, [], mode);
-		expect(await attemptEnrolment(vm, positive.expression, positive.counterexample, mode)).toEqual({ enrolled: true });
+		expect(await attemptEnrolment(vm, positive, mode)).toEqual({ enrolled: true });
 		expect(await vm.invoke("double", [3], live)).toEqual({ ok: true, value: 6 });
 	});
 
 	it("refuses a check that passes on its own counterexample", async () => {
 		const vm = await WorldVm.create(wasm);
 		await attemptDevelop(vm, `define("double", (x) => 2 * x);`, [], mode);
-		const enrolment = await attemptEnrolment(vm, "true", positive.counterexample, mode);
+		const enrolment = await attemptEnrolment(vm, { expression: "true", counterexample: positive.counterexample }, mode);
 		expect(enrolment.enrolled).toBe(false);
 	});
 
 	it("refuses a check that fails on the current world", async () => {
 		const vm = await WorldVm.create(wasm);
-		const enrolment = await attemptEnrolment(vm, "typeof double === 'function'", `define("x", () => 0);`, mode);
+		const enrolment = await attemptEnrolment(vm, { expression: "typeof double === 'function'", counterexample: `define("x", () => 0);` }, mode);
 		expect(enrolment.enrolled === false && enrolment.reason).toContain("does not hold on the current world");
 	});
 });

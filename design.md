@@ -66,6 +66,15 @@ The rules the implementation obeys, each with the fact that forces it.
   on a checkpoint, requires the check to fail there, restores, and requires it to pass on the current world. Only
   then is it enrolled. Removing or loosening a check is an operator call with a recorded reason, never an agent
   tool.
+- **Checks see a scratch data store, never the world's data.** A check runs in attempt mode with a fresh, empty
+  in-memory store, so it can set rows up and call functions that read them, and the world's data never decides
+  whether a develop is accepted. A develop and a counterexample have no store: touching data fails them as host
+  calls, because only `develop` sources replay.
+- **A property check is a check with a generator.** The generator is JSON the host interprets, so no world code runs
+  on the host. Each run draws 50 inputs from a choice sequence seeded by the attempt, evaluates the expression with
+  `input` bound to each on its own scratch store, and on a failure shrinks the choice sequence (delete runs, lower
+  single choices) to the smallest input that still fails, which the rejection names. Integers shrink toward 0, so a
+  failing input reads as the boundary it crossed.
 - **Every develop re-runs every counterexample.** After the checks hold on the developed heap, each check's
   counterexample is applied to that heap in turn and the check must fail there. A check that a change made vacuous
   (it calls a redefined function, or reads changed state) rejects the develop, because a check that cannot fail is a

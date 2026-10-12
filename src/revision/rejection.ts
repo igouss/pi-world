@@ -7,7 +7,7 @@ import type { DevelopSources, Origin } from "./revision.ts";
  */
 export type Attempted =
 	| (DevelopSources & { readonly kind: "develop"; readonly failure: Failure | "check"; readonly check?: string })
-	| { readonly kind: "check"; readonly name: string; readonly expression: string; readonly counterexample: string };
+	| { readonly kind: "check"; readonly name: string; readonly expression: string; readonly counterexample: string; readonly generator?: unknown };
 
 /**
  * A rejected develop or a refused check, numbered in its own sequence. It is kept beside the revisions so a

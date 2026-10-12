@@ -115,7 +115,7 @@ describe("the agent grows the world", () => {
 	it("names the check a rejected develop broke in history", async () => {
 		const { faux, world, root } = await setup();
 		await world.develop(`define("one", () => 1);`, "one", { by: "operator" });
-		await world.proposeCheck("one is 1", "one() === 1", `define("one", () => 2);`, { by: "operator" });
+		await world.proposeCheck({ name: "one is 1", expression: "one() === 1", counterexample: `define("one", () => 2);` }, { by: "operator" });
 		await world.develop(`define("one", () => 3);`, "three", { by: "operator" });
 		faux.setResponses([call("history", { rejected: true, limit: 1 }), fauxAssistantMessage("Seen.")]);
 		await ask(root, "What was rejected?");
@@ -162,6 +162,18 @@ describe("the agent grows the world", () => {
 		const [b, a] = await toolResults(root);
 		expect(b).toBe("function b() @1\ndoc: Two.\nsource:\nfunction b() { return 2; }\nrevisions:\n  2: add b");
 		expect(a).toBe("a is not defined at revision 3.\nRevisions that touched it:\n  3: drop a\n  1: add a");
+	});
+
+	it("proposes a property check with a generator", async () => {
+		const { faux, world, root } = await setup();
+		await world.develop(`function double(x) { return 2 * x; }`, "double", { by: "operator" });
+		faux.setResponses([
+			call("propose_check", { name: "double is even", expression: "double(input) % 2 === 0", counterexample: `function double(x) { return x; }`, generator: { int: [-100, 100] } }),
+			fauxAssistantMessage("Enrolled."),
+		]);
+		await ask(root, "Protect double.");
+		expect(await toolResults(root)).toEqual([`Enrolled the check "double is even".`]);
+		expect(world.checks().checks[0]?.generator).toEqual({ int: [-100, 100] });
 	});
 
 	it("shows the world's definitions in the system prompt", async () => {

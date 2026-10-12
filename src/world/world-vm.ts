@@ -3,16 +3,24 @@ import type { DataPort } from "./data-port.ts";
 import type { PeerPort } from "./peer-port.ts";
 import { PRELUDE, PRELUDE_VERSION } from "./prelude.ts";
 import { PRELUDE_UPGRADES } from "./prelude-upgrades.ts";
+import { mulberry32 } from "./random.ts";
 
 /**
  * How the VM meets the outside world while code runs.
- * - `attempt`: a develop, a check or a counterexample. The clock is pinned and random is seeded, so the same source
- *   on the same base gives the same heap. Data is unreachable: touching it fails the evaluation as a host call.
+ * - `attempt`: a develop or a counterexample. The clock is pinned and random is seeded, so the same source on the
+ *   same base gives the same heap. Data is unreachable: touching it fails the evaluation as a host call.
+ * - `check`: a check, pinned and seeded like an attempt, over a scratch data store that is never the world's data.
  * - `live`: a direct call or an agent `execute`. Real clock, real random, the world's data store and the other worlds.
  */
 export type Mode =
 	| { readonly kind: "attempt"; readonly at: number; readonly seed: number }
+	| { readonly kind: "check"; readonly at: number; readonly seed: number; readonly data: DataPort }
 	| { readonly kind: "live"; readonly data: DataPort; readonly peers: PeerPort };
+
+export type AttemptMode = Mode & { kind: "attempt" };
+
+/** A check's mode: an attempt's pinned clock and seed, with a fresh scratch store. */
+export type CheckMode = Mode & { kind: "check" };
 
 export type Failure = "threw" | "budget" | "host-call" | "pending";
 
@@ -148,7 +156,7 @@ export class WorldVm {
 	}
 
 	/** Run a develop source as the body of a function, so its bindings stay local to this evaluation. */
-	develop(source: string, mode: Mode & { kind: "attempt" }): Outcome {
+	develop(source: string, mode: AttemptMode): Outcome {
 		return this.run(mode, () => {
 			this.vm.evalCode(`(() => {\n${source}\n})()`, "develop.js").dispose();
 			return undefined;
@@ -238,7 +246,7 @@ export class WorldVm {
 		this.mode = mode;
 		this.ticks = this.limits.budget;
 		this.hostCalls = [];
-		if (mode.kind === "attempt") {
+		if (mode.kind !== "live") {
 			this.rng = mulberry32(mode.seed);
 			const pinned = BigInt(mode.at) * 1_000_000n;
 			this.clockNs = () => pinned;
@@ -275,11 +283,11 @@ export class WorldVm {
 	private readonly hostData = (opHandle: { toString(): string }, keyHandle: { toString(): string }, jsonHandle: { isNull?: boolean; toString(): string }) => {
 		const op = opHandle.toString();
 		const key = keyHandle.toString();
-		if (this.mode.kind !== "live") {
+		const data = this.mode.kind === "attempt" ? undefined : this.mode.data;
+		if (!data) {
 			this.hostCalls.push(`data.${op}`);
 			throw new Error(`data.${op} is not available here`);
 		}
-		const data = this.mode.data;
 		const result = (() => {
 			switch (op) {
 				case "get":
@@ -339,15 +347,4 @@ function describe(error: unknown): string {
 	const text = e?.message !== undefined ? `${e.name ?? "Error"}: ${e.message}${e.stack ? `\n${e.stack}` : ""}` : String(error);
 	e?.dispose?.();
 	return text.trim();
-}
-
-function mulberry32(seed: number): () => number {
-	let a = seed >>> 0;
-	return () => {
-		a = (a + 0x6d2b79f5) >>> 0;
-		let t = a;
-		t = Math.imul(t ^ (t >>> 15), t | 1);
-		t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-	};
 }

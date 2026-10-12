@@ -2,6 +2,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { JsonObject, Session, Tx } from "@earendil-works/pi-durable";
 import type { Snapshot } from "quickjs-wasi";
 import type { Check, RemovedCheck } from "../check/check.ts";
+import { parseGenerator } from "../check/generator.ts";
 import { contentHash, type BlobStore } from "../revision/blob-store.ts";
 import { WorldChecks, WorldHead, WorldRejection, WorldRejections, WorldRevision, type ChecksState } from "../revision/documents.ts";
 import { NumberedLog } from "../revision/numbered-log.ts";
@@ -9,13 +10,13 @@ import type { Attempted, Rejection, RejectionRecord, Rejections } from "../revis
 import { developSources, type Head, type Origin, type Revision } from "../revision/revision.ts";
 import { references, type References } from "../source/references.ts";
 import { rewriteSource } from "../source/rewrite.ts";
-import { attemptDevelop, attemptEnrolment, type AttemptMode } from "./attempt.ts";
+import { attemptDevelop, attemptEnrolment } from "./attempt.ts";
 import { diffCatalogues } from "./catalogue-diff.ts";
 import type { CallRunner, ExecuteResult, HeadRef } from "./call-runner.ts";
 import { Mutex } from "./mutex.ts";
 import { PRELUDE_VERSION } from "./prelude.ts";
 import { rememberCall } from "./remember-call.ts";
-import { DEFAULT_LIMITS, WorldVm, type CatalogueEntry, type Failure, type Outcome, type VmLimits } from "./world-vm.ts";
+import { DEFAULT_LIMITS, WorldVm, type AttemptMode, type CatalogueEntry, type Failure, type Outcome, type VmLimits } from "./world-vm.ts";
 
 /** Runs one atomic commit; a tool passes its own `api.commit`, everything else the Session's. */
 export type Commit = <T>(change: (tx: Tx) => T | Promise<T>) => Promise<T>;
@@ -33,6 +34,14 @@ export interface WorldDeps {
 export type DevelopResult =
 	| { readonly status: "accepted"; readonly revision: Revision; readonly replayed: boolean }
 	| { readonly status: "rejected"; readonly rejection: Rejection & { readonly kind: "develop" } };
+
+/** A check as proposed: its generator is unchecked JSON until enrolment parses it. */
+export interface CheckProposal {
+	readonly name: string;
+	readonly expression: string;
+	readonly counterexample: string;
+	readonly generator?: unknown;
+}
 
 export type EnrolResult =
 	| { readonly status: "enrolled"; readonly check: Check }
@@ -133,7 +142,7 @@ export class World {
 			const attempt = await attemptDevelop(this.vm, evaluated, this.checksState.checks, this.attemptMode(at));
 			if (!attempt.accepted) {
 				const { failure, reason, check } = attempt;
-				const rejection = await this.reject({ kind: "develop", ...sources, failure, ...(check ? { check } : {}), summary, at, origin, reason }, commit);
+				const rejection = await this.reject({ kind: "develop", ...sources, failure, check, summary, at, origin, reason }, commit);
 				return { status: "rejected", rejection };
 			}
 			const revision = await this.accept(
@@ -185,26 +194,30 @@ export class World {
 	}
 
 	/**
-	 * Enrol a check only after seeing it fail on its counterexample and pass on the current world. Proposing an
-	 * enrolled check again, as a rerun tool call does, returns the enrolled check.
+	 * Enrol a check only after seeing it fail on its counterexample and pass on the current world. A property check's
+	 * generator must parse. Proposing an enrolled check again, as a rerun tool call does, returns the enrolled check.
 	 */
-	async proposeCheck(name: string, expression: string, counterexample: string, origin: Origin, commit: Commit = this.sessionCommit): Promise<EnrolResult> {
+	async proposeCheck(proposal: CheckProposal, origin: Origin, commit: Commit = this.sessionCommit): Promise<EnrolResult> {
+		const { name, expression, counterexample } = proposal;
 		return this.exclusive(async () => {
-			const sources = developSources(counterexample, rewriteSource(counterexample));
-			const existing = this.checksState.checks.find((check) => check.name === name);
-			if (existing && existing.expression === expression && existing.counterexample === sources.source) return { status: "enrolled", check: existing };
 			const previous = await this.previous(origin);
 			if (previous?.kind === "rejection" && previous.rejection.kind === "check") return { status: "refused", rejection: previous.rejection };
 			const at = this.now();
 			const refuse = async (reason: string): Promise<EnrolResult> => {
-				const rejection = await this.reject({ kind: "check", name, expression, counterexample, summary: `check "${name}"`, at, origin, reason }, commit);
-				return { status: "refused", rejection };
+				const attempted = { kind: "check", name, expression, counterexample, generator: proposal.generator } as const;
+				return { status: "refused", rejection: await this.reject({ ...attempted, summary: `check "${name}"`, at, origin, reason }, commit) };
 			};
+			const parsed = proposal.generator === undefined ? undefined : parseGenerator(proposal.generator);
+			if (parsed && "error" in parsed) return refuse(`the generator is not valid: ${parsed.error}`);
+			const sources = developSources(counterexample, rewriteSource(counterexample));
+			const candidate = { expression, counterexample: sources.source, generator: parsed?.generator };
+			const existing = this.checksState.checks.find((check) => check.name === name);
+			if (existing && sameJson([existing.expression, existing.counterexample, existing.generator], [expression, sources.source, candidate.generator]))
+				return { status: "enrolled", check: existing };
 			if (existing) return refuse(`a different check named "${name}" is already enrolled`);
-			const enrolment = await attemptEnrolment(this.vm, expression, sources.source, this.attemptMode(at));
+			const enrolment = await attemptEnrolment(this.vm, candidate, this.attemptMode(at));
 			if (!enrolment.enrolled) return refuse(enrolment.reason);
-			const { source, written } = sources;
-			const check: Check = { name, expression, counterexample: source, ...(written === undefined ? {} : { written }), enrolledAt: this.now() };
+			const check: Check = plain({ name, ...candidate, written: sources.written, enrolledAt: this.now() });
 			this.checksState = await commit(async (tx) => {
 				const doc = await tx.doc(WorldChecks);
 				(doc.checks as Check[]).push(check);
@@ -315,7 +328,8 @@ export class World {
 		const base = this.current.revision;
 		const { rejection, state } = await commit(async (tx) => {
 			const doc = await tx.doc(WorldRejections);
-			const rejection: A & RejectionRecord = { ...attempt, n: doc.count as number, base };
+			// A document holds strict JSON, so optional fields left undefined are dropped here.
+			const rejection = plain<A & RejectionRecord>({ ...attempt, n: doc.count as number, base });
 			await tx.doc(WorldRejection, String(rejection.n), rejection as Rejection & JsonObject);
 			doc.count = rejection.n + 1;
 			if (attempt.origin.by === "agent") rememberCall(doc.calls as Record<string, number>, attempt.origin.callId, rejection.n, KEPT_CALLS);
@@ -361,6 +375,10 @@ async function requireBlob(blobs: BlobStore, hash: string, owner: string): Promi
 	const bytes = await blobs.get(hash);
 	if (!bytes) throw new Error(`${owner} points at blob ${hash}, which is missing`);
 	return bytes;
+}
+
+function sameJson(a: unknown, b: unknown): boolean {
+	return JSON.stringify(a) === JSON.stringify(b);
 }
 
 /** A plain copy of a document draft, which is only valid inside its commit. */

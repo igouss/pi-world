@@ -96,9 +96,14 @@ Made on 2026-10-06 under the prototype authorization above. Each is a default to
   change to a definition the check calls: a change to state can make a check vacuous too, and each re-run costs a
   restore of a few milliseconds. A develop after which a counterexample no longer applies is rejected like one after
   which the check no longer fails on it; the operator removes a check that no longer fits.
-- **Checks cannot read data.** A check runs in attempt mode, where data is unreachable. In the first real session the
-  agent changed a function's signature (an optional entries argument) to make it checkable. This limits what a check
-  can protect.
+- **Checks run against a scratch data store** (settled by the operator's approval of property checks, 2026-10-12):
+  each check evaluation, and each generated input of a property check, gets a fresh, empty in-memory store; a check
+  never reads or writes the world's data. A develop and a counterexample still cannot touch data.
+- **Property checks** (flagged choices inside the approved idea): a generator is JSON the host interprets (`int`,
+  `bool`, `string`, `oneOf`, `const`, `array`, `record`), so no agent code runs on the host; 50 inputs per run, seeded
+  by the revision so a run is deterministic; failures shrink on the choice sequence with at most 200 replays; the heap
+  is not reset between inputs, only after the check, so a property that changes heap state sees its own earlier
+  changes.
 - **Model:** Claude through the subscription; `claude-sonnet-5-5` by default, switchable per world in the UI between
   Sonnet 5.5, Opus 5.5, Haiku 4.5 and Fable 5.1.
 - **Credential:** one `AccountCell` holds the fleet's single Claude credential. A pasted `claude setup-token` token is

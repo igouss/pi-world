@@ -19,7 +19,7 @@ export function byKey(a: string, b: string): number {
 	return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** A data store held in memory, for tests. */
+/** A data store held in memory: the scratch store a check runs against, and the store of tests. */
 export class MemoryDataPort implements DataPort {
 	private readonly rows: Map<string, string> = new Map();
 

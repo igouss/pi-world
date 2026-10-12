@@ -34,7 +34,7 @@ describe("rejections", () => {
 	it("name the check a develop broke", async () => {
 		const world = await World.open(fixture());
 		await world.develop(`define("one", () => 1);`, "one", operator);
-		await world.proposeCheck("one is 1", "one() === 1", `define("one", () => 2);`, operator);
+		await world.proposeCheck({ name: "one is 1", expression: "one() === 1", counterexample: `define("one", () => 2);` }, operator);
 		const result = await world.develop(`define("one", () => 3);`, "three", operator);
 		expect(result).toMatchObject({ status: "rejected", rejection: { n: 0, failure: "check", check: "one is 1" } });
 		expect(await world.rejection(0)).toMatchObject({ kind: "develop", failure: "check", check: "one is 1", base: 1 });
@@ -43,7 +43,7 @@ describe("rejections", () => {
 	it("record a refused check with its expression and counterexample", async () => {
 		const world = await World.open(fixture());
 		await world.develop(`define("one", () => 1);`, "one", operator);
-		const result = await world.proposeCheck("vacuous", "true", `define("one", () => 2);`, operator);
+		const result = await world.proposeCheck({ name: "vacuous", expression: "true", counterexample: `define("one", () => 2);` }, operator);
 		expect(result).toMatchObject({ status: "refused", rejection: { n: 0 } });
 		expect(await world.rejection(0)).toMatchObject({
 			kind: "check",
@@ -74,8 +74,8 @@ describe("rejections", () => {
 
 	it("return the same refusal when an agent's propose_check reruns, without recording another", async () => {
 		const world = await World.open(fixture());
-		const first = await world.proposeCheck("vacuous", "true", `define("x", () => 1);`, agent);
-		const rerun = await world.proposeCheck("vacuous", "true", `define("x", () => 1);`, agent);
+		const first = await world.proposeCheck({ name: "vacuous", expression: "true", counterexample: `define("x", () => 1);` }, agent);
+		const rerun = await world.proposeCheck({ name: "vacuous", expression: "true", counterexample: `define("x", () => 1);` }, agent);
 		expect(rerun).toEqual(first);
 		expect(first).toMatchObject({ status: "refused", rejection: { n: 0 } });
 		expect(world.rejectionCount()).toBe(1);

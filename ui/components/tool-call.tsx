@@ -24,7 +24,8 @@ const PRESENTERS: Record<string, Presenter> = {
 		title: (a) => `check: ${text(a.name)}`,
 		body: (a) => (
 			<>
-				<Code text={text(a.expression)} label="must stay true" />
+				<Code text={text(a.expression)} label={a.generator === undefined ? "must stay true" : "must stay true for every generated input"} />
+				{a.generator !== undefined && <Code text={JSON.stringify(a.generator)} label="input generator" />}
 				<Code text={text(a.counterexample)} label="counterexample" />
 			</>
 		),

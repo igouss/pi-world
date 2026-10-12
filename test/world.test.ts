@@ -62,8 +62,8 @@ describe("World", () => {
 	it("enrols checks with different names side by side", async () => {
 		const world = await World.open(fixture());
 		await world.develop(`define("one", () => 1); define("two", () => 2);`, "one, two", operator);
-		await world.proposeCheck("one is 1", "one() === 1", `define("one", () => 0);`, operator);
-		const second = await world.proposeCheck("two is 2", "two() === 2", `define("two", () => 0);`, operator);
+		await world.proposeCheck({ name: "one is 1", expression: "one() === 1", counterexample: `define("one", () => 0);` }, operator);
+		const second = await world.proposeCheck({ name: "two is 2", expression: "two() === 2", counterexample: `define("two", () => 0);` }, operator);
 		expect(second.status).toBe("enrolled");
 		expect(world.checks().checks.map((check) => check.name)).toEqual(["one is 1", "two is 2"]);
 	});
@@ -71,17 +71,33 @@ describe("World", () => {
 	it("refuses a check that reuses an enrolled name with another expression", async () => {
 		const world = await World.open(fixture());
 		await world.develop(`define("one", () => 1);`, "one", operator);
-		await world.proposeCheck("one is 1", "one() === 1", `define("one", () => 0);`, operator);
-		const other = await world.proposeCheck("one is 1", "one() > 0", `define("one", () => 0);`, operator);
+		await world.proposeCheck({ name: "one is 1", expression: "one() === 1", counterexample: `define("one", () => 0);` }, operator);
+		const other = await world.proposeCheck({ name: "one is 1", expression: "one() > 0", counterexample: `define("one", () => 0);` }, operator);
 		expect(other.status === "refused" && other.rejection.reason).toBe(`a different check named "one is 1" is already enrolled`);
 	});
 
 	it("refuses a check that reuses an enrolled name and expression with another counterexample", async () => {
 		const world = await World.open(fixture());
 		await world.develop(`define("one", () => 1);`, "one", operator);
-		await world.proposeCheck("one is 1", "one() === 1", `define("one", () => 0);`, operator);
-		const other = await world.proposeCheck("one is 1", "one() === 1", `define("one", () => 2);`, operator);
+		await world.proposeCheck({ name: "one is 1", expression: "one() === 1", counterexample: `define("one", () => 0);` }, operator);
+		const other = await world.proposeCheck({ name: "one is 1", expression: "one() === 1", counterexample: `define("one", () => 2);` }, operator);
 		expect(other.status).toBe("refused");
+	});
+
+	it("refuses to remove a check without a reason", async () => {
+		const world = await World.open(fixture());
+		await world.develop(`define("one", () => 1);`, "one", operator);
+		await world.proposeCheck({ name: "one is 1", expression: "one() === 1", counterexample: `define("one", () => 0);` }, operator);
+		await expect(world.removeCheck("one is 1", "  ")).rejects.toThrow("removing a check needs a reason");
+	});
+
+	it("tells subscribers when a check is enrolled", async () => {
+		const world = await World.open(fixture());
+		await world.develop(`define("one", () => 1);`, "one", operator);
+		const seen: number[] = [];
+		world.subscribe(() => seen.push(world.checks().checks.length));
+		await world.proposeCheck({ name: "one is 1", expression: "one() === 1", counterexample: `define("one", () => 0);` }, operator);
+		expect(seen).toEqual([1]);
 	});
 
 	it("refuses to roll back to the head", async () => {
@@ -119,12 +135,12 @@ describe("World", () => {
 	it("applies a counterexample written as a declaration", async () => {
 		const world = await World.open(fixture());
 		await world.develop(`function one() { return 1; }`, "one", operator);
-		const result = await world.proposeCheck("one is 1", "one() === 1", `function one() { return 2; }`, operator);
+		const result = await world.proposeCheck({ name: "one is 1", expression: "one() === 1", counterexample: `function one() { return 2; }` }, operator);
 		expect(result.status === "enrolled" && result.check).toMatchObject({
 			counterexample: `var one = define("one", one); function one() { return 2; }`,
 			written: `function one() { return 2; }`,
 		});
-		const again = await world.proposeCheck("one is 1", "one() === 1", `function one() { return 2; }`, operator);
+		const again = await world.proposeCheck({ name: "one is 1", expression: "one() === 1", counterexample: `function one() { return 2; }` }, operator);
 		expect(again.status).toBe("enrolled");
 	});
 
@@ -136,6 +152,32 @@ describe("World", () => {
 		expect(world.callGraph()).toBe(graph);
 		await world.develop(`function c() { return b(); }`, "c", operator);
 		expect(world.callGraph().get("b")).toEqual({ calls: [], calledBy: ["a", "c"] });
+	});
+
+	it("enrols a property check and rejects a develop that breaks it, naming the smallest input", async () => {
+		const world = await World.open(fixture());
+		await world.develop(`function total(xs) { return xs.reduce((a, b) => a + b, 0); }`, "total", operator);
+		const proposal = { name: "total is not negative", expression: "total(input) >= 0", counterexample: `function total() { return -1; }`, generator: { array: { int: [0, 50] } } };
+		const enrolled = await world.proposeCheck(proposal, operator);
+		expect(enrolled.status === "enrolled" && enrolled.check.generator).toEqual({ array: { int: [0, 50] }, min: 0, max: 10 });
+		const broken = await world.develop(`function total(xs) { return xs.length > 1 ? -1 : 0; }`, "break it", operator);
+		expect(broken.status === "rejected" && broken.rejection.reason).toBe(`check "total is not negative" failed: on input [0,0]: returned false`);
+	});
+
+	it("refuses a bad generator even beside an enrolled check that matches the rest", async () => {
+		const world = await World.open(fixture());
+		await world.develop(`define("one", () => 1);`, "one", operator);
+		const plainCheck = { name: "one is 1", expression: "one() === 1", counterexample: `define("one", () => 0);` };
+		await world.proposeCheck(plainCheck, operator);
+		const withBadGenerator = await world.proposeCheck({ ...plainCheck, generator: { bool: 1 } }, operator);
+		expect(withBadGenerator.status).toBe("refused");
+	});
+
+	it("refuses a check whose generator does not parse, and records the generator", async () => {
+		const world = await World.open(fixture());
+		const proposal = { name: "bad", expression: "true", counterexample: `define("x", () => 1);`, generator: { int: [5, 1] } };
+		const refused = await world.proposeCheck(proposal, operator);
+		expect(refused.status === "refused" && refused.rejection).toMatchObject({ reason: expect.stringContaining("the generator is not valid: int takes"), generator: { int: [5, 1] } });
 	});
 
 	it("rolls back as a new revision", async () => {
@@ -153,7 +195,7 @@ describe("World", () => {
 		const deps = fixture();
 		const world = await World.open(deps);
 		await world.develop(`define("total", (xs) => xs.reduce((a, b) => a + b, 0));`, "total", operator);
-		const enrolled = await world.proposeCheck("total of nothing is 0", "total([]) === 0", `define("total", () => -1);`, operator);
+		const enrolled = await world.proposeCheck({ name: "total of nothing is 0", expression: "total([]) === 0", counterexample: `define("total", () => -1);` }, operator);
 		expect(enrolled.status).toBe("enrolled");
 		world.dispose();
 		const reopened = await World.open(deps);
@@ -176,7 +218,7 @@ describe("World", () => {
 	it("records a removed check with its reason", async () => {
 		const world = await World.open(fixture());
 		await world.develop(`define("one", () => 1);`, "one", operator);
-		await world.proposeCheck("one is 1", "one() === 1", `define("one", () => 2);`, operator);
+		await world.proposeCheck({ name: "one is 1", expression: "one() === 1", counterexample: `define("one", () => 2);` }, operator);
 		await world.removeCheck("one is 1", "requirement changed");
 		const checks = world.checks();
 		expect(checks.checks).toEqual([]);
@@ -186,9 +228,9 @@ describe("World", () => {
 	it("returns the enrolled check when the same proposal reruns, and refuses a different check under that name", async () => {
 		const world = await World.open(fixture());
 		await world.develop(`define("one", () => 1);`, "one", operator);
-		const first = await world.proposeCheck("one is 1", "one() === 1", `define("one", () => 2);`, operator);
-		const rerun = await world.proposeCheck("one is 1", "one() === 1", `define("one", () => 2);`, operator);
-		const other = await world.proposeCheck("one is 1", "one() > 0", `define("one", () => 0);`, operator);
+		const first = await world.proposeCheck({ name: "one is 1", expression: "one() === 1", counterexample: `define("one", () => 2);` }, operator);
+		const rerun = await world.proposeCheck({ name: "one is 1", expression: "one() === 1", counterexample: `define("one", () => 2);` }, operator);
+		const other = await world.proposeCheck({ name: "one is 1", expression: "one() > 0", counterexample: `define("one", () => 0);` }, operator);
 		expect(rerun).toEqual(first);
 		expect(other.status).toBe("refused");
 		expect(world.checks().checks).toHaveLength(1);

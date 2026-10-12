@@ -1,10 +1,10 @@
 import type { Snapshot } from "quickjs-wasi";
 import type { Check } from "../check/check.ts";
 import { diffCatalogues, type CatalogueChanges } from "./catalogue-diff.ts";
-import type { CatalogueEntry, Failure, Mode } from "./world-vm.ts";
+import { checkFails, checkVerdict } from "./check-verdict.ts";
+import type { AttemptMode, CatalogueEntry, Failure } from "./world-vm.ts";
 import type { WorldVm } from "./world-vm.ts";
 
-export type AttemptMode = Mode & { kind: "attempt" };
 
 export type Attempt =
 	| {
@@ -53,7 +53,7 @@ export async function attemptDevelop(vm: WorldVm, source: string, checks: readon
  */
 async function firstBrokenCheck(vm: WorldVm, checks: readonly Check[], mode: AttemptMode, developed: Snapshot): Promise<{ check: string; reason: string } | undefined> {
 	for (const check of checks) {
-		const verdict = await runCheck(vm, check, mode);
+		const verdict = await checkVerdict(vm, check, mode);
 		if (verdict !== true) return { check: check.name, reason: `check "${check.name}" failed: ${verdict}` };
 		const seen = await seenFailing(vm, check, mode);
 		await vm.reset(developed);
@@ -66,36 +66,29 @@ async function firstBrokenCheck(vm: WorldVm, checks: readonly Check[], mode: Att
 	return undefined;
 }
 
-/** `true` when the check holds, otherwise a description of what it returned or threw. */
-async function runCheck(vm: WorldVm, check: Pick<Check, "expression">, mode: AttemptMode): Promise<true | string> {
-	const outcome = await vm.evaluate(check.expression, mode);
-	if (!outcome.ok) return `${outcome.failure}: ${outcome.error.split("\n")[0]}`;
-	return outcome.value === true ? true : `returned ${JSON.stringify(outcome.value)}`;
-}
-
 /**
  * Apply the check's counterexample to the heap as it is and run the check: `true` when the check fails there, as it
  * must, otherwise why it could not be seen failing. The caller restores the heap.
  */
-async function seenFailing(vm: WorldVm, check: Pick<Check, "expression" | "counterexample">, mode: AttemptMode): Promise<true | string> {
+async function seenFailing(vm: WorldVm, check: Pick<Check, "expression" | "counterexample" | "generator">, mode: AttemptMode): Promise<true | string> {
 	const applied = vm.develop(check.counterexample, mode);
 	if (!applied.ok) return `the counterexample did not apply (${applied.failure}): ${applied.error.split("\n")[0]}`;
-	const broken = await runCheck(vm, check, mode);
-	return broken === true ? "the check still holds after the counterexample, so it was never seen failing" : true;
+	return (await checkFails(vm, check, mode)) ? true : "the check still holds after the counterexample, so it was never seen failing";
 }
 
 export type Enrolment = { readonly enrolled: true } | { readonly enrolled: false; readonly reason: string };
 
 /**
  * A check is enrolled only after it has been seen failing: it must hold on the current world, and it must fail once
- * the counterexample is applied on a checkpoint. The world is restored either way.
+ * the counterexample is applied. Both run on a checkpoint, so the world is as it was afterwards.
  */
-export async function attemptEnrolment(vm: WorldVm, expression: string, counterexample: string, mode: AttemptMode): Promise<Enrolment> {
-	const now = await runCheck(vm, { expression }, mode);
-	if (now !== true) return { enrolled: false, reason: `the check does not hold on the current world: ${now}` };
+export async function attemptEnrolment(vm: WorldVm, check: Pick<Check, "expression" | "counterexample" | "generator">, mode: AttemptMode): Promise<Enrolment> {
 	const checkpoint = vm.snapshot();
 	try {
-		const seen = await seenFailing(vm, { expression, counterexample }, mode);
+		const now = await checkVerdict(vm, check, mode);
+		if (now !== true) return { enrolled: false, reason: `the check does not hold on the current world: ${now}` };
+		await vm.reset(checkpoint);
+		const seen = await seenFailing(vm, check, mode);
 		return seen === true ? { enrolled: true } : { enrolled: false, reason: seen };
 	} finally {
 		await vm.reset(checkpoint);

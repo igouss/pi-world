@@ -38,10 +38,11 @@ function CheckCard(props: { id: string; check: Check }) {
 	return (
 		<div class="card">
 			<h4>{props.check.name}</h4>
-			<Code text={props.check.expression} label="must stay true" />
+			<Code text={props.check.expression} label={props.check.generator ? "must stay true for every generated input" : "must stay true"} />
+			{props.check.generator && <Code text={JSON.stringify(props.check.generator)} label="input generator" />}
 			<details>
 				<summary class="small muted">counterexample it was seen failing on</summary>
-				<Code text={props.check.counterexample} />
+				<Code text={props.check.written ?? props.check.counterexample} />
 			</details>
 			<form class="row" onSubmit={remove}>
 				<input placeholder="Reason for removing" value={reason} onInput={(e) => setReason(e.currentTarget.value)} />

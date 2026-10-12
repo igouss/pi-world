@@ -35,6 +35,7 @@ function RejectionDetail(props: { rejection: Rejection }) {
 				<>
 					<Code text={r.expression} label={`check "${r.name}"`} />
 					<Code text={r.counterexample} label="counterexample" />
+					{r.generator !== undefined && <Code text={JSON.stringify(r.generator)} label="input generator" />}
 				</>
 			)}
 		</div>
