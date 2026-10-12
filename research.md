@@ -76,7 +76,8 @@ Object with its own SQLite database. The facts that shape the design, from celld
 These are undocumented or unknown. Measure them early, at milestone 6.
 
 1. **Memory and CPU limits per cell.** The limitations page lists none, and balancing "does not measure the CPU or
-   memory that one cell uses". Measure a realistic world cell.
+   memory that one cell uses". Memory measured on a desktop under `celld dev` (see "Memory per world" below); still
+   to measure on the node, and CPU is open.
 2. **Blob size per row.** A 1.44 MB row works on the node; larger is untested. celld's docs state no row or blob
    limit, and a raw snapshot passes 2 MB at about 410 definitions. Measure, and chunk if needed.
 3. **pi-ai and pi-durable under celld's runtime.** Settled: both run on the node (see above).
@@ -101,6 +102,12 @@ These are undocumented or unknown. Measure them early, at milestone 6.
 10. **CPU in one world slows others.** On the node, a world computing for about 1.5 s delayed calls to unrelated worlds
     by the same time: cells share a small pool of JavaScript isolates (`worker_count=2`). The time budget bounds it. Resolved 2026-10-07 for calls: each world's calls run in an isolate of the world's own (see "Isolation and R2 on the
     node"). Develops and checks still run in the shared cell isolate.
+11. **The time budget is counted in interrupt ticks, not time, and a call cannot see time pass.** Seen under
+    `celld dev` on 2026-10-12: `Date.now()` returns the same value throughout one call (a loop that waits for the
+    clock to move never ends), and such a loop calling `Date.now()` ran 70 s before the 30 000-tick budget stopped it,
+    while a plain counting loop ran 30 million iterations in 7 s without reaching it. `VmLimits.budget` says
+    "QuickJS polls about every 0.1 ms"; in a runtime isolate a tick is far slower and varies with what the code calls.
+    Not fixed: it needs a decision on what the budget should bound.
 
 ## Hibernatable sockets on the node
 
@@ -193,6 +200,33 @@ What this changes:
 - Running world code in a Dynamic Worker isolates its CPU from other worlds (open check 10), at the cost of crossing
   an isolate for every host call.
 - The 64-request cell limit (open check 9) is the node setting `CELLD_MAX_CELL_REQUESTS`.
+
+## Memory per world, 2026-10-12
+
+Measured on a desktop (x86-64, 31 GB) under `celld dev` 0.6.1 with `npm run spike:memory` (one VM in Node) and
+`sh spike/memory/cell.sh` (the celld server's resident set). The node is aarch64 and was not measured.
+
+| What | Measured |
+|---|---|
+| One VM, world of 10 definitions | 1408 KB snapshot (146 KB gzipped), 123 KB of QuickJS heap |
+| One VM, world of 100 definitions | 1728 KB snapshot (206 KB gzipped), 234 KB of QuickJS heap |
+| One VM, world of 400 definitions | 2688 KB snapshot (421 KB gzipped), 615 KB of QuickJS heap |
+| Snapshot, restore, reset of one VM | 1.5 to 2.5 ms, 2.7 to 4.4 ms, 3.0 to 4.3 ms over those sizes |
+| Evaluating a small expression | 0.15 to 0.4 ms |
+| A world that has run a call (its cell plus its own runtime isolate) | 24 to 26 MB of the server's resident set, in two runs of 10 worlds |
+| One more call held open in a world (a VM of a small world) | 2.4 MB |
+| The server with one world | 140 to 163 MB |
+
+What this settles:
+
+- The snapshot is the VM's whole linear memory, so a VM costs about its snapshot's size, and the per-world isolate
+  (V8 plus its own compiled QuickJS) costs about ten small VMs. The pool's 8 VMs at most and 2 warm add at most
+  about 20 MB and 5 MB to a world: the isolate, not the pool, is what bounds how many worlds a node holds.
+- The node has about 9 GB available, so it holds a few hundred worlds that have run a call, fewer while they hold
+  calls open. Whether an idle world's isolate is released, and when, is not measured.
+- A develop re-runs every check's counterexample at one restore each, a few milliseconds per check.
+- A world's calls share one single-threaded isolate. Calls overlap only while they await another world; a call that
+  computes holds the isolate, and the next call starts after it.
 
 ## Not verified
 

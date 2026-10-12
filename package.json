@@ -14,7 +14,8 @@
 		"deploy": "npm run typecheck && npm test && npm run build && sh scripts/deploy.sh",
 		"build:runtime": "mkdir -p dist/runtime && esbuild src/isolate/runtime/runtime-entry.ts --bundle --format=esm --platform=neutral --external:cloudflare:workers --external:./quickjs.wasm --minify --outfile=dist/runtime/world-runtime.txt && sha256sum dist/runtime/world-runtime.txt | cut -c1-16 > dist/runtime/world-runtime-hash.txt && cp node_modules/quickjs-wasi/quickjs.wasm dist/runtime/quickjs.bin",
 		"build": "npm run build:runtime && npm run build:ui",
-		"mutate": "stryker run"
+		"mutate": "stryker run",
+		"spike:memory": "esbuild spike/memory/vm.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/spike/memory-vm.mjs --log-level=warning && node dist/spike/memory-vm.mjs"
 	},
 	"dependencies": {
 		"@earendil-works/chord": "^1.0.4",

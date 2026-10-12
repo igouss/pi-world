@@ -54,6 +54,7 @@ result is validated and iterated on immediately. It is one station of a larger l
 | Plain declarations are definitions | `function f` and `class C` at the top of a source are rewritten into `define` calls on the host; the revision keeps both texts | built |
 | Checks that cannot go vacuous | Every develop re-runs every check's counterexample; a change after which a check can no longer fail is rejected | built |
 | Who calls whom | `describe` and the Functions tab list what a definition calls and what calls it | built |
+| Memory per world, measured | A world that has run a call costs the server about 25 MB; each call it holds open about 2.4 MB more (`research.md`) | built |
 | Rejections kept as records | Every rejected `develop` and refused check is numbered and kept with its source and reason, so compaction cannot lose it | built |
 | Immutable revisions and rollback | Rollback creates a new revision | on the node |
 | Runs that survive a crash | A run interrupted by a celld restart continues and finishes, with no revision accepted twice | on the node |
@@ -366,6 +367,8 @@ npm run typecheck   # builds the runtime bundle first, then tsc
 npm run build       # the runtime isolate's bundle (dist/runtime/) and the UI (public/app.js)
 npm run dev         # build, then `celld dev` on 127.0.0.1:8791 (restart it after a change)
 npm run mutate -- --mutate src/world/world.ts   # Stryker mutation testing on the files you changed
+npm run spike:memory                            # one VM's snapshot size, heap and restore time at 10, 100, 400 definitions
+sh spike/memory/cell.sh                         # a celld server's memory per world and per held call (after npm run build)
 npm run deploy      # typecheck, test, build, then `celld deploy` to gs://pi-world-celld
 ```
 

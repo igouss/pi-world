@@ -108,7 +108,10 @@ The rules the implementation obeys, each with the fact that forces it.
     (`test/concurrency.test.ts`).
   - A call that started before a new revision finishes on the old one.
   - Data is shared and not isolated: calls interleave at their awaits.
-  - Each running call costs a VM of about the snapshot's size (1.4 MB for a small world).
+  - Each running call costs a VM of about the snapshot's size: 2.4 MB of the server for a world whose snapshot is
+    1.4 MB, against about 25 MB for the world's own isolate (research, "Memory per world").
+  - The isolate is single-threaded: calls overlap only while they await another world, and a call that computes
+    holds the isolate until it returns.
 - **Calls between worlds are request and response over Durable Object RPC.** World code calls
   `worlds.call(id, name, ...args)` and gets a QuickJS promise; the evaluation step ends, the runtime asks its
   `WorldHost`, which sends `peerCall` to the other world's cell, and that cell runs the call in the other world's own
