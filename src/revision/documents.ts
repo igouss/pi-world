@@ -1,5 +1,6 @@
 import { defineDoc, defineDocFamily, type JsonObject } from "@earendil-works/pi-durable";
 import type { Check, RemovedCheck } from "../check/check.ts";
+import type { Rejection, Rejections } from "./rejection.ts";
 import type { Head, Revision } from "./revision.ts";
 
 /** -1 until the genesis revision is committed. */
@@ -28,4 +29,19 @@ export const WorldChecks = defineDoc<ChecksState & JsonObject>({
 	version: 1,
 	scope: "session",
 	initial: () => ({ checks: [], removed: [] }),
+});
+
+export const WorldRejections = defineDoc<Rejections & JsonObject>({
+	kind: "world.rejections",
+	version: 1,
+	scope: "session",
+	initial: () => ({ count: 0, calls: {} }),
+});
+
+export const WorldRejection = defineDocFamily<Rejection & JsonObject, Rejection & JsonObject>({
+	kind: "world.rejection",
+	version: 1,
+	scope: "session",
+	family: true,
+	initial: (seed) => seed,
 });

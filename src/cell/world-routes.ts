@@ -19,7 +19,7 @@ export interface WorldRuntime {
 	app(path: string, query: Record<string, string>): Promise<Response>;
 }
 
-const HISTORY_PAGE: number = 50;
+const PAGE: number = 50;
 
 /**
  * The world's REST surface, below `/api/worlds/:id`, and its page, below `/w/:id`.
@@ -104,8 +104,16 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 				const revision = await world.revision(Number(arg));
 				return revision ? json(revision) : json({ error: `no revision ${arg}` }, 404);
 			}
-			const before = url.searchParams.get("before");
-			return json(await world.history(Number(url.searchParams.get("limit") ?? HISTORY_PAGE), before === null ? undefined : Number(before)));
+			const { limit, before } = page(url);
+			return json(await world.history(limit, before));
+		}
+		case "GET rejections": {
+			if (arg !== undefined) {
+				const rejection = await world.rejection(Number(arg));
+				return rejection ? json(rejection) : json({ error: `no rejection ${arg}` }, 404);
+			}
+			const { limit, before } = page(url);
+			return json(await world.rejections(limit, before));
 		}
 		case "POST rollback": {
 			const { revision, reason } = await read<{ revision: number; reason?: string }>(request);
@@ -128,4 +136,10 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 		default:
 			return json({ error: `no route ${method} /${parts.join("/")}` }, 404);
 	}
+}
+
+/** A page of a newest-first list: `limit` items numbered below `before`. */
+function page(url: URL): { limit: number; before: number | undefined } {
+	const before = url.searchParams.get("before");
+	return { limit: Number(url.searchParams.get("limit") ?? PAGE), before: before === null ? undefined : Number(before) };
 }

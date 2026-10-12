@@ -51,6 +51,7 @@ result is validated and iterated on immediately. It is one station of a larger l
 | Worlds calling worlds | `await worlds.call(id, name, ...args)` uses another world's service; cycles are refused | on the node |
 | Pages served by the world | `define("app", (path, query) => html)` is served at `/w/:id/` | on the node |
 | Checks the agent cannot weaken | Enrolled only after failing on a counterexample; removed only by you, with a reason | on the node |
+| Rejections kept as records | Every rejected `develop` and refused check is numbered and kept with its source and reason, so compaction cannot lose it | built |
 | Immutable revisions and rollback | Rollback creates a new revision | on the node |
 | Runs that survive a crash | A run interrupted by a celld restart continues and finishes, with no revision accepted twice | on the node |
 | Claude through your subscription | OAuth as pi does it, or a `claude setup-token` token, checked with Anthropic before it is saved | on the node |
@@ -342,6 +343,7 @@ Open `http://oracle-arm.mist-walleye.ts.net:8787` from a machine on the tailnet.
 4. The **inspector** on the right has:
    - **Functions:** call any definition with arguments, no model involved.
    - **Revisions:** each change with its source; roll back to any revision.
+   - **Rejected:** every attempt the world turned away, with its source and the reason.
    - **Data:** what calls stored.
    - **Checks:** what every future change must keep true.
    - **Console:** preview an expression (its data writes are rolled back), or develop a source by hand.
@@ -358,6 +360,7 @@ npm test            # vitest: the VM, attempts, the World service, calls, the ag
 npm run typecheck   # builds the runtime bundle first, then tsc
 npm run build       # the runtime isolate's bundle (dist/runtime/) and the UI (public/app.js)
 npm run dev         # build, then `celld dev` on 127.0.0.1:8791 (restart it after a change)
+npm run mutate -- --mutate src/world/world.ts   # Stryker mutation testing on the files you changed
 npm run deploy      # typecheck, test, build, then `celld deploy` to gs://pi-world-celld
 ```
 

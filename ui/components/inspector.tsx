@@ -6,6 +6,7 @@ import { ChecksTab } from "./checks-tab.tsx";
 import { ConsoleTab } from "./console-tab.tsx";
 import { DataTab } from "./data-tab.tsx";
 import { FunctionsTab } from "./functions-tab.tsx";
+import { RejectedTab } from "./rejected-tab.tsx";
 import { RevisionsTab } from "./revisions-tab.tsx";
 
 type TabProps = { id: string; world: WorldSummary };
@@ -13,6 +14,7 @@ type TabProps = { id: string; world: WorldSummary };
 const TABS = {
 	Functions: (p: TabProps) => <FunctionsTab id={p.id} world={p.world} />,
 	Revisions: (p: TabProps) => <RevisionsTab id={p.id} head={p.world.revision} />,
+	Rejected: (p: TabProps) => <RejectedTab id={p.id} count={p.world.rejections} />,
 	Data: (p: TabProps) => <DataTab id={p.id} revision={p.world.revision} />,
 	Checks: (p: TabProps) => <ChecksTab id={p.id} world={p.world} />,
 	Console: (p: TabProps) => <ConsoleTab id={p.id} />,
@@ -31,6 +33,7 @@ export function Inspector(props: { id: string; world?: WorldSummary }) {
 						{name}
 						{name === "Functions" && world ? <span class="count">{world.functions.length}</span> : null}
 						{name === "Checks" && world && world.checks.length ? <span class="count">{world.checks.length}</span> : null}
+						{name === "Rejected" && world && world.rejections ? <span class="count">{world.rejections}</span> : null}
 					</button>
 				))}
 			</div>

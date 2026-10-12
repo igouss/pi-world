@@ -43,7 +43,7 @@ export function ConsoleTab(props: { id: string }) {
 			{development.error && <p class="error">{development.error}</p>}
 			{developed && (
 				<pre class={`tool-result ${developed.status === "accepted" ? "ok" : "error"}`}>
-					{developed.status === "accepted" ? `Accepted as revision ${developed.revision.n}.` : developed.reason}
+					{developed.status === "accepted" ? `Accepted as revision ${developed.revision.n}.` : developed.rejection.reason}
 				</pre>
 			)}
 		</div>

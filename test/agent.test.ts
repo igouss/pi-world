@@ -1,13 +1,13 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
-import { MemoryStorage } from "@earendil-works/pi-durable";
+import { MemoryStorage, type JsonObject } from "@earendil-works/pi-durable";
 import { describe, expect, it } from "vitest";
 import { openWorld } from "../src/cell/open-world.ts";
 import { wasm } from "./wasm.ts";
 import { worldDeps } from "./world-deps.ts";
 
-const call = (name: string, args: Record<string, string>) => fauxAssistantMessage(fauxToolCall(name, args), { stopReason: "toolUse" });
+const call = (name: string, args: JsonObject) => fauxAssistantMessage(fauxToolCall(name, args), { stopReason: "toolUse" });
 
 async function setup() {
 	const faux = fauxProvider();
@@ -75,6 +75,71 @@ describe("the agent grows the world", () => {
 		const [result] = await toolResults(root);
 		expect(result).toContain("Rejected (host-call)");
 		expect(world.head().revision).toBe(0);
+	});
+
+	it("lists rejected attempts in history, and says when there are none", async () => {
+		const { faux, root } = await setup();
+		faux.setResponses([
+			call("history", { rejected: true }),
+			fauxAssistantMessage("None."),
+			call("develop", { source: `data.set("x", 1);`, summary: "write data" }),
+			fauxAssistantMessage("That was rejected."),
+			call("history", { rejected: true }),
+			fauxAssistantMessage("One."),
+			call("develop", { source: `define("one", () => 1);`, summary: "one" }),
+			fauxAssistantMessage("Added."),
+			call("develop", { source: `throw new Error("no");`, summary: "throw" }),
+			fauxAssistantMessage("That was rejected too."),
+			call("history", { rejected: true }),
+			fauxAssistantMessage("Two."),
+			call("history", {}),
+			fauxAssistantMessage("Revisions."),
+		]);
+		await ask(root, "What was rejected?");
+		await ask(root, "Store x.");
+		await ask(root, "What was rejected now?");
+		await ask(root, "Add one.");
+		await ask(root, "Throw.");
+		await ask(root, "And now?");
+		await ask(root, "And the revisions?");
+		const results = await toolResults(root);
+		expect(results[0]).toBe("No attempt has been rejected.");
+		expect(results[2]).toMatch(/^#0 on revision 0, develop: write data \(host-call\): a develop must not reach the outside world/);
+		expect(results[5]?.split("\n")).toEqual([
+			"#1 on revision 1, develop: throw (threw): Error: no",
+			expect.stringMatching(/^#0 on revision 0, develop: write data \(host-call\)/),
+		]);
+		expect(results[6]).toBe("1 develop: one\n0 genesis: the prelude");
+	});
+
+	it("names the check a rejected develop broke in history", async () => {
+		const { faux, world, root } = await setup();
+		await world.develop(`define("one", () => 1);`, "one", { by: "operator" });
+		await world.proposeCheck("one is 1", "one() === 1", `define("one", () => 2);`, { by: "operator" });
+		await world.develop(`define("one", () => 3);`, "three", { by: "operator" });
+		faux.setResponses([call("history", { rejected: true, limit: 1 }), fauxAssistantMessage("Seen.")]);
+		await ask(root, "What was rejected?");
+		const [result] = await toolResults(root);
+		expect(result).toMatch(/^#0 on revision 1, develop: three \(broke the check "one is 1"\): check "one is 1" failed/);
+	});
+
+	it("marks a rejected develop as an error and labels a refused check in history", async () => {
+		const { faux, root } = await setup();
+		faux.setResponses([
+			call("develop", { source: `throw new Error("no");`, summary: "throw" }),
+			fauxAssistantMessage("Rejected."),
+			call("propose_check", { name: "vacuous", expression: "true", counterexample: `define("x", () => 1);` }),
+			fauxAssistantMessage("Refused."),
+			call("history", { rejected: true, limit: 1 }),
+			fauxAssistantMessage("Seen."),
+		]);
+		await ask(root, "Throw.");
+		await ask(root, "Check nothing.");
+		await ask(root, "What was refused?");
+		const context = await root.context(BACKGROUND_CONTEXT);
+		const results = context.messages.filter((message) => message.role === "toolResult") as { isError?: boolean }[];
+		expect(results.map((result) => result.isError === true)).toEqual([true, true, false]);
+		expect((await toolResults(root))[2]).toMatch(/^#1 on revision 0, check: check "vacuous" \(refused\): the check still holds/);
 	});
 
 	it("shows the world's definitions in the system prompt", async () => {

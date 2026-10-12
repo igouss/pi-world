@@ -1,5 +1,6 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-durable";
+import { rejectionCause } from "../../revision/rejection.ts";
 import type { World } from "../../world/world.ts";
 import { text } from "./result.ts";
 
@@ -19,8 +20,8 @@ export function developTool(world: World) {
 				api.commit(change, context),
 			);
 			if (result.status === "rejected") {
-				const what = result.check ? `broke the check "${result.check}"` : result.failure;
-				return text(`Rejected (${what}). The world is unchanged at revision ${world.head().revision}.\n${result.reason}`, true);
+				const { rejection } = result;
+				return text(`Rejected (${rejectionCause(rejection)}). The world is unchanged at revision ${world.head().revision}.\n${rejection.reason}`, true);
 			}
 			const { n, changes } = result.revision;
 			const parts = [

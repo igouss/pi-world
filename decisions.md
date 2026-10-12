@@ -26,6 +26,14 @@
   "Isolation and storage" (each world's calls in a Dynamic Worker so one world's CPU work stops slowing the others,
   and old snapshots moved to R2); and for agent test runs, "Roll back (Recommended)" (execute rolls back its data
   writes; calls from people and other worlds still write).
+- "All right, I think your ideas are pretty solid. I believe in you, and you have my authority to implement this.",
+  2026-10-12, on six proposed improvements: failed calls the agent fixes and retries, parsing `develop` sources on the
+  host, checks as property-based tests, a capability grant per world, measuring memory per world, and rejections as
+  records. Answered the same day in four choices: "One commit per idea (Recommended)"; deploy "After all six land
+  (Recommended)"; for a retried call, "Make calls atomic (Recommended)" (a call's data writes commit only when it
+  succeeds, which changes the documented sharing of writes between concurrent calls and `test/concurrency.test.ts`);
+  and "Accept all (Recommended)" for the defaults: existing worlds may call any world until the operator restricts
+  them, a failed call reaches the agent only when the owner asks, and Stryker is the mutation testing tool.
 
 This approves:
 
@@ -55,7 +63,15 @@ This approves:
   head to R2;
 - `execute` rolling back its data writes, which settles open decision 3 for this world's data;
 - reaching Claude through the owner's subscription the way pi does: Claude Code's public OAuth client with PKCE and
-  the copy-code redirect, refresh in one place, and the token passed to pi-ai as `ANTHROPIC_OAUTH_TOKEN`.
+  the copy-code redirect, refresh in one place, and the token passed to pi-ai as `ANTHROPIC_OAUTH_TOKEN`;
+- the six improvements of 2026-10-12, committed one per improvement on main and deployed to the node once all six
+  have landed: incidents for failed calls with retry (open decision 8's neighbour, not 8 itself), the host rewrite of
+  top-level declarations (open decision 9) with counterexample re-runs (open decision 13), property checks with a
+  scratch data store, an outgoing-call grant per world (open decision 14's permissions question), memory measurements
+  per world (open check 1), and rejection records (open decision 12);
+- atomic calls: a call's data writes commit when it succeeds and are dropped when it fails, changing
+  `test/concurrency.test.ts` and `design.md` to match;
+- Stryker as the mutation testing tool.
 
 Nothing else is approved: the package's home (standalone or upstream in pi), the first milestone's scope, the web UI
 stack, dependency choices beyond those named here, and every other policy question go back to the operator.
@@ -137,9 +153,9 @@ scheduled world code, and durable messages between worlds.
 11. **Harness-owned interrupts by change class.** `restart` is a pause the agent's own code decides. The harness has
     no interrupt of its own. A `develop` that touches checks, data schema or effectful host functions could block for
     the operator by change class, decided in harness code rather than by the agent.
-12. **Rejections as records.** A rejected attempt is a tool result in the conversation, which compaction can
-    summarise away. The alternative is a revision-family record naming the failing check, so rejections stay
-    queryable.
+12. **Rejections as records.** Settled 2026-10-12: a rejected develop or a refused check is a numbered `Rejection`
+    document beside the revisions, naming its failure and the check it broke, listed at `/rejections`, by the
+    `history` tool with `rejected: true`, and in the inspector's Rejected tab.
 13. **A check that calls a replaceable definition.** Frozen built-ins cover what the language provides. A check can
     still call a function the agent defined, and the agent can redefine it. Either refuse such a check at enrolment,
     so checks read data and built-ins only, or allow it and re-run its counterexample every time that definition

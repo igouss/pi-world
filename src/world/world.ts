@@ -3,13 +3,16 @@ import type { JsonObject, Session, Tx } from "@earendil-works/pi-durable";
 import type { Snapshot } from "quickjs-wasi";
 import type { Check, RemovedCheck } from "../check/check.ts";
 import { contentHash, type BlobStore } from "../revision/blob-store.ts";
-import { WorldChecks, WorldHead, WorldRevision, type ChecksState } from "../revision/documents.ts";
+import { WorldChecks, WorldHead, WorldRejection, WorldRejections, WorldRevision, type ChecksState } from "../revision/documents.ts";
+import { NumberedLog } from "../revision/numbered-log.ts";
+import type { Attempted, Rejection, RejectionRecord, Rejections } from "../revision/rejection.ts";
 import type { Head, Origin, Revision } from "../revision/revision.ts";
 import { attemptDevelop, attemptEnrolment, type AttemptMode } from "./attempt.ts";
 import { diffCatalogues } from "./catalogue-diff.ts";
 import type { CallRunner, ExecuteResult, HeadRef } from "./call-runner.ts";
 import { Mutex } from "./mutex.ts";
 import { PRELUDE_VERSION } from "./prelude.ts";
+import { rememberCall } from "./remember-call.ts";
 import { DEFAULT_LIMITS, WorldVm, type CatalogueEntry, type Failure, type Outcome, type VmLimits } from "./world-vm.ts";
 
 /** Runs one atomic commit; a tool passes its own `api.commit`, everything else the Session's. */
@@ -27,9 +30,14 @@ export interface WorldDeps {
 
 export type DevelopResult =
 	| { readonly status: "accepted"; readonly revision: Revision; readonly replayed: boolean }
-	| { readonly status: "rejected"; readonly failure: Failure | "check"; readonly reason: string; readonly check?: string };
+	| { readonly status: "rejected"; readonly rejection: Rejection & { readonly kind: "develop" } };
 
-export type EnrolResult = { readonly status: "enrolled"; readonly check: Check } | { readonly status: "refused"; readonly reason: string };
+export type EnrolResult =
+	| { readonly status: "enrolled"; readonly check: Check }
+	| { readonly status: "refused"; readonly rejection: Rejection & { readonly kind: "check" } };
+
+/** What an agent's tool call produced before a crash made it run again. */
+type Previous = { readonly kind: "revision"; readonly revision: Revision } | { readonly kind: "rejection"; readonly rejection: Rejection };
 
 const KEPT_CALLS: number = 200;
 
@@ -45,7 +53,8 @@ const KEPT_CALLS: number = 200;
 export class World {
 	private readonly lock: Mutex = new Mutex();
 	private readonly listeners: Set<() => void> = new Set();
-	private readonly revisions: Map<number, Revision> = new Map();
+	private readonly revisions: NumberedLog<Revision>;
+	private readonly rejected: NumberedLog<Rejection>;
 
 	private constructor(
 		private readonly deps: WorldDeps,
@@ -54,23 +63,28 @@ export class World {
 		private current: Head,
 		private currentCatalogue: readonly CatalogueEntry[],
 		private checksState: ChecksState,
-	) {}
+		private rejectionsState: Rejections,
+	) {
+		this.revisions = new NumberedLog(deps.session, WorldRevision, "revision");
+		this.rejected = new NumberedLog(deps.session, WorldRejection, "rejection");
+	}
 
 	/** Open the world at its head, creating revision 0 (the prelude alone) on first use. */
 	static async open(deps: WorldDeps): Promise<World> {
 		const limits = deps.limits ?? DEFAULT_LIMITS;
 		const head = await deps.session.snapshot(WorldHead, BACKGROUND_CONTEXT);
 		const checks = (await deps.session.snapshot(WorldChecks, BACKGROUND_CONTEXT)) ?? { checks: [], removed: [] };
+		const rejections = (await deps.session.snapshot(WorldRejections, BACKGROUND_CONTEXT)) ?? { count: 0, calls: {} };
 		if (head && head.revision >= 0) {
 			const bytes = await requireBlob(deps.blobs, head.blob, "the world head");
 			const vm = await WorldVm.fromBytes(bytes, deps.wasm, limits);
-			const world = new World(deps, vm, vm.snapshot(), head, vm.catalogue(), checks);
+			const world = new World(deps, vm, vm.snapshot(), head, vm.catalogue(), checks, rejections);
 			await world.upgradePrelude();
 			return world;
 		}
 		const vm = await WorldVm.create(deps.wasm, limits);
 		const snapshot = vm.snapshot();
-		const world = new World(deps, vm, snapshot, { revision: -1, blob: "", calls: {} }, [], checks);
+		const world = new World(deps, vm, snapshot, { revision: -1, blob: "", calls: {} }, [], checks, rejections);
 		await world.accept(
 			snapshot,
 			{ kind: "genesis", summary: "the prelude", at: world.now(), origin: { by: "host" }, changes: { added: [], changed: [], removed: [] } },
@@ -84,7 +98,7 @@ export class World {
 		return this.current;
 	}
 
-	/** Called after every change of the head or the checks. */
+	/** Called after every change of the head or the checks, and after every rejection. */
 	subscribe(listener: () => void): () => void {
 		this.listeners.add(listener);
 		return () => this.listeners.delete(listener);
@@ -100,17 +114,15 @@ export class World {
 
 	async develop(source: string, summary: string, origin: Origin, commit: Commit = this.sessionCommit): Promise<DevelopResult> {
 		return this.exclusive(async () => {
-			const replayed = await this.replayed(origin);
-			if (replayed) return { status: "accepted", revision: replayed, replayed: true };
+			const previous = await this.previous(origin);
+			if (previous?.kind === "revision") return { status: "accepted", revision: previous.revision, replayed: true };
+			if (previous?.rejection.kind === "develop") return { status: "rejected", rejection: previous.rejection };
 			const at = this.now();
 			const attempt = await attemptDevelop(this.vm, source, this.checksState.checks, this.attemptMode(at));
 			if (!attempt.accepted) {
-				return {
-					status: "rejected",
-					failure: attempt.failure,
-					reason: attempt.reason,
-					...(attempt.check ? { check: attempt.check } : {}),
-				};
+				const { failure, reason, check } = attempt;
+				const rejection = await this.reject({ kind: "develop", source, failure, ...(check ? { check } : {}), summary, at, origin, reason }, commit);
+				return { status: "rejected", rejection };
 			}
 			const revision = await this.accept(
 				attempt.snapshot,
@@ -126,9 +138,9 @@ export class World {
 	async rollback(target: number, reason: string, origin: Origin, commit: Commit = this.sessionCommit): Promise<Revision> {
 		if (!reason.trim()) throw new Error("a rollback needs a reason");
 		return this.exclusive(async () => {
-			const replayed = await this.replayed(origin);
-			if (replayed) return replayed;
-			const revision = await this.requireRevision(target);
+			const previous = await this.previous(origin);
+			if (previous?.kind === "revision") return previous.revision;
+			const revision = await this.revisions.require(target);
 			if (target === this.current.revision) throw new Error(`revision ${target} is already the head`);
 			const bytes = await requireBlob(this.deps.blobs, revision.blob, `revision ${target}`);
 			const before = this.catalogue();
@@ -164,13 +176,20 @@ export class World {
 	 * Enrol a check only after seeing it fail on its counterexample and pass on the current world. Proposing an
 	 * enrolled check again, as a rerun tool call does, returns the enrolled check.
 	 */
-	async proposeCheck(name: string, expression: string, counterexample: string, commit: Commit = this.sessionCommit): Promise<EnrolResult> {
+	async proposeCheck(name: string, expression: string, counterexample: string, origin: Origin, commit: Commit = this.sessionCommit): Promise<EnrolResult> {
 		return this.exclusive(async () => {
 			const existing = this.checksState.checks.find((check) => check.name === name);
 			if (existing && existing.expression === expression && existing.counterexample === counterexample) return { status: "enrolled", check: existing };
-			if (existing) return { status: "refused", reason: `a different check named "${name}" is already enrolled` };
-			const enrolment = await attemptEnrolment(this.vm, expression, counterexample, this.attemptMode(this.now()));
-			if (!enrolment.enrolled) return { status: "refused", reason: enrolment.reason };
+			const previous = await this.previous(origin);
+			if (previous?.kind === "rejection" && previous.rejection.kind === "check") return { status: "refused", rejection: previous.rejection };
+			const at = this.now();
+			const refuse = async (reason: string): Promise<EnrolResult> => {
+				const rejection = await this.reject({ kind: "check", name, expression, counterexample, summary: `check "${name}"`, at, origin, reason }, commit);
+				return { status: "refused", rejection };
+			};
+			if (existing) return refuse(`a different check named "${name}" is already enrolled`);
+			const enrolment = await attemptEnrolment(this.vm, expression, counterexample, this.attemptMode(at));
+			if (!enrolment.enrolled) return refuse(enrolment.reason);
 			const check: Check = { name, expression, counterexample, enrolledAt: this.now() };
 			this.checksState = await commit(async (tx) => {
 				const doc = await tx.doc(WorldChecks);
@@ -198,23 +217,26 @@ export class World {
 		});
 	}
 
-	async revision(n: number): Promise<Revision | undefined> {
-		const cached = this.revisions.get(n);
-		if (cached) return cached;
-		const revision = (await this.deps.session.snapshot(WorldRevision, String(n), BACKGROUND_CONTEXT)) as Revision | undefined;
-		if (revision) this.revisions.set(n, revision);
-		return revision;
+	revision(n: number): Promise<Revision | undefined> {
+		return this.revisions.get(n);
 	}
 
 	/** Newest first. */
-	async history(limit: number, before?: number): Promise<readonly Revision[]> {
-		const top = Math.min(before === undefined ? this.current.revision : before - 1, this.current.revision);
-		const out: Revision[] = [];
-		for (let n = top; n >= 0 && out.length < limit; n--) {
-			const revision = await this.revision(n);
-			if (revision) out.push(revision);
-		}
-		return out;
+	history(limit: number, before?: number): Promise<readonly Revision[]> {
+		return this.revisions.newestFirst(this.current.revision + 1, limit, before);
+	}
+
+	rejection(n: number): Promise<Rejection | undefined> {
+		return this.rejected.get(n);
+	}
+
+	/** Rejected attempts, newest first. */
+	rejections(limit: number, before?: number): Promise<readonly Rejection[]> {
+		return this.rejected.newestFirst(this.rejectionsState.count, limit, before);
+	}
+
+	rejectionCount(): number {
+		return this.rejectionsState.count;
 	}
 
 	dispose(): void {
@@ -224,7 +246,7 @@ export class World {
 
 	/** Bring a heap built by an older prelude up to date, as a revision of its own. */
 	private async upgradePrelude(): Promise<void> {
-		const head = await this.requireRevision(this.current.revision);
+		const head = await this.revisions.require(this.current.revision);
 		if (head.prelude >= WorldVm.preludeVersion) return;
 		await this.exclusive(async () => {
 			this.vm.upgrade(head.prelude);
@@ -259,18 +281,13 @@ export class World {
 				await tx.doc(WorldRevision, String(n), revision as Revision & JsonObject);
 				doc.revision = n;
 				doc.blob = blob;
-				if (draft.origin.by === "agent") {
-					const calls = doc.calls as Record<string, number>;
-					calls[draft.origin.callId] = n;
-					const keys = Object.keys(calls);
-					for (const key of keys.slice(0, Math.max(0, keys.length - KEPT_CALLS))) delete calls[key];
-				}
+				if (draft.origin.by === "agent") rememberCall(doc.calls as Record<string, number>, draft.origin.callId, n, KEPT_CALLS);
 				return plain<Head>(doc);
 			});
 			this.current = head;
 			this.headSnapshot = snapshot;
 			this.currentCatalogue = catalogue;
-			this.revisions.set(n, revision);
+			this.revisions.remember(n, revision);
 			this.notify();
 			return revision;
 		} catch (error) {
@@ -279,22 +296,36 @@ export class World {
 		}
 	}
 
-	/** The revision an agent's tool call already produced, when the call reruns after a crash. */
-	private async replayed(origin: Origin): Promise<Revision | undefined> {
+	/** Record a rejected attempt. The world itself is unchanged. */
+	private async reject<A extends Attempted>(attempt: A & Omit<RejectionRecord, "n" | "base">, commit: Commit): Promise<A & RejectionRecord> {
+		const base = this.current.revision;
+		const { rejection, state } = await commit(async (tx) => {
+			const doc = await tx.doc(WorldRejections);
+			const rejection: A & RejectionRecord = { ...attempt, n: doc.count as number, base };
+			await tx.doc(WorldRejection, String(rejection.n), rejection as Rejection & JsonObject);
+			doc.count = rejection.n + 1;
+			if (attempt.origin.by === "agent") rememberCall(doc.calls as Record<string, number>, attempt.origin.callId, rejection.n, KEPT_CALLS);
+			return { rejection, state: plain<Rejections>(doc) };
+		});
+		this.rejectionsState = state;
+		this.rejected.remember(rejection.n, rejection);
+		this.notify();
+		return rejection;
+	}
+
+	/** What an agent's tool call already produced, when the call reruns after a crash. */
+	private async previous(origin: Origin): Promise<Previous | undefined> {
 		if (origin.by !== "agent") return undefined;
-		const done = this.current.calls[origin.callId];
-		return done === undefined ? undefined : this.requireRevision(done);
+		const revision = this.current.calls[origin.callId];
+		if (revision !== undefined) return { kind: "revision", revision: await this.revisions.require(revision) };
+		const rejection = this.rejectionsState.calls[origin.callId];
+		if (rejection !== undefined) return { kind: "rejection", rejection: await this.rejected.require(rejection) };
+		return undefined;
 	}
 
 	/** The head as a call runner needs it; the head's record of tool calls stays here. */
 	private headRef(): HeadRef {
 		return { revision: this.current.revision, blob: this.current.blob };
-	}
-
-	private async requireRevision(n: number): Promise<Revision> {
-		const revision = await this.revision(n);
-		if (!revision) throw new Error(`no revision ${n}`);
-		return revision;
 	}
 
 	private attemptMode(at: number): AttemptMode {

@@ -16,8 +16,9 @@ export function proposeCheckTool(world: World) {
 		replay: "safe",
 		executionMode: "sequential",
 		execute: async ({ name, expression, counterexample }, api, context) => {
-			const result = await world.proposeCheck(name, expression, counterexample, (change) => api.commit(change, context));
-			return result.status === "enrolled" ? text(`Enrolled the check "${name}".`) : text(`Refused: ${result.reason}`, true);
+			const origin = { by: "agent", taskId: String(api.taskId), callId: api.callId } as const;
+			const result = await world.proposeCheck(name, expression, counterexample, origin, (change) => api.commit(change, context));
+			return result.status === "enrolled" ? text(`Enrolled the check "${name}".`) : text(`Refused: ${result.rejection.reason}`, true);
 		},
 	});
 }

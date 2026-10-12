@@ -1,6 +1,6 @@
 import { hex } from "../src/api/text.ts";
 import { callPath } from "../src/api/paths.ts";
-import type { AccountStatus, CallResult, ChecksState, DataRow, DevelopResult, Revision, WorldListing, WorldSummary } from "../src/api/types.ts";
+import type { AccountStatus, CallResult, ChecksState, DataRow, DevelopResult, Rejection, Revision, WorldListing, WorldSummary } from "../src/api/types.ts";
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
 	const response = await fetch(path, {
@@ -16,6 +16,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 /** A retry-safe request id. `crypto.randomUUID` needs a secure context, and the UI is often served over plain HTTP. */
 function requestId(): string {
 	return hex(crypto.getRandomValues(new Uint8Array(16)));
+}
+
+/** A newest-first list's path, from its start or numbered below `before`. */
+function paged(path: string, before?: number): string {
+	return before === undefined ? path : `${path}?before=${before}`;
 }
 
 export const api = {
@@ -37,7 +42,8 @@ export const api = {
 	call: (id: string, name: string, args: unknown[]) => request<CallResult>("POST", callPath(id, name), { args }),
 	execute: (id: string, expression: string) => request<CallResult>("POST", `/api/worlds/${id}/execute`, { expression }),
 	develop: (id: string, source: string, summary: string) => request<DevelopResult>("POST", `/api/worlds/${id}/develop`, { source, summary }),
-	revisions: (id: string, before?: number) => request<Revision[]>("GET", `/api/worlds/${id}/revisions${before === undefined ? "" : `?before=${before}`}`),
+	revisions: (id: string, before?: number) => request<Revision[]>("GET", paged(`/api/worlds/${id}/revisions`, before)),
+	rejections: (id: string, before?: number) => request<Rejection[]>("GET", paged(`/api/worlds/${id}/rejections`, before)),
 	rollback: (id: string, revision: number, reason: string) => request<Revision>("POST", `/api/worlds/${id}/rollback`, { revision, reason }),
 	checks: (id: string) => request<ChecksState>("GET", `/api/worlds/${id}/checks`),
 	removeCheck: (id: string, name: string, reason: string) => request<unknown>("DELETE", `/api/worlds/${id}/checks/${encodeURIComponent(name)}`, { reason }),

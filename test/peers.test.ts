@@ -50,7 +50,7 @@ describe("calls between worlds", () => {
 	it("rejects a develop that calls another world", async () => {
 		const world = await fleet("a", "b");
 		const result = await world("a").develop(`worlds.list();`, "peek", operator);
-		expect(result.status === "rejected" && result.failure).toBe("host-call");
+		expect(result.status === "rejected" && result.rejection.failure).toBe("host-call");
 	});
 
 	it("lists the other worlds and their functions", async () => {

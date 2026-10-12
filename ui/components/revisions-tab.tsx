@@ -1,39 +1,20 @@
-import { useEffect, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 import type { Revision } from "../../src/api/types.ts";
 import { api } from "../api.ts";
 import { useAction } from "../use-action.ts";
 import { Code } from "./code.tsx";
+import { NumberedList } from "./numbered-list.tsx";
 
 export function RevisionsTab(props: { id: string; head: number }) {
-	const [revisions, setRevisions] = useState<Revision[]>([]);
-	const [open, setOpen] = useState<number | undefined>();
-	const { error, run } = useAction();
-	useEffect(() => void run(async () => setRevisions(await api.revisions(props.id)))(), [props.id, props.head]);
-	const more = run(async () => {
-		const last = revisions[revisions.length - 1];
-		if (last) setRevisions([...revisions, ...(await api.revisions(props.id, last.n))]);
-	});
 	return (
 		<div class="revisions">
-			{error && <p class="error">{error}</p>}
-			<ul>
-				{revisions.map((r) => (
-					<li key={r.n} class={r.n === props.head ? "head" : ""}>
-						<button class={open === r.n ? "on" : ""} onClick={() => setOpen(open === r.n ? undefined : r.n)}>
-							<span class="rev-n">{r.n}</span>
-							<span class={`kind ${r.kind}`}>{r.kind}</span>
-							<span class="rev-summary">{r.summary}</span>
-							<span class="muted small">{new Date(r.at).toLocaleString()}</span>
-						</button>
-						{open === r.n && <RevisionDetail id={props.id} revision={r} head={props.head} />}
-					</li>
-				))}
-			</ul>
-			{revisions.length > 0 && revisions[revisions.length - 1]!.n > 0 && (
-				<button class="link" onClick={more}>
-					older…
-				</button>
-			)}
+			<NumberedList
+				load={(before?: number) => api.revisions(props.id, before)}
+				version={`${props.id}:${props.head}`}
+				label={(r: Revision) => ({ n: String(r.n), kind: r.kind, kindClass: r.kind })}
+				highlight={(r: Revision) => r.n === props.head}
+				detail={(r: Revision) => <RevisionDetail id={props.id} revision={r} head={props.head} />}
+			/>
 		</div>
 	);
 }

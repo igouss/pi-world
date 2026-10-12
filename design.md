@@ -59,6 +59,10 @@ The rules the implementation obeys, each with the fact that forces it.
   on a checkpoint, requires the check to fail there, restores, and requires it to pass on the current world. Only
   then is it enrolled. Removing or loosening a check is an operator call with a recorded reason, never an agent
   tool.
+- **Rejections are records.** A rejected develop or a refused check is committed as a numbered `Rejection` document
+  in the same commit a tool call would have used for a revision, because a tool result in the conversation can be
+  compacted away. The rejection names its base revision, its failure and the check it broke, and a rerun of the same
+  tool call after a crash returns the recorded rejection instead of recording a second one.
 - **Built-ins are frozen.** The prelude freezes the built-in constructors and prototypes at revision 0, so world
   code cannot weaken a check by changing something the check calls, such as `Array.prototype.every`. The cost:
   assigning a built-in name on a plain object, such as `obj.toString = ...`, is ignored in sloppy code and throws in
