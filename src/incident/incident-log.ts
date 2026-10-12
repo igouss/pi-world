@@ -103,13 +103,17 @@ export class IncidentLog {
 		return incident;
 	}
 
-	/** One commit that sets some fields of one stored incident, and changes the open index when `index` is given. */
+	/**
+	 * One commit that sets some fields of one stored incident, and changes the open index when `index` is given. The
+	 * incident must exist: reading a family document with a seed would otherwise create one.
+	 */
 	private async update(
 		n: number,
 		change: (incident: Incident) => Partial<Incident>,
 		commit: Commit,
 		index?: (open: Record<string, number>, incident: Incident) => void,
 	): Promise<Incident> {
+		await this.log.require(n);
 		const { incident, state } = await commit(async (tx) => {
 			const doc = await tx.doc(WorldIncidents);
 			const draft = await tx.doc(WorldIncident, String(n), {} as Incident & JsonObject);

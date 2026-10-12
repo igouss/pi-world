@@ -116,6 +116,16 @@ describe("incidents", () => {
 		expect(open.map((incident) => incident.n)).toEqual(Array.from({ length: 24 }, (_, i) => 23 - i));
 	});
 
+	it("refuse to close or retry an incident that does not exist, and record nothing", async () => {
+		const world = await failing();
+		await expect(world.incidents.close(0, "operator", { kind: "dismissed", reason: "none" })).rejects.toThrow("no incident 0");
+		await world.call("half", [3]);
+		await expect(world.incidents.close(1, "operator", { kind: "returned", value: 1 })).rejects.toThrow("no incident 1");
+		await expect(world.retryIncident(9, "operator")).rejects.toThrow("no incident 9");
+		expect(await world.incidents.get(1)).toBeUndefined();
+		expect(await world.call("half", [5])).toMatchObject({ incident: 1 });
+	});
+
 	it("open a new incident when a closed one's failure happens again", async () => {
 		const world = await failing();
 		await world.call("half", [3]);
