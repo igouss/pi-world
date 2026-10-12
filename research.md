@@ -76,8 +76,8 @@ Object with its own SQLite database. The facts that shape the design, from celld
 These are undocumented or unknown. Measure them early, at milestone 6.
 
 1. **Memory and CPU limits per cell.** The limitations page lists none, and balancing "does not measure the CPU or
-   memory that one cell uses". Memory measured on a desktop under `celld dev` (see "Memory per world" below); still
-   to measure on the node, and CPU is open.
+   memory that one cell uses". Memory measured on a desktop and on the node (see "Memory per world" below); CPU is
+   open.
 2. **Blob size per row.** A 1.44 MB row works on the node; larger is untested. celld's docs state no row or blob
    limit, and a raw snapshot passes 2 MB at about 410 definitions. Measure, and chunk if needed.
 3. **pi-ai and pi-durable under celld's runtime.** Settled: both run on the node (see above).
@@ -216,14 +216,15 @@ Measured on a desktop (x86-64, 31 GB) under `celld dev` 0.6.1 with `npm run spik
 | A world that has run a call (its cell plus its own runtime isolate) | 24 to 26 MB of the server's resident set, in two runs of 10 worlds |
 | One more call held open in a world (a VM of a small world) | 2.4 MB |
 | The server with one world | 140 to 163 MB |
+| On the node (aarch64, celld 0.6.1, its four worlds open): a world that has run a call | 16 MB of celld's resident set, 268 MB with 1 measured world and 423 MB with 11 (`sh spike/memory/node.sh`, 2026-10-12) |
 
 What this settles:
 
 - The snapshot is the VM's whole linear memory, so a VM costs about its snapshot's size, and the per-world isolate
   (V8 plus its own compiled QuickJS) costs about ten small VMs. The pool's 8 VMs at most and 2 warm add at most
   about 20 MB and 5 MB to a world: the isolate, not the pool, is what bounds how many worlds a node holds.
-- The node has about 9 GB available, so it holds a few hundred worlds that have run a call, fewer while they hold
-  calls open. Whether an idle world's isolate is released, and when, is not measured.
+- The node has about 9 GB available and a world costs it about 16 MB, so it holds about five hundred worlds that have
+  run a call, fewer while they hold calls open. Whether an idle world's isolate is released, and when, is not measured.
 - A develop re-runs every check's counterexample at one restore each, a few milliseconds per check.
 - A world's calls share one single-threaded isolate. Calls overlap only while they await another world; a call that
   computes holds the isolate, and the next call starts after it.

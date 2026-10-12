@@ -51,15 +51,15 @@ result is validated and iterated on immediately. It is one station of a larger l
 | Worlds calling worlds | `await worlds.call(id, name, ...args)` uses another world's service; cycles are refused | on the node |
 | Pages served by the world | `define("app", (path, query) => html)` is served at `/w/:id/` | on the node |
 | Checks the agent cannot weaken | Enrolled only after failing on a counterexample; removed only by you, with a reason | on the node |
-| Plain declarations are definitions | `function f` and `class C` at the top of a source are rewritten into `define` calls on the host; the revision keeps both texts | built |
+| Plain declarations are definitions | `function f` and `class C` at the top of a source are rewritten into `define` calls on the host; the revision keeps both texts | on the node |
 | Checks that cannot go vacuous | Every develop re-runs every check's counterexample; a change after which a check can no longer fail is rejected | built |
 | Property checks | A check with a generator must hold for 50 generated inputs; a failure names the smallest input it shrinks to. Every check gets a fresh scratch data store | built |
-| Grants per world | You choose which other worlds a world's code may call (Access tab or `PUT /api/worlds/:id/grants`); the agent cannot change it | built |
-| Who calls whom | `describe` and the Functions tab list what a definition calls and what calls it | built |
-| Memory per world, measured | A world that has run a call costs the server about 25 MB; each call it holds open about 2.4 MB more (`research.md`) | built |
-| Failed calls you can fix and retry | A failed call is an incident with its arguments and error; ask the agent to fix the definition, then retry the call at the new revision. A failed call wrote no data, so the retry is safe | built |
-| Atomic calls | A call's data writes are made together when it succeeds and dropped when it fails | built |
-| Rejections kept as records | Every rejected `develop` and refused check is numbered and kept with its source and reason, so compaction cannot lose it | built |
+| Grants per world | You choose which other worlds a world's code may call (Access tab or `PUT /api/worlds/:id/grants`); the agent cannot change it | on the node |
+| Who calls whom | `describe` and the Functions tab list what a definition calls and what calls it | on the node |
+| Memory per world, measured | A world that has run a call costs the node about 16 MB; each call it holds open about 2.4 MB more (`research.md`) | on the node |
+| Failed calls you can fix and retry | A failed call is an incident with its arguments and error; ask the agent to fix the definition, then retry the call at the new revision. A failed call wrote no data, so the retry is safe | on the node |
+| Atomic calls | A call's data writes are made together when it succeeds and dropped when it fails | on the node |
+| Rejections kept as records | Every rejected `develop` and refused check is numbered and kept with its source and reason, so compaction cannot lose it | on the node |
 | Immutable revisions and rollback | Rollback creates a new revision | on the node |
 | Runs that survive a crash | A run interrupted by a celld restart continues and finishes, with no revision accepted twice | on the node |
 | Claude through your subscription | OAuth as pi does it, or a `claude setup-token` token, checked with Anthropic before it is saved | on the node |

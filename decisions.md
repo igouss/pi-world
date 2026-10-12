@@ -112,8 +112,8 @@ Made on 2026-10-06 under the prototype authorization above. Each is a default to
   `execute` only, kept in the SQLite of the world's runtime facet. `list` returns at most 1000 rows. A full SQL host
   API is not built.
 - **Runtime isolate:** each world's calls run in a facet loaded under a loader id of the world's own, so each world
-  compiles its own QuickJS wasm in its own isolate, which costs about 25 MB per world that has run a call (measured
-  on a desktop under `celld dev`, research "Memory per world"; not yet on the node). The
+  compiles its own QuickJS wasm in its own isolate, which costs about 16 MB per world that has run a call on the node
+  (25 MB on an x86 desktop; research "Memory per world"). The
   host cell's old `world_data` tables are left in place as backups of the data moved on 2026-10-07; the code that
   moves them can go once no cell from an older build can appear.
 - **Concurrent calls:** a world runs up to 8 calls at once, each on its own VM; further calls wait in the cell. Two
