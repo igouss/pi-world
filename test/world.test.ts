@@ -100,6 +100,31 @@ describe("World", () => {
 		expect(seen).toEqual([1]);
 	});
 
+	it("keeps its grants across a reopen and tells subscribers when they change", async () => {
+		const deps = fixture();
+		const world = await World.open(deps);
+		const seen: unknown[] = [];
+		world.subscribe(() => seen.push(world.grants()));
+		await world.setGrants({ calls: ["b"] });
+		expect(seen).toEqual([{ calls: ["b"] }]);
+		world.dispose();
+		expect((await World.open(deps)).grants()).toEqual({ calls: ["b"] });
+	});
+
+	it("goes back to any world when its owner says so", async () => {
+		const deps = fixture();
+		const world = await World.open(deps);
+		await world.setGrants({ calls: ["b"] });
+		await world.setGrants({ calls: "any" });
+		world.dispose();
+		expect((await World.open(deps)).grants()).toEqual({ calls: "any" });
+	});
+
+	it("sees no other worlds when it is alone", async () => {
+		const world = await World.open(fixture());
+		expect(await world.execute(`worlds.list()`)).toMatchObject({ ok: true, value: [] });
+	});
+
 	it("refuses to roll back to the head", async () => {
 		const world = await World.open(fixture());
 		await world.develop(`define("v", () => 1);`, "v1", operator);

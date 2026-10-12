@@ -1,6 +1,7 @@
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import type { WorldSummary } from "../../src/api/types.ts";
+import { AccessTab } from "./access-tab.tsx";
 import { AppTab } from "./app-tab.tsx";
 import { ChecksTab } from "./checks-tab.tsx";
 import { ConsoleTab } from "./console-tab.tsx";
@@ -17,6 +18,7 @@ const TABS = {
 	Rejected: (p: TabProps) => <RejectedTab id={p.id} count={p.world.rejections} />,
 	Data: (p: TabProps) => <DataTab id={p.id} revision={p.world.revision} />,
 	Checks: (p: TabProps) => <ChecksTab id={p.id} world={p.world} />,
+	Access: (p: TabProps) => <AccessTab id={p.id} world={p.world} />,
 	Console: (p: TabProps) => <ConsoleTab id={p.id} />,
 	App: (p: TabProps) => <AppTab id={p.id} world={p.world} />,
 } satisfies Record<string, (p: TabProps) => JSX.Element>;

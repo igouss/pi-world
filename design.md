@@ -131,7 +131,9 @@ The rules the implementation obeys, each with the fact that forces it.
     most four worlds.
   - Nothing is durable: no queue, no retry, no idempotency key. A caller that crashes mid-call loses the call; data
     the callee wrote stays. A callee that does not answer within 30 s fails the call (`PEER_DEADLINE_MS`).
-  - Any world may call any world; there is no permission model.
+  - A world calls only the worlds its owner granted (`Grants`, "any" until restricted). The grant travels with each
+    call into the world's runtime isolate, where `grantedPeers` wraps the peers that world code reaches, so world code
+    cannot widen it; `worlds.list()` shows only granted worlds.
   Open decision 14 is what calls between worlds should be.
 - **Portable core.** No `node:` modules in the core: celld's Node compatibility is "Partial", and Node-only code sits
   behind separate exports. The `.wasm` import comes from the bundle; the host passes the compiled module in.

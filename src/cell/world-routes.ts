@@ -1,6 +1,7 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { MODELS, type Transcript, type WorldSummary } from "../api/types.ts";
 import type { DataAdmin } from "../world/call-runner.ts";
+import { parseGrants } from "../world/grants.ts";
 import type { Fanout } from "./fanout.ts";
 import { errorMessage, json, read } from "./http.ts";
 import type { OpenedWorld } from "./open-world.ts";
@@ -120,6 +121,12 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 		case "POST rollback": {
 			const { revision, reason } = await read<{ revision: number; reason?: string }>(request);
 			return json(await world.rollback(Number(revision), reason ?? "", { by: "operator" }));
+		}
+		case "PUT grants": {
+			const parsed = parseGrants(await read<unknown>(request));
+			if ("error" in parsed) return json({ error: parsed.error }, 400);
+			await world.setGrants(parsed.grants);
+			return json(world.grants());
 		}
 		case "GET checks":
 			return json(world.checks());

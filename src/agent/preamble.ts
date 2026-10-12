@@ -9,7 +9,7 @@ A develop source runs once, as the body of a function, in a world that already h
 - undefine(name) removes a definition.
 - state(name, init, { version, migrate }) returns a heap object kept across re-evaluations: init runs once. Use it for caches and configuration, never for user data. The value must be an object.
 - data.get(key), data.set(key, value), data.delete(key), data.list(prefix) is the world's persistent store: JSON values, string keys, list returns [{ key, value }] sorted by key. Use key prefixes as tables, for example "todo:<id>".
-- worlds.list(), worlds.functions(worldId) and worlds.call(worldId, name, ...args) reach the other worlds on this server. They return promises, so a function that uses them is async and awaits them; a failed call rejects with the other world's error. Like data, they are for calls only, never for a develop. Calls cannot loop back to a world already in the call, and pass through at most 4 worlds.
+- worlds.list(), worlds.functions(worldId) and worlds.call(worldId, name, ...args) reach the other worlds on this server. They return promises, so a function that uses them is async and awaits them; a failed call rejects with the other world's error. Like data, they are for calls only, never for a develop. Calls cannot loop back to a world already in the call, and pass through at most 4 worlds. The owner decides which worlds this world may call; worlds.list() shows only those, and a call to another one is refused.
 - A class whose instance shape changes needs define(name, class, { version: n + 1, migrate(instance, { from, to }) }).
 
 Rules the host enforces:

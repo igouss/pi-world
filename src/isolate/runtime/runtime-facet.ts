@@ -1,8 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
 // Supplied by the loader's module map as { wasm: bytes }: the loaded isolate compiles its own copy.
 import wasm from "./quickjs.wasm";
-import type { ExecuteResult, HeadRef } from "../../world/call-runner.ts";
+import type { CallScope, ExecuteResult } from "../../world/call-runner.ts";
 import { chainedPeers } from "../../world/chained-peers.ts";
+import { grantedPeers } from "../../world/grants.ts";
 import type { DataPort, DataRow } from "../../world/data-port.ts";
 import { LocalCallRunner } from "../../world/local-call-runner.ts";
 import type { Outcome } from "../../world/world-vm.ts";
@@ -28,15 +29,15 @@ export class RuntimeFacet extends DurableObject<RuntimeEnv> {
 		wasm,
 		data: this.data,
 		blob: (hash) => this.env.HOST.blob(hash),
-		peers: (chain) => chainedPeers(this.env.WORLD_ID, chain, this.env.HOST),
+		peers: (chain, grants) => grantedPeers(chainedPeers(this.env.WORLD_ID, chain, this.env.HOST), grants),
 	});
 
-	call(name: string, args: unknown[], chain: string[], head: HeadRef): Promise<Outcome> {
-		return this.runner.call(name, args, chain, head);
+	call(name: string, args: unknown[], chain: string[], scope: CallScope): Promise<Outcome> {
+		return this.runner.call(name, args, chain, scope);
 	}
 
-	execute(expression: string, head: HeadRef): Promise<ExecuteResult> {
-		return this.runner.execute(expression, head);
+	execute(expression: string, scope: CallScope): Promise<ExecuteResult> {
+		return this.runner.execute(expression, scope);
 	}
 
 	dataList(prefix: string): readonly DataRow[] {

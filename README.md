@@ -54,6 +54,7 @@ result is validated and iterated on immediately. It is one station of a larger l
 | Plain declarations are definitions | `function f` and `class C` at the top of a source are rewritten into `define` calls on the host; the revision keeps both texts | built |
 | Checks that cannot go vacuous | Every develop re-runs every check's counterexample; a change after which a check can no longer fail is rejected | built |
 | Property checks | A check with a generator must hold for 50 generated inputs; a failure names the smallest input it shrinks to. Every check gets a fresh scratch data store | built |
+| Grants per world | You choose which other worlds a world's code may call (Access tab or `PUT /api/worlds/:id/grants`); the agent cannot change it | built |
 | Who calls whom | `describe` and the Functions tab list what a definition calls and what calls it | built |
 | Memory per world, measured | A world that has run a call costs the server about 25 MB; each call it holds open about 2.4 MB more (`research.md`) | built |
 | Rejections kept as records | Every rejected `develop` and refused check is numbered and kept with its source and reason, so compaction cannot lose it | built |
@@ -353,6 +354,7 @@ Open `http://oracle-arm.mist-walleye.ts.net:8787` from a machine on the tailnet.
    - **Rejected:** every attempt the world turned away, with its source and the reason.
    - **Data:** what calls stored.
    - **Checks:** what every future change must keep true.
+   - **Access:** which other worlds this world's code may call.
    - **Console:** preview an expression (its data writes are rolled back), or develop a source by hand.
    - **App:** the world's page.
 5. **Open app** opens the page the world serves at `/w/:id/`.

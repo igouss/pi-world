@@ -2,6 +2,7 @@ import { createSession, MemoryStorage, type Session } from "@earendil-works/pi-d
 import { MemoryBlobStore } from "../src/revision/blob-store.ts";
 import { MemoryDataPort } from "../src/world/data-port.ts";
 import { LocalCallRunner } from "../src/world/local-call-runner.ts";
+import { grantedPeers } from "../src/world/grants.ts";
 import type { PeerPort } from "../src/world/peer-port.ts";
 import type { WorldDeps } from "../src/world/world.ts";
 import { wasm } from "./wasm.ts";
@@ -20,7 +21,7 @@ export function worldDeps(options: { peers?: (chain: readonly string[]) => PeerP
 			if (!bytes) throw new Error(`no blob ${hash}`);
 			return bytes;
 		},
-		...(options.peers ? { peers: options.peers } : {}),
+		...(options.peers ? { peers: (chain, grants) => grantedPeers(options.peers!(chain), grants) } : {}),
 		...(options.concurrentCalls ? { concurrentCalls: options.concurrentCalls } : {}),
 	});
 	return { session: createSession(new MemoryStorage()), blobs, data, calls, wasm, ...(options.now ? { now: options.now } : {}) };

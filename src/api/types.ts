@@ -4,6 +4,7 @@
  */
 import type { Check } from "../check/check.ts";
 import type { References } from "../source/references.ts";
+import type { Grants } from "../world/grants.ts";
 import type { CatalogueEntry, Outcome } from "../world/world-vm.ts";
 
 export type { Check, RemovedCheck } from "../check/check.ts";
@@ -12,6 +13,7 @@ export type { Rejection } from "../revision/rejection.ts";
 export type { References } from "../source/references.ts";
 export type { Revision } from "../revision/revision.ts";
 export type { DataRow } from "../world/data-port.ts";
+export type { Grants } from "../world/grants.ts";
 export type { DevelopResult } from "../world/world.ts";
 
 export interface WorldListing {
@@ -31,6 +33,8 @@ export interface WorldSummary {
 	readonly checks: readonly Check[];
 	/** How many attempts were rejected; the list is at `/rejections`. */
 	readonly rejections: number;
+	/** The other worlds this world's code may call, as its owner granted them. */
+	readonly grants: Grants;
 	readonly hasApp: boolean;
 	readonly model: string;
 	/** The build of the code serving this world, so a client can see a deploy reach it. */

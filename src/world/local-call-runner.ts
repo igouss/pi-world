@@ -1,6 +1,7 @@
 import type { Snapshot } from "quickjs-wasi";
-import type { CallRunner, DataAdmin, ExecuteResult, HeadRef } from "./call-runner.ts";
+import type { CallRunner, CallScope, DataAdmin, ExecuteResult, HeadRef } from "./call-runner.ts";
 import type { DataPort, DataRow } from "./data-port.ts";
+import type { Grants } from "./grants.ts";
 import { OverlayDataPort } from "./overlay-data-port.ts";
 import { NO_PEERS, type PeerPort } from "./peer-port.ts";
 import { VmPool } from "./vm-pool.ts";
@@ -12,8 +13,8 @@ export interface LocalCallRunnerDeps {
 	readonly data: DataPort;
 	/** A snapshot blob by its content hash. */
 	readonly blob: (hash: string) => Promise<Uint8Array>;
-	/** The other worlds, for a call that came through `chain`. */
-	readonly peers?: (chain: readonly string[]) => PeerPort;
+	/** The other worlds, for a call that came through `chain`, as the world's grants let it reach them. */
+	readonly peers?: (chain: readonly string[], grants: Grants) => PeerPort;
 	/** How many calls run at once; more wait. Each running call holds a VM of about the snapshot's size. */
 	readonly concurrentCalls?: number;
 }
@@ -32,13 +33,13 @@ export class LocalCallRunner implements CallRunner, DataAdmin {
 		this.pool = new VmPool((snapshot) => WorldVm.fromSnapshot(snapshot, deps.wasm, limits), deps.concurrentCalls ?? CONCURRENT_CALLS, WARM_VMS);
 	}
 
-	call(name: string, args: readonly unknown[], chain: readonly string[], head: HeadRef): Promise<Outcome> {
-		return this.run(head, this.deps.data, chain, (vm, mode) => vm.invoke(name, args, mode));
+	call(name: string, args: readonly unknown[], chain: readonly string[], scope: CallScope): Promise<Outcome> {
+		return this.run(scope, this.deps.data, chain, (vm, mode) => vm.invoke(name, args, mode));
 	}
 
-	async execute(expression: string, head: HeadRef): Promise<ExecuteResult> {
+	async execute(expression: string, scope: CallScope): Promise<ExecuteResult> {
 		const overlay = new OverlayDataPort(this.deps.data);
-		const outcome = await this.run(head, overlay, [], (vm, mode) => vm.evaluate(expression, mode));
+		const outcome = await this.run(scope, overlay, [], (vm, mode) => vm.evaluate(expression, mode));
 		return { ...outcome, rolledBack: overlay.changes() };
 	}
 
@@ -54,8 +55,8 @@ export class LocalCallRunner implements CallRunner, DataAdmin {
 		this.pool.dispose();
 	}
 
-	private async run(head: HeadRef, data: DataPort, chain: readonly string[], body: (vm: WorldVm, mode: Mode) => Promise<Outcome>): Promise<Outcome> {
-		const mode: Mode = { kind: "live", data, peers: (this.deps.peers ?? (() => NO_PEERS))(chain) };
+	private async run({ head, grants }: CallScope, data: DataPort, chain: readonly string[], body: (vm: WorldVm, mode: Mode) => Promise<Outcome>): Promise<Outcome> {
+		const mode: Mode = { kind: "live", data, peers: this.deps.peers?.(chain, grants) ?? NO_PEERS };
 		return this.pool.run({ revision: head.revision, snapshot: await this.snapshotOf(head) }, (vm) => body(vm, mode));
 	}
 

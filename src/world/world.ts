@@ -4,7 +4,7 @@ import type { Snapshot } from "quickjs-wasi";
 import type { Check, RemovedCheck } from "../check/check.ts";
 import { parseGenerator } from "../check/generator.ts";
 import { contentHash, type BlobStore } from "../revision/blob-store.ts";
-import { WorldChecks, WorldHead, WorldRejection, WorldRejections, WorldRevision, type ChecksState } from "../revision/documents.ts";
+import { WorldChecks, WorldGrants, WorldHead, WorldRejection, WorldRejections, WorldRevision, type ChecksState } from "../revision/documents.ts";
 import { NumberedLog } from "../revision/numbered-log.ts";
 import type { Attempted, Rejection, RejectionRecord, Rejections } from "../revision/rejection.ts";
 import { developSources, type Head, type Origin, type Revision } from "../revision/revision.ts";
@@ -12,7 +12,8 @@ import { references, type References } from "../source/references.ts";
 import { rewriteSource } from "../source/rewrite.ts";
 import { attemptDevelop, attemptEnrolment } from "./attempt.ts";
 import { diffCatalogues } from "./catalogue-diff.ts";
-import type { CallRunner, ExecuteResult, HeadRef } from "./call-runner.ts";
+import type { CallRunner, CallScope, ExecuteResult } from "./call-runner.ts";
+import { ANY_WORLD, type Grants } from "./grants.ts";
 import { Mutex } from "./mutex.ts";
 import { PRELUDE_VERSION } from "./prelude.ts";
 import { rememberCall } from "./remember-call.ts";
@@ -76,6 +77,7 @@ export class World {
 		private currentCatalogue: readonly CatalogueEntry[],
 		private checksState: ChecksState,
 		private rejectionsState: Rejections,
+		private grantsState: Grants,
 	) {
 		this.revisions = new NumberedLog(deps.session, WorldRevision, "revision");
 		this.rejected = new NumberedLog(deps.session, WorldRejection, "rejection");
@@ -87,16 +89,17 @@ export class World {
 		const head = await deps.session.snapshot(WorldHead, BACKGROUND_CONTEXT);
 		const checks = (await deps.session.snapshot(WorldChecks, BACKGROUND_CONTEXT)) ?? { checks: [], removed: [] };
 		const rejections = (await deps.session.snapshot(WorldRejections, BACKGROUND_CONTEXT)) ?? { count: 0, calls: {} };
+		const grants = (await deps.session.snapshot(WorldGrants, BACKGROUND_CONTEXT)) ?? ANY_WORLD;
 		if (head && head.revision >= 0) {
 			const bytes = await requireBlob(deps.blobs, head.blob, "the world head");
 			const vm = await WorldVm.fromBytes(bytes, deps.wasm, limits);
-			const world = new World(deps, vm, vm.snapshot(), head, vm.catalogue(), checks, rejections);
+			const world = new World(deps, vm, vm.snapshot(), head, vm.catalogue(), checks, rejections, grants);
 			await world.upgradePrelude();
 			return world;
 		}
 		const vm = await WorldVm.create(deps.wasm, limits);
 		const snapshot = vm.snapshot();
-		const world = new World(deps, vm, snapshot, { revision: -1, blob: "", calls: {} }, [], checks, rejections);
+		const world = new World(deps, vm, snapshot, { revision: -1, blob: "", calls: {} }, [], checks, rejections, grants);
 		await world.accept(
 			snapshot,
 			{ kind: "genesis", summary: "the prelude", at: world.now(), origin: { by: "host" }, changes: { added: [], changed: [], removed: [] } },
@@ -110,7 +113,7 @@ export class World {
 		return this.current;
 	}
 
-	/** Called after every change of the head or the checks, and after every rejection. */
+	/** Called after every change of the head, the checks or the grants, and after every rejection. */
 	subscribe(listener: () => void): () => void {
 		this.listeners.add(listener);
 		return () => this.listeners.delete(listener);
@@ -128,6 +131,22 @@ export class World {
 
 	checks(): ChecksState {
 		return this.checksState;
+	}
+
+	grants(): Grants {
+		return this.grantsState;
+	}
+
+	/** An operator call: what this world's code may reach. Calls already running keep the grants they started with. */
+	async setGrants(grants: Grants): Promise<void> {
+		await this.exclusive(async () => {
+			this.grantsState = await this.sessionCommit(async (tx) => {
+				const doc = await tx.doc(WorldGrants);
+				Object.assign(doc, grants);
+				return plain<Grants>(doc);
+			});
+			this.notify();
+		});
 	}
 
 	/** Attempt a develop source, as written: top-level declarations become definitions (`rewriteSource`). */
@@ -182,7 +201,7 @@ export class World {
 	 * discarded, and the result names the writes it rolled back. Other worlds it calls write for real.
 	 */
 	async execute(expression: string): Promise<ExecuteResult> {
-		return this.deps.calls.execute(expression, this.headRef());
+		return this.deps.calls.execute(expression, this.scope());
 	}
 
 	/**
@@ -190,7 +209,7 @@ export class World {
 	 * kept. A call from another world passes `chain`, the worlds it came through.
 	 */
 	async call(name: string, args: readonly unknown[], chain: readonly string[] = []): Promise<Outcome> {
-		return this.deps.calls.call(name, args, chain, this.headRef());
+		return this.deps.calls.call(name, args, chain, this.scope());
 	}
 
 	/**
@@ -351,9 +370,9 @@ export class World {
 		return undefined;
 	}
 
-	/** The head as a call runner needs it; the head's record of tool calls stays here. */
-	private headRef(): HeadRef {
-		return { revision: this.current.revision, blob: this.current.blob };
+	/** What a call starts from: the head as a call runner needs it (its record of tool calls stays here) and the grants. */
+	private scope(): CallScope {
+		return { head: { revision: this.current.revision, blob: this.current.blob }, grants: this.grantsState };
 	}
 
 	private attemptMode(at: number): AttemptMode {

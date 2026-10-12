@@ -1,4 +1,4 @@
-import type { CallRunner, DataAdmin, ExecuteResult, HeadRef } from "../../world/call-runner.ts";
+import type { CallRunner, CallScope, DataAdmin, ExecuteResult } from "../../world/call-runner.ts";
 import type { DataRow } from "../../world/data-port.ts";
 import type { Outcome } from "../../world/world-vm.ts";
 import type { RuntimeFacetStub } from "./runtime-loader.ts";
@@ -7,12 +7,12 @@ import type { RuntimeFacetStub } from "./runtime-loader.ts";
 export class FacetCallRunner implements CallRunner, DataAdmin {
 	constructor(private readonly facet: RuntimeFacetStub) {}
 
-	call(name: string, args: readonly unknown[], chain: readonly string[], head: HeadRef): Promise<Outcome> {
-		return this.facet.call(name, [...args], [...chain], head);
+	call(name: string, args: readonly unknown[], chain: readonly string[], scope: CallScope): Promise<Outcome> {
+		return this.facet.call(name, [...args], [...chain], scope);
 	}
 
-	execute(expression: string, head: HeadRef): Promise<ExecuteResult> {
-		return this.facet.execute(expression, head);
+	execute(expression: string, scope: CallScope): Promise<ExecuteResult> {
+		return this.facet.execute(expression, scope);
 	}
 
 	async list(prefix: string): Promise<readonly DataRow[]> {

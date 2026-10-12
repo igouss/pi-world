@@ -119,9 +119,13 @@ Made on 2026-10-06 under the prototype authorization above. Each is a default to
 - **Concurrent calls:** a world runs up to 8 calls at once, each on its own VM; further calls wait in the cell. Two
   idle VMs are kept warm. Measured against them: a VM of a small world costs about 2.4 MB, so the pool adds at most
   about 20 MB to a world, less than its isolate. The numbers stay.
-- **Worlds calling worlds:** any world may call any definition of any other world on the server, with no permission
-  model; the call carries its chain, and a cycle or a chain of more than four worlds is refused. Calls between worlds
+- **Worlds calling worlds:** any world may call any definition of any other world it is granted (see below); the call carries its chain, and a cycle or a chain of more than four worlds is refused. Calls between worlds
   are for calls only, never for a develop or a check.
+- **Grants** (the operator's approval of a capability grant per world, 2026-10-12, with the default "existing worlds may
+  call any world until the operator restricts them"): a grant names what a world's own calls may reach, today only
+  other worlds (`calls`: "any" or a list of ids). It is set by the operator over REST or in the Access tab, never by the
+  agent; it binds a world's own outgoing calls and its previews, not the calls other worlds make to it; and a call
+  keeps the grant it started with. Effectful host functions and secrets get a field here when they exist.
 - **Prelude upgrades:** a world built on an older prelude gets an `upgrade` revision when it opens, and a rollback to
   such a revision applies the upgrade to the restored heap.
 - **Pages:** a world serves a page by defining `app(path, query)`, which returns HTML. The page is served at
@@ -192,6 +196,7 @@ scheduled world code, and durable messages between worlds.
       deliver at least once and retry from a lease: "A consumer must therefore tolerate a duplicate."
     - Replay: today only `develop` sources replay, and calls are not recorded. Should calls between worlds be recorded,
       for audit or for rebuilding a world's data?
-    - Permissions: who may call whom (open decision 5 for people; this is the same for worlds).
+    - Permissions: who may call whom. Settled 2026-10-12 for the caller's side: a world calls only the worlds its owner
+      granted. Still open: whether a callee may refuse callers (open decision 5 for people).
     - Multi-node: a call to a cell on another node is forwarded by celld; latency and failure behaviour are untested.
     - Checks: a check cannot reach other worlds. Is a contract between two worlds something a check should protect?

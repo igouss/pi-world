@@ -1,4 +1,5 @@
 import type { DataRow } from "./data-port.ts";
+import type { Grants } from "./grants.ts";
 import type { DataChanges } from "./overlay-data-port.ts";
 import type { Outcome } from "./world-vm.ts";
 
@@ -8,6 +9,12 @@ export interface HeadRef {
 	readonly blob: string;
 }
 
+/** The world as a call found it when it started: the head it runs at, and what the world's grants let it reach. */
+export interface CallScope {
+	readonly head: HeadRef;
+	readonly grants: Grants;
+}
+
 export type ExecuteResult = Outcome & { readonly rolledBack: DataChanges };
 
 /**
@@ -15,9 +22,9 @@ export type ExecuteResult = Outcome & { readonly rolledBack: DataChanges };
  * `chain`, the worlds it passed through; a call that starts here passes an empty one.
  */
 export interface CallRunner {
-	call(name: string, args: readonly unknown[], chain: readonly string[], head: HeadRef): Promise<Outcome>;
+	call(name: string, args: readonly unknown[], chain: readonly string[], scope: CallScope): Promise<Outcome>;
 	/** A preview: heap changes and data writes are rolled back; the result names the writes. */
-	execute(expression: string, head: HeadRef): Promise<ExecuteResult>;
+	execute(expression: string, scope: CallScope): Promise<ExecuteResult>;
 	dispose(): void;
 }
 

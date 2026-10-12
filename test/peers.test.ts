@@ -23,6 +23,35 @@ async function fleet(...ids: string[]) {
 	return (id: string) => worlds.get(id)!;
 }
 
+describe("grants", () => {
+	it("let a world call any world until its owner restricts it", async () => {
+		const world = await fleet("a", "b");
+		expect(world("a").grants()).toEqual({ calls: "any" });
+		await world("b").develop(`define("hi", () => "hi");`, "hi", operator);
+		await world("a").develop(`define("ask", async () => worlds.call("b", "hi"));`, "ask", operator);
+		expect(await world("a").call("ask", [])).toEqual({ ok: true, value: "hi" });
+	});
+
+	it("let a world call only the worlds it is granted, list only those, and preview under the same rule", async () => {
+		const world = await fleet("a", "b", "c");
+		await world("b").develop(`define("hi", () => "b");`, "hi", operator);
+		await world("c").develop(`define("hi", () => "c");`, "hi", operator);
+		await world("a").develop(`define("ask", async (id) => { try { return await worlds.call(id, "hi"); } catch (e) { return e.message; } });`, "ask", operator);
+		await world("a").setGrants({ calls: ["b"] });
+		expect(await world("a").call("ask", ["b"])).toEqual({ ok: true, value: "b" });
+		expect(await world("a").call("ask", ["c"])).toEqual({ ok: true, value: "c.hi: this world may not call c: its owner has not granted it" });
+		expect(await world("a").execute(`worlds.list()`)).toMatchObject({ ok: true, value: [{ id: "b", name: "b" }] });
+	});
+
+	it("bind a world's own calls, not the calls other worlds make to it", async () => {
+		const world = await fleet("a", "b");
+		await world("b").develop(`define("hi", () => "b");`, "hi", operator);
+		await world("a").develop(`define("ask", async () => worlds.call("b", "hi"));`, "ask", operator);
+		await world("b").setGrants({ calls: [] });
+		expect(await world("a").call("ask", [])).toEqual({ ok: true, value: "b" });
+	});
+});
+
 describe("calls between worlds", () => {
 	it("calls a definition of another world and uses its result", async () => {
 		const world = await fleet("rates", "shop");

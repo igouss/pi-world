@@ -1,5 +1,6 @@
 import { defineDoc, defineDocFamily, type JsonObject } from "@earendil-works/pi-durable";
 import type { Check, RemovedCheck } from "../check/check.ts";
+import type { Grants } from "../world/grants.ts";
 import type { Rejection, Rejections } from "./rejection.ts";
 import type { Head, Revision } from "./revision.ts";
 
@@ -44,4 +45,12 @@ export const WorldRejection = defineDocFamily<Rejection & JsonObject, Rejection 
 	scope: "session",
 	family: true,
 	initial: (seed) => seed,
+});
+
+/** What the world's owner lets it reach: "any" world until the owner restricts it. */
+export const WorldGrants = defineDoc<Grants & JsonObject>({
+	kind: "world.grants",
+	version: 1,
+	scope: "session",
+	initial: () => ({ calls: "any" }),
 });
