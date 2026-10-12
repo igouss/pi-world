@@ -30,6 +30,54 @@ describe("attemptDevelop", () => {
 		expect(await vm.invoke("double", [3], live)).toEqual({ ok: true, value: 6 });
 	});
 
+	it("keeps no heap change a check makes", async () => {
+		const vm = await WorldVm.create(wasm);
+		await attemptDevelop(vm, `const s = state("s", () => ({ n: 0 })); define("bump", () => ++s.n); define("count", () => s.n);`, [], mode);
+		const bumping: Check = { name: "bump counts", expression: "bump() > 0", counterexample: `define("bump", () => 0);`, enrolledAt: 0 };
+		const attempt = await attemptDevelop(vm, `define("other", () => 1);`, [bumping], mode);
+		expect(attempt.accepted).toBe(true);
+		expect(await vm.invoke("count", [], live)).toEqual({ ok: true, value: 0 });
+		const restored = await WorldVm.fromSnapshot(attempt.accepted ? attempt.snapshot : vm.snapshot(), wasm);
+		expect(await restored.invoke("count", [], live)).toEqual({ ok: true, value: 0 });
+	});
+
+	it("rejects a change after which a check no longer fails on its counterexample", async () => {
+		const vm = await WorldVm.create(wasm);
+		await attemptDevelop(vm, `define("base", () => 1); define("ok", () => base() === 1);`, [], mode);
+		const guarded: Check = { name: "ok holds", expression: "ok()", counterexample: `define("base", () => 2);`, enrolledAt: 0 };
+		const attempt = await attemptDevelop(vm, `define("ok", () => true);`, [guarded], mode);
+		expect(attempt.accepted === false && attempt.check).toBe("ok holds");
+		expect(attempt.accepted === false && attempt.reason).toContain("no longer fails on its counterexample");
+		expect(await vm.invoke("ok", [], live)).toEqual({ ok: true, value: true });
+		expect(vm.catalogue().find((entry) => entry.name === "ok")?.source).toBe("() => base() === 1");
+	});
+
+	it("names how a check failed, on its first line only", async () => {
+		const vm = await WorldVm.create(wasm);
+		await attemptDevelop(vm, `define("double", (x) => 2 * x);`, [], mode);
+		const throwing: Check = { name: "throws", expression: `(() => { throw new Error("boom"); })()`, counterexample: "", enrolledAt: 0 };
+		const thrown = await attemptDevelop(vm, `define("other", () => 1);`, [throwing], mode);
+		expect(thrown.accepted === false && thrown.reason).toBe(`check "throws" failed: threw: Error: boom`);
+		const returning: Check = { name: "returns", expression: "double(2)", counterexample: "", enrolledAt: 0 };
+		const returned = await attemptDevelop(vm, `define("other", () => 1);`, [returning], mode);
+		expect(returned.accepted === false && returned.reason).toBe(`check "returns" failed: returned 4`);
+	});
+
+	it("rejects a change after which a check's counterexample no longer applies", async () => {
+		const vm = await WorldVm.create(wasm);
+		await attemptDevelop(vm, `define("base", () => 1); define("ok", () => base() === 1);`, [], mode);
+		const guarded: Check = { name: "ok holds", expression: "ok()", counterexample: `base.tweak();`, enrolledAt: 0 };
+		const attempt = await attemptDevelop(vm, `define("other", () => 1);`, [guarded], mode);
+		expect(attempt.accepted === false && attempt.reason).toContain("(the counterexample did not apply (threw): TypeError: not a function)");
+	});
+
+	it("accepts a change after which every check still fails on its counterexample", async () => {
+		const vm = await WorldVm.create(wasm);
+		await attemptDevelop(vm, `define("double", (x) => 2 * x);`, [], mode);
+		const attempt = await attemptDevelop(vm, `define("double", (x) => x + x);`, [positive], mode);
+		expect(attempt.accepted).toBe(true);
+	});
+
 	it("restores the checkpoint when the source throws halfway", async () => {
 		const vm = await WorldVm.create(wasm);
 		const attempt = await attemptDevelop(vm, `define("half", (x) => x / 2); throw new Error("stop");`, [], mode);

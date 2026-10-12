@@ -6,7 +6,9 @@ import { contentHash, type BlobStore } from "../revision/blob-store.ts";
 import { WorldChecks, WorldHead, WorldRejection, WorldRejections, WorldRevision, type ChecksState } from "../revision/documents.ts";
 import { NumberedLog } from "../revision/numbered-log.ts";
 import type { Attempted, Rejection, RejectionRecord, Rejections } from "../revision/rejection.ts";
-import type { Head, Origin, Revision } from "../revision/revision.ts";
+import { developSources, type Head, type Origin, type Revision } from "../revision/revision.ts";
+import { references, type References } from "../source/references.ts";
+import { rewriteSource } from "../source/rewrite.ts";
 import { attemptDevelop, attemptEnrolment, type AttemptMode } from "./attempt.ts";
 import { diffCatalogues } from "./catalogue-diff.ts";
 import type { CallRunner, ExecuteResult, HeadRef } from "./call-runner.ts";
@@ -55,6 +57,7 @@ export class World {
 	private readonly listeners: Set<() => void> = new Set();
 	private readonly revisions: NumberedLog<Revision>;
 	private readonly rejected: NumberedLog<Rejection>;
+	private graph: { readonly catalogue: readonly CatalogueEntry[]; readonly references: ReadonlyMap<string, References> } | undefined;
 
 	private constructor(
 		private readonly deps: WorldDeps,
@@ -108,25 +111,34 @@ export class World {
 		return this.currentCatalogue;
 	}
 
+	/** Who calls whom among the head's definitions, read from their sources once per catalogue. */
+	callGraph(): ReadonlyMap<string, References> {
+		if (this.graph?.catalogue !== this.currentCatalogue) this.graph = { catalogue: this.currentCatalogue, references: references(this.currentCatalogue) };
+		return this.graph.references;
+	}
+
 	checks(): ChecksState {
 		return this.checksState;
 	}
 
-	async develop(source: string, summary: string, origin: Origin, commit: Commit = this.sessionCommit): Promise<DevelopResult> {
+	/** Attempt a develop source, as written: top-level declarations become definitions (`rewriteSource`). */
+	async develop(written: string, summary: string, origin: Origin, commit: Commit = this.sessionCommit): Promise<DevelopResult> {
 		return this.exclusive(async () => {
 			const previous = await this.previous(origin);
 			if (previous?.kind === "revision") return { status: "accepted", revision: previous.revision, replayed: true };
 			if (previous?.rejection.kind === "develop") return { status: "rejected", rejection: previous.rejection };
 			const at = this.now();
-			const attempt = await attemptDevelop(this.vm, source, this.checksState.checks, this.attemptMode(at));
+			const sources = developSources(written, rewriteSource(written));
+			const evaluated = sources.source;
+			const attempt = await attemptDevelop(this.vm, evaluated, this.checksState.checks, this.attemptMode(at));
 			if (!attempt.accepted) {
 				const { failure, reason, check } = attempt;
-				const rejection = await this.reject({ kind: "develop", source, failure, ...(check ? { check } : {}), summary, at, origin, reason }, commit);
+				const rejection = await this.reject({ kind: "develop", ...sources, failure, ...(check ? { check } : {}), summary, at, origin, reason }, commit);
 				return { status: "rejected", rejection };
 			}
 			const revision = await this.accept(
 				attempt.snapshot,
-				{ kind: "develop", source, summary, at, origin, changes: attempt.changes },
+				{ kind: "develop", ...sources, summary, at, origin, changes: attempt.changes },
 				attempt.catalogue,
 				commit,
 			);
@@ -178,8 +190,9 @@ export class World {
 	 */
 	async proposeCheck(name: string, expression: string, counterexample: string, origin: Origin, commit: Commit = this.sessionCommit): Promise<EnrolResult> {
 		return this.exclusive(async () => {
+			const sources = developSources(counterexample, rewriteSource(counterexample));
 			const existing = this.checksState.checks.find((check) => check.name === name);
-			if (existing && existing.expression === expression && existing.counterexample === counterexample) return { status: "enrolled", check: existing };
+			if (existing && existing.expression === expression && existing.counterexample === sources.source) return { status: "enrolled", check: existing };
 			const previous = await this.previous(origin);
 			if (previous?.kind === "rejection" && previous.rejection.kind === "check") return { status: "refused", rejection: previous.rejection };
 			const at = this.now();
@@ -188,9 +201,10 @@ export class World {
 				return { status: "refused", rejection };
 			};
 			if (existing) return refuse(`a different check named "${name}" is already enrolled`);
-			const enrolment = await attemptEnrolment(this.vm, expression, counterexample, this.attemptMode(at));
+			const enrolment = await attemptEnrolment(this.vm, expression, sources.source, this.attemptMode(at));
 			if (!enrolment.enrolled) return refuse(enrolment.reason);
-			const check: Check = { name, expression, counterexample, enrolledAt: this.now() };
+			const { source, written } = sources;
+			const check: Check = { name, expression, counterexample: source, ...(written === undefined ? {} : { written }), enrolledAt: this.now() };
 			this.checksState = await commit(async (tx) => {
 				const doc = await tx.doc(WorldChecks);
 				(doc.checks as Check[]).push(check);

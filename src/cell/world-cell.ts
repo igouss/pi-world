@@ -11,6 +11,7 @@ import { FacetCallRunner } from "../isolate/host/facet-call-runner.ts";
 import { runtimeFacet, type RuntimeFacetStub } from "../isolate/host/runtime-loader.ts";
 import { sqlDataRecords } from "../isolate/runtime/sql-data-port.ts";
 import type { CatalogueEntry, Outcome } from "../world/world-vm.ts";
+import { NO_REFERENCES } from "../source/references.ts";
 import { appPage, hasApp } from "./app-page.ts";
 import { claudeModels } from "./claude-models.ts";
 import { Fanout } from "./fanout.ts";
@@ -143,7 +144,8 @@ export class WorldCell extends DurableObject<Env> {
 		const view = await root.viewState(BACKGROUND_CONTEXT);
 		const fanout = new Fanout(() => this.ctx.getWebSockets());
 		const summary = (): WorldSummary => {
-			const catalogue = world.catalogue();
+			const graph = world.callGraph();
+			const catalogue = world.catalogue().map((entry) => ({ ...entry, ...(graph.get(entry.name) ?? NO_REFERENCES) }));
 			const agent = view.value.docs[AgentDoc.definition.kind] as AgentState | undefined;
 			return {
 				id: meta.id,

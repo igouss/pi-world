@@ -3,6 +3,7 @@ import type { CallResult, FunctionInfo, WorldSummary } from "../../src/api/types
 import { callPath } from "../../src/api/paths.ts";
 import { api } from "../api.ts";
 import { useAction } from "../use-action.ts";
+import { CallGraph } from "./call-graph.tsx";
 import { CallResultView } from "./call-result.tsx";
 import { Code } from "./code.tsx";
 
@@ -113,6 +114,7 @@ function FunctionDetail(props: { id: string; fn: FunctionInfo }) {
 			</form>
 			{error && <p class="error small">{error}</p>}
 			{result && <CallResultView result={result} />}
+			<CallGraph fn={props.fn} />
 			<Code text={props.fn.source} label="source" />
 			<details class="curl">
 				<summary class="small muted">call it over REST</summary>

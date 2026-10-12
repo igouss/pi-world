@@ -86,9 +86,16 @@ Made on 2026-10-06 under the prototype authorization above. Each is a default to
   call every route, including the account routes.
 - **Open decision 7, layout:** by capability: `world/`, `revision/`, `check/`, `agent/`, `conversation/`,
   `account/`, `directory/`, `cell/`, `api/`.
-- **Open decision 9, explicit `define`:** the agent writes `define(...)` and `state(...)` by hand.
-- **Open decision 13, a check that calls a replaceable definition:** allowed, with no re-run of its counterexample when
-  that definition changes.
+- **The host rewrite's parser** (open decision 9): `acorn`, with `acorn-walk` for the call graph. Flagged: the
+  operator approved the rewrite, not a parser.
+- **What the rewrite covers** (open decision 9): top-level `function` and `class` declarations become definitions,
+  with a JSDoc comment as the doc. A top-level `const` stays a local of the evaluation, because turning it into
+  `state` would keep its first value and silently ignore a changed initializer. A class that changes shape still
+  needs an explicit `define` with `version` and `migrate`.
+- **When counterexamples re-run** (open decision 13): after every develop, for every enrolled check, not only after a
+  change to a definition the check calls: a change to state can make a check vacuous too, and each re-run costs a
+  restore of a few milliseconds. A develop after which a counterexample no longer applies is rejected like one after
+  which the check no longer fails on it; the operator removes a check that no longer fits.
 - **Checks cannot read data.** A check runs in attempt mode, where data is unreachable. In the first real session the
   agent changed a function's signature (an optional entries argument) to make it checkable. This limits what a check
   can protect.
@@ -144,9 +151,9 @@ scheduled world code, and durable messages between worlds.
    job against the new one. Rerunning needs the job to be idempotent up to the pause. A pending revision holds a
    continuation no source rebuilds, so it also dies on a runtime upgrade; the alternative that survives both is a
    pause recorded as a fact and a rerun from the job's start.
-9. **Explicit `define` or a host rewrite.** The agent writes `define(...)` and `state(...)` by hand, or the host
-   rewrites top-level `function`, `class` and `const` declarations into them so the agent writes ordinary
-   JavaScript. The rewrite needs a parser on the host.
+9. **Explicit `define` or a host rewrite.** Settled 2026-10-12: the host rewrites top-level `function` and `class`
+   declarations into definitions (`src/source/rewrite.ts`), and the revision keeps both the rewritten source, which
+   replays, and the source as written.
 10. **A requirement id on every revision.** The revision manifest records the producing tool call and nothing about
     intent. A revision could carry the requirement or use case it serves, so a shipped function traces back to why
     it exists.
@@ -156,10 +163,8 @@ scheduled world code, and durable messages between worlds.
 12. **Rejections as records.** Settled 2026-10-12: a rejected develop or a refused check is a numbered `Rejection`
     document beside the revisions, naming its failure and the check it broke, listed at `/rejections`, by the
     `history` tool with `rejected: true`, and in the inspector's Rejected tab.
-13. **A check that calls a replaceable definition.** Frozen built-ins cover what the language provides. A check can
-    still call a function the agent defined, and the agent can redefine it. Either refuse such a check at enrolment,
-    so checks read data and built-ins only, or allow it and re-run its counterexample every time that definition
-    changes.
+13. **A check that calls a replaceable definition.** Settled 2026-10-12: allowed, and every develop re-runs every
+    check's counterexample; a develop after which a check is no longer seen failing is rejected.
 14. **What a call between worlds is.** Recorded 2026-10-06; the operator is researching it. Today it is synchronous
     request and response over Durable Object RPC. Since 2026-10-07 each call runs on its own pooled VM, so a waiting
     call no longer blocks its world (option B below, built at the operator's request: "We should support concurrent

@@ -3,11 +3,13 @@
  * Everything here is plain JSON.
  */
 import type { Check } from "../check/check.ts";
+import type { References } from "../source/references.ts";
 import type { CatalogueEntry, Outcome } from "../world/world-vm.ts";
 
 export type { Check, RemovedCheck } from "../check/check.ts";
 export type { ChecksState } from "../revision/documents.ts";
 export type { Rejection } from "../revision/rejection.ts";
+export type { References } from "../source/references.ts";
 export type { Revision } from "../revision/revision.ts";
 export type { DataRow } from "../world/data-port.ts";
 export type { DevelopResult } from "../world/world.ts";
@@ -18,7 +20,8 @@ export interface WorldListing {
 	readonly createdAt: number;
 }
 
-export type FunctionInfo = CatalogueEntry;
+/** A definition as the UI shows it: its catalogue entry and its place in the call graph. */
+export type FunctionInfo = CatalogueEntry & References;
 
 export interface WorldSummary {
 	readonly id: string;

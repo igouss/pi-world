@@ -5,8 +5,10 @@
 export interface Check {
 	readonly name: string;
 	readonly expression: string;
-	/** The develop source that was seen breaking this check at enrolment. */
+	/** The develop source that was seen breaking this check at enrolment, as evaluated after the host rewrite. */
 	readonly counterexample: string;
+	/** The counterexample as written, when the host rewrite changed it. */
+	readonly written?: string;
 	readonly enrolledAt: number;
 }
 

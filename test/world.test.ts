@@ -90,6 +90,54 @@ describe("World", () => {
 		await expect(world.rollback(1, "no change", operator)).rejects.toThrow("revision 1 is already the head");
 	});
 
+	it("turns top-level declarations into definitions and keeps the source as written", async () => {
+		const world = await World.open(fixture());
+		const written = `/** Adds one. */\nfunction inc(x) { return x + 1; }\nclass Box { constructor(v) { this.v = v; } }`;
+		const result = await world.develop(written, "inc and Box", operator);
+		expect(result.status === "accepted" && result.revision.changes.added).toEqual(["inc", "Box"]);
+		expect(world.catalogue().find((entry) => entry.name === "inc")?.doc).toBe("Adds one.");
+		expect(await world.call("inc", [1])).toEqual({ ok: true, value: 2 });
+		const revision = await world.revision(1);
+		expect(revision?.kind === "develop" && revision.written).toBe(written);
+		expect(revision?.kind === "develop" && revision.source).toContain(`var inc = define("inc", inc, { doc: "Adds one." });`);
+	});
+
+	it("keeps no written copy when the rewrite changes nothing", async () => {
+		const world = await World.open(fixture());
+		await world.develop(`define("a", () => 1);`, "a", operator);
+		const revision = await world.revision(1);
+		expect(revision?.kind === "develop" && "written" in revision).toBe(false);
+	});
+
+	it("records the source as written in a rejection", async () => {
+		const world = await World.open(fixture());
+		const written = `function boom() { return 1; }\nthrow new Error("no");`;
+		const result = await world.develop(written, "boom", operator);
+		expect(result.status === "rejected" && result.rejection.written).toBe(written);
+	});
+
+	it("applies a counterexample written as a declaration", async () => {
+		const world = await World.open(fixture());
+		await world.develop(`function one() { return 1; }`, "one", operator);
+		const result = await world.proposeCheck("one is 1", "one() === 1", `function one() { return 2; }`, operator);
+		expect(result.status === "enrolled" && result.check).toMatchObject({
+			counterexample: `var one = define("one", one); function one() { return 2; }`,
+			written: `function one() { return 2; }`,
+		});
+		const again = await world.proposeCheck("one is 1", "one() === 1", `function one() { return 2; }`, operator);
+		expect(again.status).toBe("enrolled");
+	});
+
+	it("keeps the call graph until the head changes", async () => {
+		const world = await World.open(fixture());
+		await world.develop(`function a() { return b(); }\nfunction b() { return 1; }`, "a, b", operator);
+		const graph = world.callGraph();
+		expect(graph.get("b")).toEqual({ calls: [], calledBy: ["a"] });
+		expect(world.callGraph()).toBe(graph);
+		await world.develop(`function c() { return b(); }`, "c", operator);
+		expect(world.callGraph().get("b")).toEqual({ calls: [], calledBy: ["a", "c"] });
+	});
+
 	it("rolls back as a new revision", async () => {
 		const world = await World.open(fixture());
 		await world.develop(`define("v", () => 1);`, "v1", operator);

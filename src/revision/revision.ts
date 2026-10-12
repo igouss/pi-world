@@ -6,6 +6,19 @@ export type Origin =
 	| { readonly by: "operator"; readonly requestId?: string }
 	| { readonly by: "host" };
 
+/** A develop source as evaluated and, when the host rewrite changed it, as written. */
+export interface DevelopSources {
+	/** The source as evaluated, after the host rewrite; this is what replays. */
+	readonly source: string;
+	/** The source as written, when the host rewrite changed it. */
+	readonly written?: string;
+}
+
+/** Both texts of a develop source as written, keeping `written` only when the rewrite changed it. */
+export function developSources(written: string, evaluated: string): DevelopSources {
+	return evaluated === written ? { source: evaluated } : { source: evaluated, written };
+}
+
 interface RevisionBase {
 	readonly n: number;
 	readonly parent: number | null;
@@ -24,7 +37,7 @@ interface RevisionBase {
  */
 export type Revision =
 	| (RevisionBase & { readonly kind: "genesis" })
-	| (RevisionBase & { readonly kind: "develop"; readonly source: string })
+	| (RevisionBase & DevelopSources & { readonly kind: "develop" })
 	| (RevisionBase & { readonly kind: "rollback"; readonly target: number; readonly reason: string })
 	| (RevisionBase & { readonly kind: "upgrade"; readonly from: number });
 

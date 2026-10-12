@@ -2,6 +2,7 @@ import type { Rejection } from "../../src/api/types.ts";
 import { rejectionCause } from "../../src/revision/rejection.ts";
 import { api } from "../api.ts";
 import { Code } from "./code.tsx";
+import { DevelopSource } from "./develop-source.tsx";
 import { NumberedList } from "./numbered-list.tsx";
 
 /** Rejected develops and refused checks, newest first. Nothing here changed the world. */
@@ -29,7 +30,7 @@ function RejectionDetail(props: { rejection: Rejection }) {
 			</p>
 			<pre class="changes">{r.reason}</pre>
 			{r.kind === "develop" ? (
-				<Code text={r.source} label="source" />
+				<DevelopSource source={r.source} written={r.written} />
 			) : (
 				<>
 					<Code text={r.expression} label={`check "${r.name}"`} />

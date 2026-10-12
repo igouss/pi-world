@@ -3,6 +3,7 @@ import type { Revision } from "../../src/api/types.ts";
 import { api } from "../api.ts";
 import { useAction } from "../use-action.ts";
 import { Code } from "./code.tsx";
+import { DevelopSource } from "./develop-source.tsx";
 import { NumberedList } from "./numbered-list.tsx";
 
 export function RevisionsTab(props: { id: string; head: number }) {
@@ -40,7 +41,7 @@ function RevisionDetail(props: { id: string; revision: Revision; head: number })
 				<code>{r.blob.slice(0, 12)}</code>
 			</p>
 			{changes.length > 0 && <pre class="changes">{changes.join("\n")}</pre>}
-			{r.kind === "develop" && <Code text={r.source} label="source" />}
+			{r.kind === "develop" && <DevelopSource source={r.source} written={r.written} />}
 			{r.kind === "rollback" && (
 				<p>
 					Restored revision {r.target}: {r.reason}

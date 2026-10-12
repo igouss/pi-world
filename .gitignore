@@ -6,3 +6,4 @@ wrangler.deploy.jsonc
 dist/
 .stryker-tmp/
 reports/
+.hegel/

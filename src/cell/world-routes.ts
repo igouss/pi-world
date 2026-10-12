@@ -96,9 +96,11 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 			const outcome = await world.execute(expression);
 			return json(outcome, outcome.ok ? 200 : 422);
 		}
-		case "GET functions":
+		case "GET functions": {
 			if (!arg) return json(world.catalogue());
-			return json(world.catalogue().find((entry) => entry.name === arg) ?? { error: `no function ${arg}` }, 404);
+			const entry = world.catalogue().find((candidate) => candidate.name === arg);
+			return entry ? json({ ...entry, ...world.callGraph().get(arg) }) : json({ error: `no function ${arg}` }, 404);
+		}
 		case "GET revisions": {
 			if (arg !== undefined) {
 				const revision = await world.revision(Number(arg));

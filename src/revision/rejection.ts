@@ -1,12 +1,12 @@
 import type { Failure } from "../world/world-vm.ts";
-import type { Origin } from "./revision.ts";
+import type { DevelopSources, Origin } from "./revision.ts";
 
 /**
  * What a rejected attempt tried and why it was turned away: a develop source that failed to evaluate or broke a
  * check, or a proposed check whose enrolment was refused.
  */
 export type Attempted =
-	| { readonly kind: "develop"; readonly source: string; readonly failure: Failure | "check"; readonly check?: string }
+	| (DevelopSources & { readonly kind: "develop"; readonly failure: Failure | "check"; readonly check?: string })
 	| { readonly kind: "check"; readonly name: string; readonly expression: string; readonly counterexample: string };
 
 /**

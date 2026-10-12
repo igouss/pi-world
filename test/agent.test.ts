@@ -142,6 +142,28 @@ describe("the agent grows the world", () => {
 		expect((await toolResults(root))[2]).toMatch(/^#1 on revision 0, check: check "vacuous" \(refused\): the check still holds/);
 	});
 
+	it("describes what a definition calls and what calls it", async () => {
+		const { faux, world, root } = await setup();
+		await world.develop(`function add(a, b) { return a + b; }\nfunction sum(xs) { return xs.reduce(add, 0); }\nfunction total(xs) { return sum(xs); }`, "sums", { by: "operator" });
+		faux.setResponses([call("describe", { name: "sum" }), fauxAssistantMessage("Seen.")]);
+		await ask(root, "Describe sum.");
+		const [result] = await toolResults(root);
+		expect(result).toContain("calls: add\ncalled by: total");
+	});
+
+	it("describes one definition with its doc and revisions, and a removed one by its history", async () => {
+		const { faux, world, root } = await setup();
+		await world.develop(`define("a", () => 1);`, "add a", { by: "operator" });
+		await world.develop(`/** Two. */ function b() { return 2; }`, "add b", { by: "operator" });
+		await world.develop(`undefine("a");`, "drop a", { by: "operator" });
+		faux.setResponses([call("describe", { name: "b" }), fauxAssistantMessage("b."), call("describe", { name: "a" }), fauxAssistantMessage("a.")]);
+		await ask(root, "Describe b.");
+		await ask(root, "Describe a.");
+		const [b, a] = await toolResults(root);
+		expect(b).toBe("function b() @1\ndoc: Two.\nsource:\nfunction b() { return 2; }\nrevisions:\n  2: add b");
+		expect(a).toBe("a is not defined at revision 3.\nRevisions that touched it:\n  3: drop a\n  1: add a");
+	});
+
 	it("shows the world's definitions in the system prompt", async () => {
 		const { faux, world, root } = await setup();
 		await world.develop(`define("area", (w, h) => w * h, { doc: "Rectangle area" });`, "area", { by: "operator" });

@@ -1,5 +1,6 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-durable";
+import type { References } from "../../source/references.ts";
 import type { World } from "../../world/world.ts";
 import { text } from "./result.ts";
 
@@ -8,7 +9,7 @@ const SCANNED_REVISIONS: number = 200;
 export function describeTool(world: World) {
 	return defineTool({
 		name: "describe",
-		description: "Show the current source, doc and version of one definition, and the revisions that touched it.",
+		description: "Show the current source, doc and version of one definition, the definitions it calls and is called by, and the revisions that touched it.",
 		parameters: Type.Object({ name: Type.String() }),
 		execute: async ({ name }) => {
 			const entry = world.catalogue().find((candidate) => candidate.name === name);
@@ -22,6 +23,7 @@ export function describeTool(world: World) {
 					entry.doc ? `doc: ${entry.doc}` : "doc: (none)",
 					"source:",
 					entry.source,
+					...callGraph(world.callGraph().get(name)),
 					touched.length ? `revisions:\n${touched.join("\n")}` : "",
 				]
 					.filter(Boolean)
@@ -29,4 +31,9 @@ export function describeTool(world: World) {
 			);
 		},
 	});
+}
+
+function callGraph(graph: References | undefined): string[] {
+	if (!graph) return [];
+	return [graph.calls.length ? `calls: ${graph.calls.join(", ")}` : "", graph.calledBy.length ? `called by: ${graph.calledBy.join(", ")}` : ""].filter(Boolean);
 }

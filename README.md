@@ -51,6 +51,9 @@ result is validated and iterated on immediately. It is one station of a larger l
 | Worlds calling worlds | `await worlds.call(id, name, ...args)` uses another world's service; cycles are refused | on the node |
 | Pages served by the world | `define("app", (path, query) => html)` is served at `/w/:id/` | on the node |
 | Checks the agent cannot weaken | Enrolled only after failing on a counterexample; removed only by you, with a reason | on the node |
+| Plain declarations are definitions | `function f` and `class C` at the top of a source are rewritten into `define` calls on the host; the revision keeps both texts | built |
+| Checks that cannot go vacuous | Every develop re-runs every check's counterexample; a change after which a check can no longer fail is rejected | built |
+| Who calls whom | `describe` and the Functions tab list what a definition calls and what calls it | built |
 | Rejections kept as records | Every rejected `develop` and refused check is numbered and kept with its source and reason, so compaction cannot lose it | built |
 | Immutable revisions and rollback | Rollback creates a new revision | on the node |
 | Runs that survive a crash | A run interrupted by a celld restart continues and finishes, with no revision accepted twice | on the node |
@@ -64,7 +67,9 @@ result is validated and iterated on immediately. It is one station of a larger l
 
 ## The prelude
 
-The prelude, installed at revision 0, is how `develop` sources are written:
+A `develop` source is ordinary JavaScript: every top-level `function` and `class` declaration becomes a definition,
+with the JSDoc comment above it as its doc. The prelude, installed at revision 0, is the rest of how sources are
+written:
 
 | Function | What it does |
 |---|---|

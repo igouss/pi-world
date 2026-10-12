@@ -50,6 +50,13 @@ The rules the implementation obeys, each with the fact that forces it.
 - **Sources run in a function scope.** The host wraps every `develop` source in `(() => { ... })()`. Top-level
   bindings are locals of that evaluation, nothing leaks into the global lexical scope, re-evaluation cannot throw a
   redeclaration, and the only exports are `define` and `state`.
+- **Top-level declarations are definitions.** Before evaluating, the host parses the source and rewrites each
+  top-level `function f` by adding `var f = define("f", f)` to the first line, and each top-level `class C` into
+  `const C = define("C", class C …)` in place, with a JSDoc comment as the doc. The local name then holds the stub, so
+  references inside the same source, recursion included, follow later redefinitions, and no line moves, so error
+  positions point into the source as written. The revision stores the rewritten text as `source`, which is what
+  replays, so replay never depends on the rewriter's version; `written` keeps the source as the agent wrote it. A
+  source that does not parse is evaluated unchanged and its syntax error reported by QuickJS.
 - **Checks live outside the world.** Invariants and goals are not world code. Their sources are stored on the host
   side, in a `WorldChecks` document, outside the heap. The host evaluates them in the VM after each attempt. No host
   function lets world code read or write them, so a `develop` cannot change a check. jiti keeps its checks with the
@@ -59,6 +66,11 @@ The rules the implementation obeys, each with the fact that forces it.
   on a checkpoint, requires the check to fail there, restores, and requires it to pass on the current world. Only
   then is it enrolled. Removing or loosening a check is an operator call with a recorded reason, never an agent
   tool.
+- **Every develop re-runs every counterexample.** After the checks hold on the developed heap, each check's
+  counterexample is applied to that heap in turn and the check must fail there. A check that a change made vacuous
+  (it calls a redefined function, or reads changed state) rejects the develop, because a check that cannot fail is a
+  false green. The accepted snapshot is the heap taken right after the source evaluated, before any check ran, so
+  nothing a check or a counterexample does to the heap is kept.
 - **Rejections are records.** A rejected develop or a refused check is committed as a numbered `Rejection` document
   in the same commit a tool call would have used for a revision, because a tool result in the conversation can be
   compacted away. The rejection names its base revision, its failure and the check it broke, and a rerun of the same
