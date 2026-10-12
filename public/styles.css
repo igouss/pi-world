@@ -198,7 +198,8 @@ button.wide, .button.wide { width: 100%; justify-content: center; padding: 9px 1
 .kind.rollback { background: var(--warn-soft); }
 .kind.open { background: var(--warn-soft); }
 .count.alert { color: inherit; font-weight: 600; }
-.access label.row { gap: 6px; }
+.access label.row { gap: 6px; padding: 3px 0; justify-content: flex-start; }
+.access label.row input { width: auto; flex: none; margin: 0; }
 .rev-summary { flex: 1; }
 .revisions li.head .rev-n::after { content: " ●"; color: var(--ok); font-size: 10px; }
 .changes { font-size: 12px; background: var(--sunk); padding: 6px 8px; border-radius: 6px; }
