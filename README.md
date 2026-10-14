@@ -393,6 +393,28 @@ can see a deploy reach each world. It reads the fleet's service-account key from
 `GOOGLE_APPLICATION_CREDENTIALS` and `CELLD_BUCKET` to deploy elsewhere. A running node adopts a new deployment
 without a restart. Keep the Worker `name` (`pi-world`) stable: celld derives every cell id from it.
 
+### Drive a server from the command line
+
+`pw` drives any pi-world server through the same typed client as the web UI (`src/api/client.ts`). A world is named
+by its id, its name, or a unique prefix of its id. The server is `--server` or `PW_SERVER`, by default the node.
+
+```sh
+npm run pw -- worlds                                  # every world's id and name
+npm run pw -- show "Reading list"                     # revision, functions with docs, checks, app URL
+npm run pw -- develop kit kit.js -m "add table"       # develop a source file, through the agent's attempt
+npm run pw -- execute kit 'slugify("Ça va?")'         # preview: data writes are rolled back
+npm run pw -- call reading searchLinks '"#tla is:unread"'   # each argument is JSON, or a string when it is not
+npm run pw -- check kit check.json                    # propose a check: { name, expression, counterexample, generator? }
+npm run pw -- ask beads-board "Add a label filter"    # talk to the world's agent; follows its turn until it settles
+npm run pw -- transcript kit -n 10                    # also: rejections, incidents, data <world> [prefix]
+```
+
+`--json` prints the raw responses. A command that fails, a rejected develop, a refused check, a failed call or an
+agent turn that ends in an error exits with status 1.
+
+`npm run sync-beads -- [world]` pushes this repository's beads, with their dependencies, into a Beads board world
+(default "Beads board") through its `importBeads` function, and prints the board's URL.
+
 ## Interfaces (built)
 
 **Agent tools:** `develop`, `execute` (a preview: data writes rolled back), `describe`, `history`, `rollback`,
