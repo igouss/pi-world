@@ -16,8 +16,11 @@ export class LocalWorkbench implements Workbench {
 	private vm: WorldVm | undefined;
 	/** The blob the VM's heap is: the head it was restored at, or the last heap it made. */
 	private at: string | undefined;
+	private readonly deps: LocalWorkbenchDeps;
 
-	constructor(private readonly deps: LocalWorkbenchDeps) {}
+	constructor(deps: LocalWorkbenchDeps) {
+		this.deps = deps;
+	}
 
 	async genesis(): Promise<Heap> {
 		this.vm?.dispose();

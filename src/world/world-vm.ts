@@ -73,11 +73,16 @@ export class WorldVm {
 	private rng: () => number = mulberry32(1);
 	private clockNs: () => bigint = () => INIT_TIME_NS;
 	private requests: PeerRequest[] = [];
+	private readonly wasm: WebAssembly.Module;
+	private readonly limits: VmLimits;
 
 	private constructor(
-		private readonly wasm: WebAssembly.Module,
-		private readonly limits: VmLimits,
-	) {}
+		wasm: WebAssembly.Module,
+		limits: VmLimits,
+	) {
+		this.wasm = wasm;
+		this.limits = limits;
+	}
 
 	/** A fresh world: the prelude at revision 0, at `prelude` (the newest version unless an older one is asked for). */
 	static async create(wasm: WebAssembly.Module, limits: VmLimits = DEFAULT_LIMITS, prelude: number = PRELUDE_VERSION): Promise<WorldVm> {

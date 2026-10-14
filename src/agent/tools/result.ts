@@ -1,7 +1,7 @@
 import type { ToolExecutionResult } from "@earendil-works/pi-durable";
 
 export function text(body: string, isError: boolean = false): ToolExecutionResult {
-	return { content: [{ type: "text", text: body }], ...(isError ? { isError: true } : {}) };
+	return { output: [{ type: "text", text: body }], ...(isError ? { isError: true } : {}) };
 }
 
 /** JSON for the model, cut to a size it can read. */

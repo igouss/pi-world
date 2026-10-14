@@ -22,22 +22,23 @@
 		"bench:snapshot-pages": "esbuild perf/bench/snapshot-pages.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/bench/snapshot-pages.mjs --log-level=warning && node dist/bench/snapshot-pages.mjs"
 	},
 	"dependencies": {
-		"@earendil-works/chord": "^1.0.4",
-		"@earendil-works/pi-ai": "^1.0.4",
-		"@earendil-works/pi-durable": "^1.0.4",
+		"@earendil-works/chord": "^1.2.0",
+		"@earendil-works/pi-ai": "^1.2.0",
+		"@earendil-works/pi-durable": "^1.2.0",
 		"acorn": "^8.19.0",
 		"acorn-walk": "^8.3.5",
-		"preact": "^11.0.0",
+		"preact": "^11.0.1",
 		"quickjs-wasi": "3.6.2"
 	},
 	"devDependencies": {
-		"@cloudflare/workers-types": "^5.20261006.1",
+		"@cloudflare/workers-types": "^5.20261014.1",
 		"@hegeldev/hegel": "^0.4.7",
 		"@stryker-mutator/core": "^10.0.0",
 		"@stryker-mutator/vitest-runner": "^10.0.0",
+		"esbuild": "^0.28.2",
 		"hdr-histogram-js": "^3.0.1",
 		"typescript": "^7.0.2",
-		"undici": "^7.30.0",
+		"undici": "^8.11.2",
 		"vitest": "^4.1.11"
 	}
 }

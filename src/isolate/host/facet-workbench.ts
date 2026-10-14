@@ -6,7 +6,11 @@ import type { RuntimeFacetStub } from "./runtime-loader.ts";
 
 /** The host's side of a world's runtime isolate for changes: the VM work of every develop, check and rollback goes to the facet. */
 export class FacetWorkbench implements Workbench {
-	constructor(private readonly facet: RuntimeFacetStub) {}
+	private readonly facet: RuntimeFacetStub;
+
+	constructor(facet: RuntimeFacetStub) {
+		this.facet = facet;
+	}
 
 	genesis(): Promise<Heap> {
 		return this.facet.workbenchGenesis();

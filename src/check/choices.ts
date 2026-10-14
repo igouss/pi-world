@@ -5,11 +5,16 @@
  */
 export class Choices {
 	private readonly drawn: number[] = [];
+	private readonly prefix: readonly number[];
+	private readonly random: (() => number) | undefined;
 
 	constructor(
-		private readonly prefix: readonly number[],
-		private readonly random?: () => number,
-	) {}
+		prefix: readonly number[],
+		random?: () => number,
+	) {
+		this.prefix = prefix;
+		this.random = random;
+	}
 
 	next(bound: number): number {
 		const i = this.drawn.length;

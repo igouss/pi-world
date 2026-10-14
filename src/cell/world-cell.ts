@@ -1,6 +1,7 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { AgentDoc, type AgentState } from "@earendil-works/pi-durable";
 import { SqliteStorage, type SqliteDatabase } from "@earendil-works/pi-durable/storage/sqlite";
+import { DurableObjectSqliteDatabase } from "@earendil-works/pi-durable/storage/sqlite/cloudflare";
 import { DurableObject } from "cloudflare:workers";
 import { DEFAULT_MODEL, type Transcript, type WorldSummary } from "../api/types.ts";
 import { build } from "../build.ts";
@@ -20,7 +21,6 @@ import { openWorld } from "./open-world.ts";
 import { TieredBlobStore } from "../revision/tiered-blob-store.ts";
 import { r2Archive } from "./r2-archive.ts";
 import { sqlBlobStore } from "./sql-blob-store.ts";
-import { cellDatabase } from "./sqlite-database.ts";
 import { routeWorld, type WorldRuntime } from "./world-routes.ts";
 
 interface Meta {
@@ -107,7 +107,7 @@ export class WorldCell extends DurableObject<Env> {
 
 	private storage(): Promise<{ db: SqliteDatabase; blobs: TieredBlobStore }> {
 		this.stores ??= (async () => {
-			const db = cellDatabase(this.ctx.storage);
+			const db = new DurableObjectSqliteDatabase(this.ctx.storage);
 			const archiveError = (error: unknown) => console.warn("archiving snapshots failed; the next revision retries", error);
 			return { db, blobs: new TieredBlobStore(await sqlBlobStore(db), r2Archive(this.env.SNAPSHOTS), archiveError) };
 		})();

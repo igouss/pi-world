@@ -36,8 +36,10 @@ export class LocalCallRunner implements CallRunner, DataAdmin {
 	private readonly reruns: Mutex = new Mutex();
 	/** The snapshot of the newest head asked for; an older head's snapshot is fetched without replacing it. */
 	private newest: { readonly head: HeadRef; readonly snapshot: Promise<Snapshot> } | undefined;
+	private readonly deps: LocalCallRunnerDeps;
 
-	constructor(private readonly deps: LocalCallRunnerDeps) {
+	constructor(deps: LocalCallRunnerDeps) {
+		this.deps = deps;
 		const limits = deps.limits ?? DEFAULT_LIMITS;
 		this.pool = new VmPool((snapshot) => WorldVm.fromSnapshot(snapshot, deps.wasm, limits), deps.concurrentCalls ?? CONCURRENT_CALLS, WARM_VMS);
 	}

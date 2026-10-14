@@ -26,7 +26,7 @@ Three spikes ran against quickjs-wasi 3.6.2 under Node 25.2.1, before anything r
 
 - quickjs-wasi loads from a bundled `.wasm` import, creates a VM, snapshots it, and restores it from a 1.38 MB row
   in the cell's SQLite. A 1.44 MB snapshot row also round-trips (open check 2: no limit hit at this size).
-- pi-durable runs over the cell's SQLite through an asynchronous facade (`src/cell/sqlite-database.ts`), and pi-ai's
+- pi-durable runs over the cell's SQLite through pi-durable's Durable Object adapter (`DurableObjectSqliteDatabase`), and pi-ai's
   Anthropic provider answers through the owner's Claude subscription with an OAuth token (open check 3: settled).
   One answered input took about 1 s end to end on the node, with its durable commits.
 - A full session ran on the node through the web UI: the agent defined seven functions over three revisions, enrolled a

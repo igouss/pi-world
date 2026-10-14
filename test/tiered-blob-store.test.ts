@@ -7,9 +7,11 @@ const bytes = (n: number): Uint8Array => new Uint8Array([n, n, n]);
 /** An archive that fails its first `failPuts` puts, as an object store can, and counts the puts it accepts. */
 class Archive extends MemoryBlobStore {
 	puts: number = 0;
+	private failures: number;
 
-	constructor(private failures: number = 0) {
+	constructor(failures: number = 0) {
 		super();
+		this.failures = failures;
 	}
 
 	override async put(hash: string, bytes: Uint8Array): Promise<void> {

@@ -5,7 +5,11 @@ import type { RuntimeFacetStub } from "./runtime-loader.ts";
 
 /** The host's side of a world's runtime isolate: calls, previews and data administration all go to the facet. */
 export class FacetCallRunner implements CallRunner, DataAdmin {
-	constructor(private readonly facet: RuntimeFacetStub) {}
+	private readonly facet: RuntimeFacetStub;
+
+	constructor(facet: RuntimeFacetStub) {
+		this.facet = facet;
+	}
 
 	call(name: string, args: readonly unknown[], chain: readonly string[], scope: CallScope): Promise<Outcome | Refused> {
 		return this.facet.call(name, [...args], [...chain], scope);

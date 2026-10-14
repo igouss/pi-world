@@ -20,8 +20,11 @@ export class OverlayDataPort implements DataPort {
 	/** What each prefix listed from the base held when it was listed; compared only if the call commits writes. */
 	private readonly prefixesRead: Map<string, readonly DataRow[]> = new Map();
 	private awaited: boolean = false;
+	private readonly base: DataStore;
 
-	constructor(private readonly base: DataStore) {}
+	constructor(base: DataStore) {
+		this.base = base;
+	}
 
 	get(key: string): string | undefined {
 		if (this.writes.has(key)) return this.writes.get(key) ?? undefined;

@@ -10,14 +10,23 @@ const CACHED: number = 256;
  */
 export class NumberedLog<T> {
 	private readonly cache: Map<number, T> = new Map();
+	private readonly session: Pick<Session, "snapshot">;
+	private readonly family: SessionDocFamilyToken<T & JsonObject, T & JsonObject>;
+	private readonly noun: string;
+	private readonly cached: number;
 
 	constructor(
-		private readonly session: Pick<Session, "snapshot">,
-		private readonly family: SessionDocFamilyToken<T & JsonObject, T & JsonObject>,
+		session: Pick<Session, "snapshot">,
+		family: SessionDocFamilyToken<T & JsonObject, T & JsonObject>,
 		/** What an entry is called in an error, such as "revision". */
-		private readonly noun: string,
-		private readonly cached: number = CACHED,
-	) {}
+		noun: string,
+		cached: number = CACHED,
+	) {
+		this.session = session;
+		this.family = family;
+		this.noun = noun;
+		this.cached = cached;
+	}
 
 	async get(n: number): Promise<T | undefined> {
 		const cached = this.cache.get(n);

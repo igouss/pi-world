@@ -43,16 +43,26 @@ export class IncidentLog {
 	private pending: Map<number, Repeats> = new Map();
 	private flushing: Promise<void> = Promise.resolve();
 	private scheduled: boolean = false;
+	private readonly sessionCommit: Commit;
+	private state: Incidents;
+	private readonly now: () => number;
+	private readonly changed: () => void;
+	private readonly later: (run: () => void, ms: number) => void;
 
 	constructor(
 		session: Pick<Session, "snapshot">,
-		private readonly sessionCommit: Commit,
-		private state: Incidents,
-		private readonly now: () => number,
-		private readonly changed: () => void,
+		sessionCommit: Commit,
+		state: Incidents,
+		now: () => number,
+		changed: () => void,
 		/** Runs the flush of repeats later; a timer by default. */
-		private readonly later: (run: () => void, ms: number) => void = (run, ms) => void setTimeout(run, ms),
+		later: (run: () => void, ms: number) => void = (run, ms) => void setTimeout(run, ms),
 	) {
+		this.sessionCommit = sessionCommit;
+		this.state = state;
+		this.now = now;
+		this.changed = changed;
+		this.later = later;
 		this.log = new NumberedLog(session, WorldIncident, "incident");
 	}
 

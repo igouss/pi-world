@@ -10,12 +10,19 @@ export class TieredBlobStore implements BlobStore {
 	private archivedFor: string | undefined;
 	private wanted: string | undefined;
 	private running: Promise<void> | undefined;
+	private readonly local: LocalBlobStore;
+	private readonly archive: BlobStore;
+	private readonly onArchiveError: (error: unknown) => void;
 
 	constructor(
-		private readonly local: LocalBlobStore,
-		private readonly archive: BlobStore,
-		private readonly onArchiveError: (error: unknown) => void = () => undefined,
-	) {}
+		local: LocalBlobStore,
+		archive: BlobStore,
+		onArchiveError: (error: unknown) => void = () => undefined,
+	) {
+		this.local = local;
+		this.archive = archive;
+		this.onArchiveError = onArchiveError;
+	}
 
 	put(hash: string, bytes: Uint8Array): Promise<void> {
 		return this.local.put(hash, bytes);

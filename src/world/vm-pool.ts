@@ -34,12 +34,19 @@ export class VmPool {
 	/** VMs returning to the newest head, which count as warm while they reset. */
 	private resetting: number = 0;
 	private newest: PoolHead | undefined;
+	private readonly open: (snapshot: Snapshot) => Promise<WorldVm>;
+	private readonly max: number;
+	private readonly warm: number;
 
 	constructor(
-		private readonly open: (snapshot: Snapshot) => Promise<WorldVm>,
-		private readonly max: number,
-		private readonly warm: number,
-	) {}
+		open: (snapshot: Snapshot) => Promise<WorldVm>,
+		max: number,
+		warm: number,
+	) {
+		this.open = open;
+		this.max = max;
+		this.warm = warm;
+	}
 
 	/** Run `body` on a VM at `head`; with a finite `maxWaitMs`, give up with `BUSY` if no VM came free that soon. */
 	async run<T>(head: PoolHead, body: (vm: WorldVm) => Promise<T>, maxWaitMs?: number): Promise<T | typeof BUSY> {

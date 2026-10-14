@@ -78,15 +78,25 @@ export class World {
 
 	/** Calls that failed, kept so they can be fixed and retried. */
 	readonly incidents: IncidentLog;
+	private readonly deps: WorldDeps;
+	private current: Head;
+	private checksState: ChecksState;
+	private rejectionsState: Rejections;
+	private grantsState: Grants;
 
 	private constructor(
-		private readonly deps: WorldDeps,
-		private current: Head,
-		private checksState: ChecksState,
-		private rejectionsState: Rejections,
-		private grantsState: Grants,
+		deps: WorldDeps,
+		current: Head,
+		checksState: ChecksState,
+		rejectionsState: Rejections,
+		grantsState: Grants,
 		incidents: Incidents,
 	) {
+		this.deps = deps;
+		this.current = current;
+		this.checksState = checksState;
+		this.rejectionsState = rejectionsState;
+		this.grantsState = grantsState;
 		this.incidents = new IncidentLog(deps.session, this.sessionCommit, incidents, () => this.now(), () => this.notify());
 		this.revisions = new NumberedLog(deps.session, WorldRevision, "revision");
 		this.rejected = new NumberedLog(deps.session, WorldRejection, "rejection");

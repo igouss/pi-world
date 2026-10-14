@@ -10,8 +10,11 @@ const FLUSH_MS: number = 120;
 export class Fanout {
 	private readonly pending: Map<ServerFrame["type"], () => ServerFrame> = new Map();
 	private timer: ReturnType<typeof setTimeout> | undefined;
+	private readonly sockets: () => readonly WebSocket[];
 
-	constructor(private readonly sockets: () => readonly WebSocket[]) {}
+	constructor(sockets: () => readonly WebSocket[]) {
+		this.sockets = sockets;
+	}
 
 	/** Queue a frame; `frame` is built at flush time, so it carries the newest state. */
 	publish(type: ServerFrame["type"], frame: () => ServerFrame): void {
