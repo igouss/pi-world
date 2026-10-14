@@ -1,7 +1,7 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { incidentPath } from "../api/paths.ts";
 import { MODELS, type Transcript, type WorldSummary } from "../api/types.ts";
-import type { DataAdmin } from "../world/call-runner.ts";
+import { isRefused, type DataAdmin } from "../world/call-runner.ts";
 import { parseGrants } from "../world/grants.ts";
 import type { Fanout } from "./fanout.ts";
 import { errorMessage, json, read } from "./http.ts";
@@ -91,10 +91,10 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 			const { args = [] } = await read<{ args?: unknown[] }>(request);
 			if (!Array.isArray(args)) return json({ error: "args must be an array" }, 400);
 			const outcome = await world.call(arg, args);
+			if (isRefused(outcome)) return json(outcome, 503, { "retry-after": "1" });
 			// A caller that prefers to wait gets the incident to follow until it is retried or answered.
 			if (!outcome.ok && outcome.incident !== undefined && /\brespond-async\b/.test(request.headers.get("prefer") ?? ""))
 				return json({ incident: outcome.incident, status: "open", location: incidentPath(runtime.summary().id, outcome.incident) }, 202);
-			if (!outcome.ok && outcome.failure === "busy") return json(outcome, 503, { "retry-after": "1" });
 			return json(outcome, outcome.ok ? 200 : 422);
 		}
 		case "GET incidents": {
@@ -160,10 +160,7 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 		case "GET checks":
 			return json(world.checks());
 		case "POST checks": {
-			const proposal = await read<{ name?: string; expression?: string; counterexample?: string; generator?: unknown }>(request);
-			if (!proposal.name?.trim() || !proposal.expression?.trim() || !proposal.counterexample?.trim())
-				return json({ error: "a check needs a name, an expression and a counterexample" }, 400);
-			const { name, expression, counterexample, generator } = proposal;
+			const { name = "", expression = "", counterexample = "", generator } = await read<{ name?: string; expression?: string; counterexample?: string; generator?: unknown }>(request);
 			const result = await world.proposeCheck({ name, expression, counterexample, generator }, { by: "operator" });
 			return json(result, result.status === "enrolled" ? 200 : 422);
 		}

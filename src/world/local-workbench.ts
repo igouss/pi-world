@@ -2,12 +2,11 @@ import { contentHash } from "../revision/blob-store.ts";
 import type { Check } from "../check/check.ts";
 import { attemptDevelop, attemptEnrolment, type Enrolment } from "./attempt.ts";
 import type { Candidate, Developed, Heap, Workbench } from "./workbench.ts";
-import { DEFAULT_LIMITS, WorldVm, type AttemptMode, type CatalogueEntry, type VmLimits } from "./world-vm.ts";
+import { WorldVm, type AttemptMode, type CatalogueEntry } from "./world-vm.ts";
 import type { Snapshot } from "quickjs-wasi";
 
 export interface LocalWorkbenchDeps {
 	readonly wasm: WebAssembly.Module;
-	readonly limits?: VmLimits;
 	/** A snapshot blob by its content hash. */
 	readonly blob: (hash: string) => Promise<Uint8Array>;
 }
@@ -22,7 +21,7 @@ export class LocalWorkbench implements Workbench {
 
 	async genesis(): Promise<Heap> {
 		this.vm?.dispose();
-		this.vm = await WorldVm.create(this.deps.wasm, this.limits());
+		this.vm = await WorldVm.create(this.deps.wasm);
 		return this.made(this.vm, this.vm.snapshot());
 	}
 
@@ -62,7 +61,7 @@ export class LocalWorkbench implements Workbench {
 		if (this.vm && this.at === blob) return this.vm;
 		const snapshot = WorldVm.deserialize(await this.deps.blob(blob));
 		if (this.vm) await this.vm.reset(snapshot);
-		else this.vm = await WorldVm.fromSnapshot(snapshot, this.deps.wasm, this.limits());
+		else this.vm = await WorldVm.fromSnapshot(snapshot, this.deps.wasm);
 		this.at = blob;
 		return this.vm;
 	}
@@ -73,9 +72,5 @@ export class LocalWorkbench implements Workbench {
 		const blob = await contentHash(bytes);
 		this.at = blob;
 		return { bytes, blob, catalogue };
-	}
-
-	private limits(): VmLimits {
-		return this.deps.limits ?? DEFAULT_LIMITS;
 	}
 }

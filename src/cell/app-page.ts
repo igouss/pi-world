@@ -1,3 +1,4 @@
+import { failureText } from "../world/call-runner.ts";
 import { appPath, callPath, worldHash } from "../api/paths.ts";
 import { escapeHtml } from "../api/text.ts";
 import type { CatalogueEntry } from "../world/world-vm.ts";
@@ -17,7 +18,7 @@ export function hasApp(catalogue: readonly CatalogueEntry[]): boolean {
 export async function appPage(world: World, worldId: string, path: string, query: Record<string, string>): Promise<Response> {
 	if (!hasApp(world.catalogue())) return html(EMPTY(worldId), 404);
 	const outcome = await world.call(APP, [path, query]);
-	if (!outcome.ok) return html(FAILED(worldId, `${outcome.failure}: ${outcome.error}`), 500);
+	if (!outcome.ok) return html(FAILED(worldId, failureText(outcome)), 500);
 	if (typeof outcome.value !== "string") return html(FAILED(worldId, `app returned ${typeof outcome.value}, not an HTML string`), 500);
 	return html(inject(outcome.value, CLIENT(worldId)), 200);
 }

@@ -30,15 +30,17 @@ async function counting(): Promise<{ world: World; commits: () => number; stored
 }
 
 describe("incidents", () => {
-	it("open with a durable write, and count repeats without one each, writing them together when read", async () => {
+	it("open with a durable write, count repeats without one each, show them to readers, and write them together", async () => {
 		const { world, commits, stored } = await counting();
 		const before = commits();
 		await world.call("half", [3]);
 		expect(commits()).toBe(before + 1);
 		for (let i = 0; i < 9; i++) await world.call("half", [3]);
+		expect(await world.incidents.get(0)).toMatchObject({ count: 10 });
+		expect((await world.incidents.list(10))[0]).toMatchObject({ count: 10 });
 		expect(commits()).toBe(before + 1);
 		expect(await stored(0)).toMatchObject({ count: 1 });
-		expect(await world.incidents.get(0)).toMatchObject({ count: 10 });
+		await world.incidents.flush();
 		expect(commits()).toBe(before + 2);
 		expect(await stored(0)).toMatchObject({ count: 10 });
 	});
@@ -105,7 +107,7 @@ describe("incidents", () => {
 		late = true;
 		const retry = await world.retryIncident(0, "operator");
 		late = false;
-		expect(retry).toMatchObject({ ok: false, failure: "busy" });
+		expect(retry).toMatchObject({ ok: false, refused: "busy" });
 		expect(await world.incidents.get(0)).toMatchObject({ retries: 0, count: 1 });
 	});
 

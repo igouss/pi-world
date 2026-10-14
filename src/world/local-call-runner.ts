@@ -1,5 +1,5 @@
 import type { Snapshot } from "quickjs-wasi";
-import type { CallRunner, CallScope, DataAdmin, ExecuteResult, HeadRef } from "./call-runner.ts";
+import { BUSY_REFUSAL, isRefused, type CallRunner, type CallScope, type DataAdmin, type ExecuteResult, type HeadRef, type Refused } from "./call-runner.ts";
 import type { DataRow, DataStore } from "./data-port.ts";
 import type { Grants } from "./grants.ts";
 import { OverlayDataPort } from "./overlay-data-port.ts";
@@ -50,9 +50,11 @@ export class LocalCallRunner implements CallRunner, DataAdmin {
 	 * repeats the calls it makes to other worlds. A call that fails leaves no write. Other calls see its writes only
 	 * once it has committed.
 	 */
-	async call(name: string, args: readonly unknown[], chain: readonly string[], scope: CallScope): Promise<Outcome> {
-		const attempt = async (scope: CallScope): Promise<Outcome | typeof STALE> => {
-			const { outcome, writes } = await this.run(scope, chain, (vm, mode) => vm.invoke(name, args, mode));
+	async call(name: string, args: readonly unknown[], chain: readonly string[], scope: CallScope): Promise<Outcome | Refused> {
+		const attempt = async (scope: CallScope): Promise<Outcome | Refused | typeof STALE> => {
+			const ran = await this.run(scope, chain, (vm, mode) => vm.invoke(name, args, mode));
+			if (isRefused(ran)) return ran;
+			const { outcome, writes } = ran;
 			return !outcome.ok || writes.commitIfUnchanged() ? outcome : STALE;
 		};
 		const first = await attempt(scope);
@@ -69,9 +71,10 @@ export class LocalCallRunner implements CallRunner, DataAdmin {
 	}
 
 	/** A preview: its data writes are recorded and dropped, and named in the result. */
-	async execute(expression: string, scope: CallScope): Promise<ExecuteResult> {
-		const { outcome, writes } = await this.run(scope, [], (vm, mode) => vm.evaluate(expression, mode));
-		return { ...outcome, rolledBack: writes.changes() };
+	async execute(expression: string, scope: CallScope): Promise<ExecuteResult | Refused> {
+		const ran = await this.run(scope, [], (vm, mode) => vm.evaluate(expression, mode));
+		if (isRefused(ran)) return ran;
+		return { ...ran.outcome, rolledBack: ran.writes.changes() };
 	}
 
 	async list(prefix: string): Promise<readonly DataRow[]> {
@@ -86,20 +89,19 @@ export class LocalCallRunner implements CallRunner, DataAdmin {
 		this.pool.dispose();
 	}
 
-	/** Run one evaluation on a pooled VM, if it can start before the call's deadline; a call that cannot is refused as busy. */
+	/** Run one evaluation on a pooled VM, if it can start before the call's deadline; a call that cannot is refused. */
 	private async run(
 		{ head, grants, startBy }: CallScope,
 		chain: readonly string[],
 		body: (vm: WorldVm, mode: Mode) => Promise<Outcome>,
-	): Promise<{ outcome: Outcome; writes: OverlayDataPort }> {
-		const writes = new OverlayDataPort(this.deps.data);
-		const busy: Outcome = { ok: false, failure: "busy", error: "the world is busy: the call could not start within a second of arriving; try again" };
+	): Promise<{ outcome: Outcome; writes: OverlayDataPort } | Refused> {
 		const snapshot = await this.snapshotOf(head);
 		const left = startBy - (this.deps.now ?? Date.now)();
-		if (left <= 0) return { outcome: busy, writes };
+		if (left <= 0) return BUSY_REFUSAL;
+		const writes = new OverlayDataPort(this.deps.data);
 		const mode: Mode = { kind: "live", data: writes, peers: this.deps.peers?.(chain, grants) ?? NO_PEERS };
 		const ran = await this.pool.run({ revision: head.revision, snapshot }, (vm) => body(vm, mode), left);
-		return { outcome: ran === BUSY ? busy : ran, writes };
+		return ran === BUSY ? BUSY_REFUSAL : { outcome: ran, writes };
 	}
 
 	private snapshotOf(head: HeadRef): Promise<Snapshot> {

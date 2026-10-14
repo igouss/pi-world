@@ -1,6 +1,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-durable";
 import type { World } from "../../world/world.ts";
+import { failureText, isRefused } from "../../world/call-runner.ts";
 import { show, text } from "./result.ts";
 
 export function executeTool(world: World) {
@@ -14,10 +15,11 @@ export function executeTool(world: World) {
 		executionMode: "sequential",
 		execute: async ({ expression }) => {
 			const outcome = await world.execute(expression);
+			if (isRefused(outcome)) return text(failureText(outcome), true);
 			const { set, deleted } = outcome.rolledBack;
 			const writes = [set.length ? `set ${set.join(", ")}` : "", deleted.length ? `deleted ${deleted.join(", ")}` : ""].filter(Boolean);
 			const note = writes.length ? `\nData writes rolled back: ${writes.join("; ")}.` : "";
-			return outcome.ok ? text(show(outcome.value) + note) : text(`${outcome.failure}: ${outcome.error}${note}`, true);
+			return outcome.ok ? text(show(outcome.value) + note) : text(`${failureText(outcome)}${note}`, true);
 		},
 	});
 }

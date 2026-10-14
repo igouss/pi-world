@@ -5,12 +5,13 @@ import { parseGenerator } from "../check/generator.ts";
 import type { BlobStore } from "../revision/blob-store.ts";
 import { WorldChecks, WorldGrants, WorldHead, WorldRejection, WorldRejections, WorldRevision, type ChecksState } from "../revision/documents.ts";
 import { NumberedLog } from "../revision/numbered-log.ts";
+import { plain } from "../revision/plain.ts";
 import type { Attempted, Rejection, RejectionRecord, Rejections } from "../revision/rejection.ts";
 import { developSources, type Head, type Origin, type Revision } from "../revision/revision.ts";
 import { references, type References } from "../source/references.ts";
 import { rewriteSource } from "../source/rewrite.ts";
 import { diffCatalogues } from "./catalogue-diff.ts";
-import type { CallRunner, CallScope, ExecuteResult } from "./call-runner.ts";
+import { isRefused, type CallRunner, type CallScope, type ExecuteResult, type Refused } from "./call-runner.ts";
 import { IncidentLog } from "../incident/incident-log.ts";
 import type { CallOutcome, Incidents } from "../incident/incident.ts";
 import { ANY_WORLD, type Grants } from "./grants.ts";
@@ -71,6 +72,8 @@ export class World {
 	private readonly listeners: Set<() => void> = new Set();
 	private readonly revisions: NumberedLog<Revision>;
 	private readonly rejected: NumberedLog<Rejection>;
+	/** The head's definitions; empty until the workbench has opened the head. */
+	private currentCatalogue: readonly CatalogueEntry[] = [];
 	private graph: { readonly catalogue: readonly CatalogueEntry[]; readonly references: ReadonlyMap<string, References> } | undefined;
 
 	/** Calls that failed, kept so they can be fixed and retried. */
@@ -79,7 +82,6 @@ export class World {
 	private constructor(
 		private readonly deps: WorldDeps,
 		private current: Head,
-		private currentCatalogue: readonly CatalogueEntry[],
 		private checksState: ChecksState,
 		private rejectionsState: Rejections,
 		private grantsState: Grants,
@@ -98,11 +100,11 @@ export class World {
 		const grants = (await deps.session.snapshot(WorldGrants, BACKGROUND_CONTEXT)) ?? ANY_WORLD;
 		const incidents = await IncidentLog.load(deps.session);
 		if (head && head.revision >= 0) {
-			const world = new World(deps, head, [], checks, rejections, grants, incidents);
+			const world = new World(deps, head, checks, rejections, grants, incidents);
 			await world.openHead();
 			return world;
 		}
-		const world = new World(deps, { revision: -1, blob: "", calls: {} }, [], checks, rejections, grants, incidents);
+		const world = new World(deps, { revision: -1, blob: "", calls: {} }, checks, rejections, grants, incidents);
 		await world.accept(
 			await deps.workbench.genesis(),
 			{ kind: "genesis", summary: "the prelude", at: world.now(), origin: { by: "host" }, changes: { added: [], changed: [], removed: [] } },
@@ -179,7 +181,6 @@ export class World {
 			if (previous?.kind === "revision") return previous.revision;
 			const revision = await this.revisions.require(target);
 			if (target === this.current.revision) throw new Error(`revision ${target} is already the head`);
-			await requireBlob(this.deps.blobs, revision.blob, `revision ${target}`);
 			const heap = await this.deps.workbench.rollback(revision.blob, revision.prelude);
 			const changes = diffCatalogues(this.catalogue(), heap.catalogue);
 			return this.accept(heap, { kind: "rollback", target, reason, summary: `rollback to revision ${target}: ${reason}`, at: this.now(), origin, changes }, commit);
@@ -190,7 +191,7 @@ export class World {
 	 * Evaluate an expression against the world and its data, as a preview: heap changes and data writes are both
 	 * discarded, and the result names the writes it rolled back. Other worlds it calls write for real.
 	 */
-	async execute(expression: string): Promise<ExecuteResult> {
+	async execute(expression: string): Promise<ExecuteResult | Refused> {
 		return this.deps.calls.execute(expression, this.scope());
 	}
 
@@ -200,10 +201,9 @@ export class World {
 	 * call of a definition is recorded as an incident, which the outcome names; a call of a name the world does not
 	 * define is the caller's mistake and is not recorded.
 	 */
-	async call(name: string, args: readonly unknown[], chain: readonly string[] = []): Promise<CallOutcome> {
+	async call(name: string, args: readonly unknown[], chain: readonly string[] = []): Promise<CallOutcome | Refused> {
 		const { outcome, revision, defined } = await this.run(name, args, chain);
-		// A refusal for load never ran the definition, so there is nothing in it to fix.
-		if (outcome.ok || !defined || outcome.failure === "busy") return outcome;
+		if (outcome.ok || !defined || isRefused(outcome)) return outcome;
 		const incident = await this.incidents.record({ name, args, failure: outcome.failure, error: outcome.error, revision });
 		return { ...outcome, incident };
 	}
@@ -213,17 +213,17 @@ export class World {
 	 * closes the incident with its value; one that fails leaves it open with the new error. A retry refused as busy
 	 * never ran, so it changes nothing.
 	 */
-	async retryIncident(n: number, by: Origin["by"], commit: Commit = this.sessionCommit): Promise<Outcome> {
+	async retryIncident(n: number, by: Origin["by"], commit: Commit = this.sessionCommit): Promise<Outcome | Refused> {
 		const incident = await this.incidents.requireOpen(n);
 		if (!incident.args) throw new Error(`incident ${n} kept no arguments (they were too large), so it cannot be retried`);
 		const { outcome, revision } = await this.run(incident.name, incident.args, []);
 		if (outcome.ok) await this.incidents.close(n, by, { kind: "retried", revision, value: outcome.value }, commit);
-		else if (outcome.failure !== "busy") await this.incidents.retryFailed(n, outcome.failure, outcome.error, revision, commit);
+		else if (!isRefused(outcome)) await this.incidents.retryFailed(n, outcome.failure, outcome.error, revision, commit);
 		return outcome;
 	}
 
 	/** Run a call at the head as it is when the call starts, and say whether the head defines the name. */
-	private async run(name: string, args: readonly unknown[], chain: readonly string[]): Promise<{ outcome: Outcome; revision: number; defined: boolean }> {
+	private async run(name: string, args: readonly unknown[], chain: readonly string[]): Promise<{ outcome: Outcome | Refused; revision: number; defined: boolean }> {
 		const scope = this.scope();
 		const defined = this.currentCatalogue.some((entry) => entry.name === name);
 		return { outcome: await this.deps.calls.call(name, args, chain, scope), revision: scope.head.revision, defined };
@@ -235,6 +235,7 @@ export class World {
 	 */
 	async proposeCheck(proposal: CheckProposal, origin: Origin, commit: Commit = this.sessionCommit): Promise<EnrolResult> {
 		const { name, expression, counterexample } = proposal;
+		if (!name.trim() || !expression.trim() || !counterexample.trim()) throw new Error("a check needs a name, an expression and a counterexample");
 		return this.exclusive(async () => {
 			const previous = await this.previous(origin);
 			if (previous?.kind === "rejection" && previous.rejection.kind === "check") return { status: "refused", rejection: previous.rejection };
@@ -398,19 +399,8 @@ export class World {
 	}
 }
 
-async function requireBlob(blobs: BlobStore, hash: string, owner: string): Promise<Uint8Array> {
-	const bytes = await blobs.get(hash);
-	if (!bytes) throw new Error(`${owner} points at blob ${hash}, which is missing`);
-	return bytes;
-}
-
 function sameJson(a: unknown, b: unknown): boolean {
 	return JSON.stringify(a) === JSON.stringify(b);
-}
-
-/** A plain copy of a document draft, which is only valid inside its commit. */
-function plain<T>(draft: unknown): T {
-	return JSON.parse(JSON.stringify(draft)) as T;
 }
 
 /** A revision before `accept` gives it its number, parent and blob. */

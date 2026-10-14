@@ -1,3 +1,4 @@
+import type { Refused } from "./call-runner.ts";
 import type { CatalogueEntry, Outcome } from "./world-vm.ts";
 
 export interface PeerListing {
@@ -10,7 +11,7 @@ export interface PeerListing {
  * so a cycle or a deep chain is refused instead of waiting on a lock it already holds.
  */
 export interface PeerPort {
-	call(worldId: string, name: string, args: readonly unknown[]): Promise<Outcome>;
+	call(worldId: string, name: string, args: readonly unknown[]): Promise<Outcome | Refused>;
 	list(): Promise<readonly PeerListing[]>;
 	functions(worldId: string): Promise<readonly CatalogueEntry[]>;
 }

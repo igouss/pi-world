@@ -21,13 +21,7 @@ export interface FailedCall {
 export type Closing = { readonly kind: "retried"; readonly revision: number; readonly value: unknown } | { readonly kind: "returned"; readonly value: unknown } | { readonly kind: "dismissed"; readonly reason: string };
 
 /** The latest of the repeats of one open incident not yet written, and how many there were. */
-interface Repeats {
-	readonly failure: Failure;
-	readonly error: string;
-	readonly revision: number;
-	readonly lastAt: number;
-	readonly count: number;
-}
+type Repeats = Pick<Incident, "failure" | "error" | "revision" | "lastAt" | "count">;
 
 /**
  * How long repeats of open incidents wait before they are written, together, in one commit. A durable write holds
@@ -39,9 +33,10 @@ export const REPEATS_FLUSH_MS: number = 30_000;
 
 /**
  * A world's incidents: each failed call of a definition, numbered, with what closed it. Opening or closing an incident
- * is one durable commit, by default the session's; repeats of an open incident are counted in memory and written
- * together at most every `REPEATS_FLUSH_MS`, and before anything reads or changes an incident. This object is the only
- * writer, so it keeps its cache current. `changed` is told whenever the set of open incidents changes.
+ * is one durable commit, by default the session's; repeats of an open incident are counted in memory, shown to
+ * readers merged with what is stored, and written together at most every `REPEATS_FLUSH_MS`, or before a retry or a
+ * close changes the incident. This object is the only writer, so it keeps its cache current. `changed` is told
+ * whenever the set of open incidents changes.
  */
 export class IncidentLog {
 	private readonly log: NumberedLog<Incident>;
@@ -71,24 +66,27 @@ export class IncidentLog {
 
 	/** Every open incident, newest first. */
 	async openOnes(): Promise<Incident[]> {
-		await this.flush();
-		return Promise.all(Object.values(this.state.open).sort((a, b) => b - a).map((n) => this.log.require(n)));
+		return Promise.all(Object.values(this.state.open).sort((a, b) => b - a).map(async (n) => this.withRepeats(await this.log.require(n))));
 	}
 
 	async get(n: number): Promise<Incident | undefined> {
-		await this.flush();
-		return this.log.get(n);
+		const incident = await this.log.get(n);
+		return incident && this.withRepeats(incident);
 	}
 
 	/** Newest first. */
 	async list(limit: number, before?: number): Promise<Incident[]> {
-		await this.flush();
-		return this.log.newestFirst(this.state.count, limit, before);
+		return (await this.log.newestFirst(this.state.count, limit, before)).map((incident) => this.withRepeats(incident));
 	}
 
 	async requireOpen(n: number): Promise<Incident> {
-		await this.flush();
-		return assertOpen(await this.log.require(n));
+		return assertOpen(this.withRepeats(await this.log.require(n)));
+	}
+
+	/** An incident as stored, with the repeats counted since its last write. */
+	private withRepeats(incident: Incident): Incident {
+		const repeats = this.pending.get(incident.n);
+		return repeats ? { ...incident, ...repeats, count: incident.count + repeats.count } : incident;
 	}
 
 	/** Record a failed call: one more failure of the open incident with its key, counted for the next flush, or a new incident. */
@@ -150,7 +148,7 @@ export class IncidentLog {
 			const repeats = this.pending;
 			this.pending = new Map();
 			try {
-				for (const n of repeats.keys()) await this.log.require(n);
+				await Promise.all([...repeats.keys()].map((n) => this.log.require(n)));
 				const updated = await this.sessionCommit(async (tx) => {
 					const written: Incident[] = [];
 					for (const [n, { count, ...latest }] of repeats) {

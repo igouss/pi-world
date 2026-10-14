@@ -10,6 +10,7 @@ import { FacetCallRunner } from "../isolate/host/facet-call-runner.ts";
 import { FacetWorkbench } from "../isolate/host/facet-workbench.ts";
 import { runtimeFacet, type RuntimeFacetStub } from "../isolate/host/runtime-loader.ts";
 import { sqlDataRecords } from "../isolate/runtime/sql-data-port.ts";
+import type { Refused } from "../world/call-runner.ts";
 import type { CatalogueEntry, Outcome } from "../world/world-vm.ts";
 import { NO_REFERENCES } from "../source/references.ts";
 import { appPage, hasApp } from "./app-page.ts";
@@ -64,7 +65,7 @@ export class WorldCell extends DurableObject<Env> {
 	}
 
 	/** A call from another world; `chain` lists the worlds it passed through, the caller last. */
-	async peerCall(name: string, args: unknown[], chain: string[]): Promise<Outcome> {
+	async peerCall(name: string, args: unknown[], chain: string[]): Promise<Outcome | Refused> {
 		if (!(await this.meta())) return { ok: false, failure: "threw", error: "no such world" };
 		return (await this.live()).opened.world.call(name, args, chain);
 	}

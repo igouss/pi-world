@@ -6,6 +6,9 @@ import { worldDeps } from "./world-deps.ts";
 const operator = { by: "operator" } as const;
 const DELAY_MS: number = 300;
 
+/** An increment that reads, awaits another world, then writes: the shape that loses updates if calls interleave. */
+const BUMP: string = `define("bump", async () => { const n = data.get("n") ?? 0; await worlds.call("b", "x"); data.set("n", n + 1); return n + 1; }); define("n", () => data.get("n") ?? 0);`;
+
 /** A peer that answers every call after `DELAY_MS`, as a slow world would. */
 const slowPeer: PeerTransport = {
 	call: async (_id, name) => {
@@ -73,7 +76,7 @@ describe("concurrent calls to one world", () => {
 		const a = await world(1, () => clock);
 		const outcome = a.call("quick", []);
 		clock = 5000;
-		expect(await outcome).toMatchObject({ ok: false, failure: "busy" });
+		expect(await outcome).toMatchObject({ ok: false, refused: "busy" });
 		expect(a.incidents.openCount()).toBe(0);
 	});
 
@@ -100,7 +103,7 @@ describe("concurrent calls to one world", () => {
 describe("serializable calls", () => {
 	it("count every one of concurrent increments that read, await another world, then write, and fail none", async () => {
 		const a = await world();
-		await a.develop(`define("bump", async () => { const n = data.get("n") ?? 0; await worlds.call("b", "x"); data.set("n", n + 1); return n + 1; }); define("n", () => data.get("n") ?? 0);`, "bump", operator);
+		await a.develop(BUMP, "bump", operator);
 		const outcomes = await Promise.all(Array.from({ length: 8 }, () => a.call("bump", [])));
 		expect(outcomes.filter((o) => !o.ok)).toEqual([]);
 		expect(await a.call("n", [])).toEqual({ ok: true, value: 8 });
@@ -109,7 +112,7 @@ describe("serializable calls", () => {
 
 	it("let a rerun wait for a VM, however long the other calls hold them", async () => {
 		const a = await world(2);
-		await a.develop(`define("bump", async () => { const n = data.get("n") ?? 0; await worlds.call("b", "x"); data.set("n", n + 1); return n + 1; }); define("n", () => data.get("n") ?? 0);`, "bump", operator);
+		await a.develop(BUMP, "bump", operator);
 		const outcomes = await Promise.all(Array.from({ length: 6 }, () => a.call("bump", [])));
 		expect(outcomes.filter((o) => !o.ok)).toEqual([]);
 		expect(await a.call("n", [])).toEqual({ ok: true, value: 6 });

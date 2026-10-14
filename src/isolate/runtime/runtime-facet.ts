@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 // Supplied by the loader's module map as { wasm: bytes }: the loaded isolate compiles its own copy.
 import wasm from "./quickjs.wasm";
-import type { CallScope, ExecuteResult } from "../../world/call-runner.ts";
+import type { CallScope, ExecuteResult, Refused } from "../../world/call-runner.ts";
 import { chainedPeers } from "../../world/chained-peers.ts";
 import { grantedPeers } from "../../world/grants.ts";
 import type { DataRow, DataStore } from "../../world/data-port.ts";
@@ -59,11 +59,11 @@ export class RuntimeFacet extends DurableObject<RuntimeEnv> {
 		return this.workbench.rollback(target, prelude);
 	}
 
-	call(name: string, args: unknown[], chain: string[], scope: CallScope): Promise<Outcome> {
+	call(name: string, args: unknown[], chain: string[], scope: CallScope): Promise<Outcome | Refused> {
 		return this.runner.call(name, args, chain, scope);
 	}
 
-	execute(expression: string, scope: CallScope): Promise<ExecuteResult> {
+	execute(expression: string, scope: CallScope): Promise<ExecuteResult | Refused> {
 		return this.runner.execute(expression, scope);
 	}
 

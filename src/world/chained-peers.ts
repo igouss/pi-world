@@ -1,9 +1,10 @@
 import type { PeerListing, PeerPort } from "./peer-port.ts";
+import type { Refused } from "./call-runner.ts";
 import type { CatalogueEntry, Outcome } from "./world-vm.ts";
 
 /** How one world reaches another; `chain` lists the worlds the call has passed through, the caller last. */
 export interface PeerTransport {
-	call(worldId: string, name: string, args: readonly unknown[], chain: readonly string[]): Promise<Outcome>;
+	call(worldId: string, name: string, args: readonly unknown[], chain: readonly string[]): Promise<Outcome | Refused>;
 	list(): Promise<readonly PeerListing[]>;
 	functions(worldId: string): Promise<readonly CatalogueEntry[]>;
 }

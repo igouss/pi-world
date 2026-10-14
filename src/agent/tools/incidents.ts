@@ -1,6 +1,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-durable";
 import type { Incident } from "../../incident/incident.ts";
+import { failureKind } from "../../world/call-runner.ts";
 import type { World } from "../../world/world.ts";
 import { show, text } from "./result.ts";
 import { firstLine } from "../../api/text.ts";
@@ -30,7 +31,7 @@ export function retryIncidentTool(world: World) {
 		parameters: Type.Object({ n: Type.Integer({ minimum: 0 }) }),
 		execute: async ({ n }, api, context) => {
 			const outcome = await world.retryIncident(n, "agent", (change) => api.commit(change, context));
-			return outcome.ok ? text(`Incident ${n} closed: the call returned ${show(outcome.value)}`) : text(`Still failing (${outcome.failure}): ${outcome.error}`, true);
+			return outcome.ok ? text(`Incident ${n} closed: the call returned ${show(outcome.value)}`) : text(`Still failing (${failureKind(outcome)}): ${outcome.error}`, true);
 		},
 	});
 }

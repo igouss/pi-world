@@ -17,8 +17,8 @@ export class OverlayDataPort implements DataPort {
 	private readonly writes: Map<string, string | null> = new Map();
 	/** What each key read from the base held when it was read; `undefined` for a key that was absent. */
 	private readonly keysRead: Map<string, string | undefined> = new Map();
-	/** What each prefix listed from the base held when it was listed, as JSON text. */
-	private readonly prefixesRead: Map<string, string> = new Map();
+	/** What each prefix listed from the base held when it was listed; compared only if the call commits writes. */
+	private readonly prefixesRead: Map<string, readonly DataRow[]> = new Map();
 
 	constructor(private readonly base: DataStore) {}
 
@@ -39,7 +39,7 @@ export class OverlayDataPort implements DataPort {
 
 	list(prefix: string): readonly DataRow[] {
 		const base = this.base.list(prefix);
-		if (!this.prefixesRead.has(prefix)) this.prefixesRead.set(prefix, JSON.stringify(base));
+		if (!this.prefixesRead.has(prefix)) this.prefixesRead.set(prefix, base);
 		const mine = [...this.writes].filter(([key]) => key.startsWith(prefix));
 		if (mine.length === 0) return base;
 		const rows = new Map(base.map((row) => [row.key, row.value]));
@@ -75,7 +75,7 @@ export class OverlayDataPort implements DataPort {
 
 	private unchanged(): boolean {
 		for (const [key, value] of this.keysRead) if (this.base.get(key) !== value) return false;
-		for (const [prefix, rows] of this.prefixesRead) if (JSON.stringify(this.base.list(prefix)) !== rows) return false;
+		for (const [prefix, rows] of this.prefixesRead) if (JSON.stringify(this.base.list(prefix)) !== JSON.stringify(rows)) return false;
 		return true;
 	}
 

@@ -1,5 +1,6 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { DIRECTORY_NAME, type Env } from "../../env.ts";
+import type { Refused } from "../../world/call-runner.ts";
 import type { PeerListing } from "../../world/peer-port.ts";
 import type { CatalogueEntry, Outcome } from "../../world/world-vm.ts";
 import type { HostApi } from "../host-api.ts";
@@ -13,7 +14,7 @@ export class WorldHost extends WorkerEntrypoint<Env, { worldId: string }> implem
 		return this.env.WORLD.getByName(this.ctx.props.worldId).blobBytes(hash);
 	}
 
-	call(worldId: string, name: string, args: readonly unknown[], chain: readonly string[]): Promise<Outcome> {
+	call(worldId: string, name: string, args: readonly unknown[], chain: readonly string[]): Promise<Outcome | Refused> {
 		return this.env.WORLD.getByName(worldId).peerCall(name, [...args], [...chain]);
 	}
 

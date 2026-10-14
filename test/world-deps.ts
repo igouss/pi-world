@@ -8,7 +8,7 @@ import type { PeerPort } from "../src/world/peer-port.ts";
 import type { WorldDeps } from "../src/world/world.ts";
 import { wasm } from "./wasm.ts";
 
-export type TestWorldDeps = WorldDeps & { readonly session: Session; readonly data: MemoryDataPort; readonly blobs: MemoryBlobStore; readonly calls: LocalCallRunner; readonly workbench: LocalWorkbench };
+export type TestWorldDeps = WorldDeps & { readonly session: Session; readonly data: MemoryDataPort; readonly blobs: MemoryBlobStore; readonly calls: LocalCallRunner };
 
 /** A world in memory with its calls in this process, as tests run it. */
 export function worldDeps(options: { peers?: (chain: readonly string[]) => PeerPort; concurrentCalls?: number; now?: () => number } = {}): TestWorldDeps {

@@ -24,7 +24,7 @@ export type AttemptMode = Mode & { kind: "attempt" };
 /** A check's mode: an attempt's pinned clock and seed, with a fresh scratch store. */
 export type CheckMode = Mode & { kind: "check" };
 
-export type Failure = "threw" | "budget" | "host-call" | "pending" | "conflict" | "busy";
+export type Failure = "threw" | "budget" | "host-call" | "pending" | "conflict";
 
 export type Outcome =
 	| { readonly ok: true; readonly value: unknown }

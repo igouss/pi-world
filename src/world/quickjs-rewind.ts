@@ -34,9 +34,10 @@ const applyLimits = (QuickJS as unknown as { applyLimits(vm: QuickJS, options: O
  * limits again, and drop every handle and callback the wrapper held into the old heap (they point into memory that no
  * longer holds them, so they are dropped, never freed). Answers false, changing nothing, when it cannot: the memory
  * grew past the snapshot's and cannot shrink, or the snapshot carries extensions. The caller registers its host
- * callbacks again, as after a restore.
+ * callbacks again, as after a restore. A wrapper not laid out as above (another quickjs-wasi) is never rewound.
  */
 export function rewindInPlace(vm: QuickJS, snapshot: Snapshot, options: Options): boolean {
+	if (!hasLayout(vm)) return false;
 	const internals = vm as unknown as Internals;
 	const memory = internals.exports.memory;
 	if (memory.buffer.byteLength !== snapshot.memory.byteLength) return false;
@@ -56,4 +57,20 @@ export function rewindInPlace(vm: QuickJS, snapshot: Snapshot, options: Options)
 	internals._activeScope = null;
 	applyLimits(vm, options);
 	return true;
+}
+
+/** Whether `vm` has the fields `Internals` names, so that a quickjs-wasi of another layout falls back to a restore. */
+function hasLayout(vm: QuickJS): boolean {
+	const v = vm as unknown as Partial<Record<keyof Internals, unknown>>;
+	const exports = v.exports as Partial<Internals["exports"]> | undefined;
+	return (
+		exports?.memory instanceof WebAssembly.Memory &&
+		exports.__stack_pointer instanceof WebAssembly.Global &&
+		typeof exports.qjs_set_runtime_and_context === "function" &&
+		v.hostCallbacks instanceof Map &&
+		v._ownedHandles instanceof Set &&
+		Array.isArray(v.loadedExtensions) &&
+		typeof v.nextInternalId === "number" &&
+		typeof applyLimits === "function"
+	);
 }
