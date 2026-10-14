@@ -189,6 +189,12 @@ bead.
     definition and failure kind is the operator's decision; it changes tests that expect a new incident per message.
     Bead `pw-rxw.5`.
 
+15. **A read-only call could answer with a state that never existed (correctness). Fixed.** The first version of
+    finding 1's fix skipped validation for a call that wrote nothing, so a call that read one key, awaited another
+    world and read a second answered `[0, 1]` while the store went from (0, 0) to (1, 1). Found by the TLA+ model's
+    author with an in-process repro, now `test/concurrency.test.ts`. A call that awaited anything outside the VM has
+    its reads validated even when it wrote nothing (`808bd57`). Bead `pw-rxw.2`.
+
 ## The concurrency protocol, model-checked
 
 See `spec/tla/README.md` for the TLA+ model of develop, call, commit, the VM pool and the data overlay, the seeded
