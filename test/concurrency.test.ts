@@ -107,6 +107,14 @@ describe("serializable calls", () => {
 		expect(outcomes.map((o) => (o.ok ? o.value : null)).sort()).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
 	});
 
+	it("let a rerun wait for a VM, however long the other calls hold them", async () => {
+		const a = await world(2);
+		await a.develop(`define("bump", async () => { const n = data.get("n") ?? 0; await worlds.call("b", "x"); data.set("n", n + 1); return n + 1; }); define("n", () => data.get("n") ?? 0);`, "bump", operator);
+		const outcomes = await Promise.all(Array.from({ length: 6 }, () => a.call("bump", [])));
+		expect(outcomes.filter((o) => !o.ok)).toEqual([]);
+		expect(await a.call("n", [])).toEqual({ ok: true, value: 6 });
+	});
+
 	it("give up with a conflict, writing nothing, when what a call reads changes under every run", async () => {
 		const deps = worldDeps();
 		const a = await World.open(deps);

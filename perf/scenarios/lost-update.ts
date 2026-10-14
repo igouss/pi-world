@@ -12,14 +12,24 @@ export const lostUpdate: Scenario = {
 	params: { calls: 20 },
 	async run(ctx) {
 		const peer = await ctx.fixture.world("peer", CURRENCY);
+		// A peer whose isolate has not started holds every VM of the caller past its start deadline; warm it, so this
+		// measures serializability, not a cold start (cold-call does that).
+		await ctx.api.mustCall(peer, "convert", [1, "USD", "USD"]);
 		const n = ctx.param("calls", 20);
 		for (const fn of ["bump", "bumpSync"] as const) {
 			const id = await ctx.fixture.world(`counter-${fn}`, counter(peer));
 			await ctx.api.mustCall(id, "count", []);
 			const answers = await Promise.all(Array.from({ length: n }, () => ctx.api.call(id, fn, [])));
 			const succeeded = answers.filter((a) => a.status === 200 && a.body.ok).length;
+			const kinds = new Map<string, number>();
+			for (const a of answers.filter((a) => !(a.status === 200 && a.body.ok))) {
+				const kind = `${a.status} ${a.body?.failure ?? ""}: ${(a.body?.error ?? "").split("\n")[0]!.slice(0, 100)}`;
+				kinds.set(kind, (kinds.get(kind) ?? 0) + 1);
+			}
+			if (kinds.size > 0) ctx.note(`${fn}: ${[...kinds].map(([k, v]) => `${v}× ${k}`).join("; ")}`);
 			const count = (await ctx.api.mustCall(id, "count", [])) as number;
 			ctx.verdict({ objective: "correctness", metric: `${fn}: count after ${succeeded} successful concurrent increments`, measured: count, limit: succeeded, holds: count === succeeded });
+			ctx.verdict({ objective: "correctness", metric: `${fn}: concurrent increments that succeeded`, measured: succeeded, limit: n, holds: succeeded === n });
 		}
 	},
 };

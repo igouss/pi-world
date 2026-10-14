@@ -23,8 +23,9 @@ describe("runOpenLoop", () => {
 		expect(ok.count).toBe(400);
 		expect(ok.p90Ms).toBeGreaterThan(100);
 		expect(ok.maxMs).toBeGreaterThan(450);
-		// Measured from its actual send, only the stalled request itself looks slow.
-		expect(service.p90Ms).toBeLessThan(20);
+		// Measured from its actual send, only the stalled request itself looks slow: a fraction of the open-loop
+		// latency, with room for timers that fire late on a loaded machine.
+		expect(service.p90Ms).toBeLessThan(ok.p90Ms / 4);
 	});
 
 	it("counts a request still open when the drain ends as a timeout, with its latency so far", async () => {

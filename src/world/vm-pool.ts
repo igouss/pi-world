@@ -41,7 +41,7 @@ export class VmPool {
 		private readonly warm: number,
 	) {}
 
-	/** Run `body` on a VM at `head`; with `maxWaitMs`, give up with `BUSY` if no VM came free that soon. */
+	/** Run `body` on a VM at `head`; with a finite `maxWaitMs`, give up with `BUSY` if no VM came free that soon. */
 	async run<T>(head: PoolHead, body: (vm: WorldVm) => Promise<T>, maxWaitMs?: number): Promise<T | typeof BUSY> {
 		const newest = !this.newest || head.revision >= this.newest.revision ? head : this.newest;
 		this.newest = newest;
@@ -98,8 +98,9 @@ export class VmPool {
 		return new Promise<boolean>((grant) => {
 			const waiter: Waiter = {
 				grant,
+				// A timer of an infinite or huge delay fires at once, so a wait without a finite bound has no timer.
 				timer:
-					maxWaitMs === undefined
+					maxWaitMs === undefined || !Number.isFinite(maxWaitMs)
 						? undefined
 						: setTimeout(() => {
 								this.waiting.splice(this.waiting.indexOf(waiter), 1);

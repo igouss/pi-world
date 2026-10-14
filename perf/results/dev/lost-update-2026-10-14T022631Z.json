@@ -1,0 +1,49 @@
+{
+	"scenario": "lost-update",
+	"title": "Concurrent read-modify-write calls",
+	"target": {
+		"base": "http://127.0.0.1:8791",
+		"kind": "dev",
+		"loopback": true
+	},
+	"startedAt": "2026-10-14T02:26:31.155Z",
+	"git": "f177479-dirty",
+	"host": "fedora",
+	"params": {
+		"calls": 20
+	},
+	"phases": [],
+	"verdicts": [
+		{
+			"objective": "correctness",
+			"metric": "bump: count after 14 successful concurrent increments",
+			"measured": 14,
+			"limit": 14,
+			"holds": true
+		},
+		{
+			"objective": "correctness",
+			"metric": "bump: concurrent increments that succeeded",
+			"measured": 14,
+			"limit": 20,
+			"holds": false
+		},
+		{
+			"objective": "correctness",
+			"metric": "bumpSync: count after 20 successful concurrent increments",
+			"measured": 20,
+			"limit": 20,
+			"holds": true
+		},
+		{
+			"objective": "correctness",
+			"metric": "bumpSync: concurrent increments that succeeded",
+			"measured": 20,
+			"limit": 20,
+			"holds": true
+		}
+	],
+	"notes": [
+		"bump: 6× 503 busy: the world is busy: the call could not start within a second of arriving; try again"
+	]
+}
