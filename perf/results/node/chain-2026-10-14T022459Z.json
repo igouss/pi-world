@@ -4,10 +4,11 @@
 	"target": {
 		"base": "http://127.0.0.1:8787",
 		"kind": "node",
-		"loopback": true
+		"loopback": true,
+		"build": "f177479-dirty"
 	},
 	"startedAt": "2026-10-14T02:24:59.922Z",
-	"git": "unknown",
+	"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f",
 	"host": "oracle-arm",
 	"approval": "I approve, good job so far I believe we can drive real improvement here way past original parameters (operator, 2026-10-14)",
 	"params": {
