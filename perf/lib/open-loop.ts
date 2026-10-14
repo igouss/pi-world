@@ -83,8 +83,10 @@ class StreamRun {
 	private readonly sendLag: Latencies = new Latencies();
 	private readonly failures: Map<string, number> = new Map();
 	private readonly open: Set<Pending> = new Set();
+	/** Arrivals waiting on the client for a free slot, from `head` on; O(1) to take one, however long it grows. */
 	private readonly queued: Pending[] = [];
-	private readonly done: Promise<void>[] = [];
+	private head: number = 0;
+	private idle: (() => void) | undefined;
 	private inFlight: number = 0;
 	private maxInFlight: number = 0;
 	private intended: number = 0;
@@ -118,8 +120,10 @@ class StreamRun {
 		}
 	}
 
+	/** Resolves once no request is open. */
 	settled(): Promise<void> {
-		return Promise.all(this.done).then(() => undefined);
+		if (this.open.size === 0) return Promise.resolve();
+		return new Promise((resolve) => (this.idle = resolve));
 	}
 
 	result(now: number): StreamResult {
@@ -143,7 +147,7 @@ class StreamRun {
 	}
 
 	private pump(): void {
-		while (this.queued.length > 0 && this.inFlight < this.stream.maxInFlight) this.send(this.queued.shift()!);
+		while (this.head < this.queued.length && this.inFlight < this.stream.maxInFlight) this.send(this.queued[this.head++]!);
 	}
 
 	private send(pending: Pending): void {
@@ -154,6 +158,7 @@ class StreamRun {
 			const doneAt = performance.now();
 			this.inFlight--;
 			this.open.delete(pending);
+			if (this.open.size === 0) this.idle?.();
 			if (pending.recorded) {
 				this.sendLag.recordMs(sentAt - pending.intendedAt);
 				this.service.recordMs(doneAt - sentAt);
@@ -165,9 +170,7 @@ class StreamRun {
 			}
 			this.pump();
 		};
-		this.done.push(
-			this.stream.request(pending.i).then(settle, (error: unknown) => settle({ ok: false, kind: `client: ${error instanceof Error ? error.message : String(error)}` })),
-		);
+		void this.stream.request(pending.i).then(settle, (error: unknown) => settle({ ok: false, kind: `client: ${error instanceof Error ? error.message : String(error)}` }));
 	}
 
 	private count(kind: string): void {

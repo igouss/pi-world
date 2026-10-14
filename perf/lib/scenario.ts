@@ -3,7 +3,7 @@ import type { ObjectiveId } from "../objectives.ts";
 import type { Api } from "./api.ts";
 import type { Fixture } from "./fixtures.ts";
 import { runOpenLoop, type Stream, type Window } from "./open-loop.ts";
-import { MAX_SEND_LAG_P99_MS, streamRecord, type PhaseRecord, type StreamRecord, type Verdict } from "./result.ts";
+import { formatVerdict, MAX_SEND_LAG_P99_MS, streamRecord, type PhaseRecord, type StreamRecord, type Verdict } from "./result.ts";
 import { Operator } from "./operator.ts";
 import { Sampler, type Host } from "./sampler.ts";
 
@@ -87,8 +87,7 @@ export class Context {
 
 	verdict(verdict: Verdict): void {
 		this.verdicts.push(verdict);
-		const mark = verdict.invalid ? "n/a " : verdict.holds ? "PASS" : "FAIL";
-		this.log(`  ${mark} ${verdict.objective} ${verdict.metric}: ${verdict.measured} (limit ${verdict.limit})${verdict.invalid ? ` — ${verdict.invalid}` : ""}`);
+		this.log(`  ${formatVerdict(verdict)}`);
 	}
 
 	private invalidity(stream: StreamRecord, latency: boolean): { invalid?: string } {

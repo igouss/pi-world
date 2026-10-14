@@ -1,0 +1,27 @@
+{
+	"scenario": "cold-call",
+	"title": "Cold call after eviction",
+	"target": {
+		"base": "http://127.0.0.1:8787",
+		"kind": "node",
+		"loopback": true
+	},
+	"startedAt": "2026-10-14T02:32:49.716Z",
+	"git": "unknown",
+	"host": "oracle-arm",
+	"approval": "I approve, good job so far I believe we can drive real improvement here way past original parameters (operator, 2026-10-14)",
+	"params": {
+		"rounds": 20
+	},
+	"phases": [],
+	"verdicts": [
+		{
+			"objective": "O1c",
+			"metric": "cold call p99 ms (n=20, so p99 is the max)",
+			"measured": 491.263,
+			"limit": 1000,
+			"holds": true
+		}
+	],
+	"notes": []
+}

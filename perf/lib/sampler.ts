@@ -75,7 +75,7 @@ export class Sampler {
 			`[ -n "$pid" ] || { echo "no process matches ${this.host.process}" >&2; exit 1; }`,
 			"while :; do",
 			`  echo "S $(date +%s%3N) $(${sudo}awk '/VmRSS/{print $2}' /proc/$pid/status)"`,
-			`  for t in /proc/$pid/task/*; do ${sudo}awk '{print "T", $1, $14+$15}' $t/stat 2>/dev/null; done`,
+			`  ${sudo}awk '{print "T", $1, $14+$15}' /proc/$pid/task/*/stat 2>/dev/null`,
 			`  echo "J $(${state})"`,
 			"  echo E",
 			"  sleep 1",

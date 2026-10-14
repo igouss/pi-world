@@ -13,3 +13,10 @@ import { writeCall } from "./write-call.ts";
 
 /** Every scenario, in the order the objectives list them. */
 export const SCENARIOS: readonly Scenario[] = [readCall, writeCall, coldCall, chain, develop, stall, worlds, overload, slowOverload, failureStorm, lostUpdate];
+
+/** The scenario with this id; an unknown id is an error naming the command that lists them. */
+export function scenario(id: string): Scenario {
+	const found = SCENARIOS.find((s) => s.id === id);
+	if (!found) throw new Error(`no scenario ${id}; perf list shows them`);
+	return found;
+}

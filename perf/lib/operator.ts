@@ -32,6 +32,7 @@ export class Operator {
 	}
 }
 
-function quote(arg: string): string {
+/** One argument quoted for a POSIX shell. */
+export function quote(arg: string): string {
 	return `'${arg.replaceAll("'", "'\\''")}'`;
 }

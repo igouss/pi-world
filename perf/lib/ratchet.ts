@@ -23,6 +23,11 @@ export function higherIsBetter(verdict: Verdict): boolean {
 	return verdict.objective === "O5a" || verdict.objective === "correctness";
 }
 
+/** Whether `measured` beats `best` in the verdict's direction; anything beats no best at all. */
+function isBetter(verdict: Verdict, measured: number, best: number | undefined): boolean {
+	return best === undefined || (higherIsBetter(verdict) ? measured > best : measured < best);
+}
+
 export function key(record: RunRecord, verdict: Verdict): string {
 	return `${record.target.kind}/${record.scenario}/${verdict.objective}/${verdict.metric}`;
 }
@@ -37,7 +42,7 @@ export function compare(records: readonly RunRecord[], baselines: Baselines): Co
 				const up = higherIsBetter(v);
 				const slack = Math.max(Math.abs(best ?? 0) * TOLERANCE, up ? 0 : 1);
 				const regressed = best !== undefined && (up ? v.measured < best - (v.objective === "correctness" ? 0 : slack) : v.measured > best + slack);
-				const improved = best === undefined || (up ? v.measured > best : v.measured < best);
+				const improved = isBetter(v, v.measured, best);
 				return { key: k, measured: v.measured, best, regressed, improved };
 			}),
 	);
@@ -50,9 +55,7 @@ export function advance(records: readonly RunRecord[], baselines: Baselines): Ba
 		for (const v of record.verdicts) {
 			if (v.invalid) continue;
 			const k = key(record, v);
-			const best = next[k]?.best;
-			const better = best === undefined || (higherIsBetter(v) ? v.measured > best : v.measured < best);
-			if (better) next[k] = { best: v.measured, at: record.startedAt, git: record.git };
+			if (isBetter(v, v.measured, next[k]?.best)) next[k] = { best: v.measured, at: record.startedAt, git: record.git };
 		}
 	}
 	return next;

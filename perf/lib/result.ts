@@ -43,7 +43,8 @@ export interface Verdict {
 export interface RunRecord {
 	readonly scenario: string;
 	readonly title: string;
-	readonly target: { readonly base: string; readonly kind: "dev" | "node" | "other"; readonly loopback: boolean };
+	/** Where the load went, and the build the target answered `/api/version` with before the run. */
+	readonly target: { readonly base: string; readonly kind: "dev" | "node" | "other"; readonly loopback: boolean; readonly build: string };
 	readonly startedAt: string;
 	readonly git: string;
 	readonly host: string;
@@ -69,6 +70,12 @@ export function streamRecord(result: StreamResult): StreamRecord {
 		maxInFlight: result.maxInFlight,
 		histograms: { ok: result.ok.encode(), failed: result.failed.encode(), service: result.service.encode() },
 	};
+}
+
+/** One verdict as a line: PASS, FAIL or n/a (with why), the objective, the metric, what it measured and its limit. */
+export function formatVerdict(v: Verdict): string {
+	const mark = v.invalid ? "n/a " : v.holds ? "PASS" : "FAIL";
+	return `${mark} ${v.objective} ${v.metric}: ${v.measured} (limit ${v.limit})${v.invalid ? ` — ${v.invalid}` : ""}`;
 }
 
 /** The generator lagged its own schedule: its p99 send lag above this means the client, not the server, limited the run. */

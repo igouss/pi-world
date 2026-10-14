@@ -62,7 +62,9 @@ Write `scenarios/<name>.ts` exporting a `Scenario`, add it to `scenarios/index.t
 ## Files
 
 - `objectives.ts`: the approved numbers, the only place they live.
-- `bin/perf.ts`: the command line.
+- `bin/perf.ts`: the command line's switch and usage; each command is a module of `cli/` (`run`, `suite`, `ratchet`,
+  `results`, `profile`, `remote`), over shared `args`, `target`, `dev-server` and `paths`.
+- `suites.ts`: named graphs of scenario steps; `lib/ratchet.ts`: the best-ever peg per metric (`baselines.json`).
 - `lib/open-loop.ts`, `lib/histogram.ts`: the generator and its histograms.
 - `lib/api.ts`: pi-world's REST API as the generator uses it.
 - `lib/sampler.ts`, `lib/operator.ts`: celld's process and operator routes.
