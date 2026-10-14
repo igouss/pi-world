@@ -13,7 +13,3 @@ export async function read<T>(request: Request): Promise<T> {
 }
 
 export class BadRequest extends Error {}
-
-export function errorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}

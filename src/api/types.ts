@@ -16,7 +16,7 @@ export type { Revision } from "../revision/revision.ts";
 export type { Incident, Resolution } from "../incident/incident.ts";
 export type { DataRow } from "../world/data-port.ts";
 export type { Grants } from "../world/grants.ts";
-export type { DevelopResult } from "../world/world.ts";
+export type { CheckProposal, DevelopResult, EnrolResult } from "../world/world.ts";
 
 export interface WorldListing {
 	readonly id: string;

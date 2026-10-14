@@ -1,5 +1,6 @@
 import { build } from "./build.ts";
-import { BadRequest, errorMessage, json, read } from "./cell/http.ts";
+import { errorMessage } from "./api/text.ts";
+import { BadRequest, json, read } from "./cell/http.ts";
 import { WORLD_ID } from "./directory/world-id.ts";
 import { ACCOUNT_NAME, DIRECTORY_NAME, type Env } from "./env.ts";
 

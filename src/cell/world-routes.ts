@@ -4,7 +4,8 @@ import { MODELS, type Transcript, type WorldSummary } from "../api/types.ts";
 import { isRefused, type DataAdmin } from "../world/call-runner.ts";
 import { parseGrants } from "../world/grants.ts";
 import type { Fanout } from "./fanout.ts";
-import { errorMessage, json, read } from "./http.ts";
+import { errorMessage } from "../api/text.ts";
+import { json, read } from "./http.ts";
 import type { OpenedWorld } from "./open-world.ts";
 
 /** What the routes need of an open world cell. */

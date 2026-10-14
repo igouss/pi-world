@@ -1,4 +1,5 @@
 import { Agent, request } from "undici";
+import { callPath } from "../../src/api/paths.ts";
 import type { Reply } from "./open-loop.ts";
 
 /** Keep-alive connections enough that the client never limits an open-loop run. */
@@ -65,7 +66,7 @@ export class Api {
 	}
 
 	call(id: string, fn: string, args: readonly unknown[]): Promise<Answer<{ ok: boolean; value?: unknown; error?: string; failure?: string }>> {
-		return this.send("POST", `/api/worlds/${id}/call/${fn}`, { args });
+		return this.send("POST", callPath(id, fn), { args });
 	}
 
 	async mustCall(id: string, fn: string, args: readonly unknown[]): Promise<unknown> {

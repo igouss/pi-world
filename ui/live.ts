@@ -1,5 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import type { ServerFrame, Transcript, WorldSummary } from "../src/api/types.ts";
+import { socketPath } from "../src/api/paths.ts";
 
 export interface LiveWorld {
 	readonly world?: WorldSummary;
@@ -21,7 +22,7 @@ export function useLiveWorld(id: string): LiveWorld {
 		setState({ connected: false });
 		const connect = () => {
 			const scheme = location.protocol === "https:" ? "wss" : "ws";
-			socket = new WebSocket(`${scheme}://${location.host}/api/worlds/${id}/ws`);
+			socket = new WebSocket(`${scheme}://${location.host}${socketPath(id)}`);
 			socket.onopen = () => {
 				setState((s) => ({ ...s, connected: true }));
 				ping = setInterval(() => socket?.readyState === WebSocket.OPEN && socket.send("ping"), PING_MS);
