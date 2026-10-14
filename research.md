@@ -242,7 +242,7 @@ What this settles:
 - Memory does not bound how many worlds a node holds; celld's loaded-worker limit does. celld allows 255 loaded
   workers per script and generation, one per world, freed only when collected. The node has no idle eviction, so it
   holds at most 255 worlds that have run something since the last deploy, forgotten ones included. Under `celld dev`
-  the 255th world of the server's life failed at creation; the server was at 4.36 GB with 255 worlds; with `CELLD_IDLE_EVICT_S=5`, 320 worlds opened and the server
+  world 239 of a run failed at creation, after 16 worlds of earlier runs on the same server; the server was at 4.36 GB with 255 worlds; with `CELLD_IDLE_EVICT_S=5`, 320 worlds opened and the server
   peaked at 2.1 GB (`performance.md`, findings 2 and 13, `pw-djz.9`).
 - A develop re-runs every check's counterexample at one restore each, a few milliseconds per check.
 - A world's calls share one single-threaded isolate. Calls overlap only while they await another world; a call that
