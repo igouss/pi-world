@@ -52,7 +52,7 @@ const live = { kind: "live", data: memoryStore(), peers: { list: async () => [],
 await measure("evaluate convert on a warm VM", () => vm.invoke("convert", [100, "USD", "JPY"], live));
 
 const runner = new LocalCallRunner({ wasm, data: memoryStore(), blob: async () => bytes });
-const scope = { head: { revision: 1, blob: "h" }, grants: ANY_WORLD };
+const scope = { head: { revision: 1, blob: "h" }, grants: ANY_WORLD, startBy: Number.POSITIVE_INFINITY };
 await measure("LocalCallRunner.call convert, one at a time", () => runner.call("convert", [100, "USD", "JPY"], [], scope));
 await measure("LocalCallRunner.call, 8 at once (per call)", async () => {
 	await Promise.all(Array.from({ length: 8 }, () => runner.call("convert", [100, "USD", "JPY"], [], scope)));
