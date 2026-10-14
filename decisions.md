@@ -35,6 +35,14 @@
   and "Accept all (Recommended)" for the defaults: existing worlds may call any world until the operator restricts
   them, a failed call reaches the agent only when the owner asks, and Stryker is the mutation testing tool.
 
+- "No shrink on budget (Recommended)" and "File a bead (Recommended)", 2026-10-13, answering how a develop should be
+  bounded after a property check that hung was measured replaying its input 200 times, and what to do with moving
+  develops into the world's own isolate.
+- "init br, file tasks I don't want them fixed now, existing identified technical debt should be fixed too create
+  beads, i agree with your recommendations file those and the ones you chose not to show as beads, reformulate docs
+  to reflect the future direction and remove old cruft, commit.", 2026-10-13, on the design review's nine
+  recommendations.
+
 This approves:
 
 - `intent.md` as the project's intent, and this directory;
@@ -46,7 +54,7 @@ This approves:
   in a function scope;
 - JavaScript as the world language and TypeScript as the cell shell. A compiled language cannot be the world
   language: every `develop` would be a recompile into a module with a new memory layout, which invalidates the
-  previous snapshot and ends the live image. Compiled code belongs in the compiled tier (`plan.md`, milestone 9);
+  previous snapshot and ends the live image. Compiled code belongs in the compiled tier (`plan.md`, "Later");
 - the position in `intent.md`: one station, the fastest implement-and-check loop for one kind of artifact. It decides none
   of open decisions 4 and 10 to 12;
 - the split of the intent into `intent.md`, `design.md`, `plan.md`, `research.md` and this file;
@@ -71,7 +79,15 @@ This approves:
   per world (open check 1), and rejection records (open decision 12);
 - atomic calls: a call's data writes commit when it succeeds and are dropped when it fails, changing
   `test/concurrency.test.ts` and `design.md` to match;
-- Stryker as the mutation testing tool.
+- Stryker as the mutation testing tool;
+- a property check that runs out of budget on an input is reported with that input, unshrunk, and shrinking stops at
+  the first smaller input that runs out of budget (2026-10-13);
+- br (beads, prefix `pw`) as the project's tracker, and the 2026-10-13 review's nine recommendations as the direction
+  in `plan.md`: world pages on an origin of their own; serializable calls; all of a world's VM work in its own isolate;
+  a time budget in time that bounds a whole operation; incidents grouped by kind with bounded writes; a `data.list`
+  that never truncates silently; the domain free of pi-durable; new worlds granted no other world; source-log replay
+  as the upgrade path. Each is filed, not scheduled; the numbers inside them are not approved;
+- `evaluation.md` removed: its findings live in `design.md` and this file.
 
 Nothing else is approved: the package's home (standalone or upstream in pi), the first milestone's scope, the web UI
 stack, dependency choices beyond those named here, and every other policy question go back to the operator.
@@ -101,7 +117,8 @@ Made on 2026-10-06 under the prototype authorization above. Each is a default to
   never reads or writes the world's data. A develop and a counterexample still cannot touch data.
 - **Property checks** (flagged choices inside the approved idea): a generator is JSON the host interprets (`int`,
   `bool`, `string`, `oneOf`, `const`, `array`, `record`), so no agent code runs on the host; 50 inputs per run, seeded
-  by the revision so a run is deterministic; failures shrink on the choice sequence with at most 200 replays; the heap
+  by the revision so a run is deterministic; failures shrink on the choice sequence with at most 200 replays, except
+  that an input the check runs out of budget on is not shrunk (operator, 2026-10-13); the heap
   is not reset between inputs, only after the check, so a property that changes heap state sees its own earlier
   changes.
 - **Model:** Claude through the subscription; `claude-sonnet-5-5` by default, switchable per world in the UI between

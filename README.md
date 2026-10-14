@@ -262,7 +262,8 @@ measured before calls moved into each world's isolate.
 
 A call is a query or a command that needs its answer now. It is not durable messaging: there is no queue, retry or
 idempotency key, a caller that crashes mid-call loses the call while data the other world wrote stays, and a world that
-does not answer within 30 s fails the call. Any world may call any other; there are no permissions. Whether calls
+does not answer within 30 s fails the call. A world calls only the worlds its owner granted (any, until restricted;
+new worlds will start with none, `pw-rxw.8`). Whether calls
 between worlds should also have durable messages through celld Queues is open decision 14 in
 [`decisions.md`](decisions.md), with the trade-offs and the questions to research.
 
@@ -489,11 +490,13 @@ are in [`research.md`](research.md).
 | Prelude upgrade | Demo todos, built on prelude 1, opened on the new version and got revision 6, "prelude 1 to 2" |
 | Snapshot rows | A 1.44 MB snapshot round-trips through the cell's SQLite |
 
-The test suite (`npm test`, 63 tests) covers the VM, attempts, the `World` service, the agent with a scripted model,
-that a direct call makes no model request, calls between worlds (results, errors, cycles, discovery), concurrent
-calls, the `execute` preview, the tiered snapshot store, and the upgrade of a heap built by an older prelude. The
-runtime facet and the R2 archive run only on celld, so they are covered by runs under `celld dev` and on the node,
-not by unit tests. There are no property-based tests, Gherkin scenarios or mutation runs yet.
+The test suite (`npm test`, 210 tests in 20 files) covers the VM, attempts, checks and property checks, the shrinker,
+the VM pool, the `World` service, the agent with a scripted model, that a direct call makes no model request, calls
+between worlds (results, errors, cycles, discovery, grants), concurrent and atomic calls, incidents, rejections, the
+`execute` preview, the tiered snapshot store, and the upgrade of a heap built by an older prelude. The shrinker and
+the generators have property-based tests (Hegel); `npm run mutate` runs Stryker. The runtime facet and the R2 archive
+run only on celld, so they are covered by runs under `celld dev` and on the node, not by unit tests. There are no
+Gherkin scenarios yet.
 
 ## Measurements (Node 25.2.1, synthetic definitions)
 
@@ -513,8 +516,14 @@ gzipped in R2. Real worlds may differ.
 - celld is in beta. Open checks that remain (memory per world, now that each world compiles QuickJS in an isolate of its
   own; what wakes a cell after a restart; a run moving to another node; streaming lag) are in
   [`research.md`](research.md).
-- Develops and checks still run in the shared cell isolate, so a long develop can delay other worlds' cells until its
-  time budget stops it.
+- Develops and checks still run in the cell isolate that worlds share, so a develop's CPU delays other worlds' cells.
+  Each evaluation has its own budget and a develop runs every check, so the delay grows with the number of checks;
+  a check runs out of budget at most once per develop. Moving changes into the world's own isolate is next
+  (`pw-rxw.3`).
+- World pages are served on the same origin as the operator API, so a page's script can use every route
+  (`pw-rxw.1`).
+- Of two concurrent calls that write one key, the one finishing last wins (`pw-rxw.2`); `data.list` returns at most
+  1000 rows without saying so (`pw-rxw.6`).
 - Checks cannot read data, so a behaviour that depends on stored data is hard to protect with one.
 - `execute` rolls back its own world's data writes, but a world it calls through `worlds.call` writes for real.
 - A snapshot belongs to the exact `quickjs.wasm` build. After a runtime upgrade, the world is rebuilt by replaying the
@@ -531,7 +540,7 @@ agent is needed to grow the application.
 
 **Why JavaScript and not a compiled language?** Every `develop` would be a recompile into a module with a new memory
 layout, which invalidates the previous snapshot. Compiled code is planned as a tier for stable, hot functions
-(`plan.md`, milestone 9).
+(`plan.md`, "Later").
 
 **What happens to an agent run when the node dies?** It continues from its last committed step when the cell comes
 back; this was seen on the node.
@@ -561,11 +570,17 @@ sequenceDiagram
 **Can the agent weaken its own checks?** No. Checks are stored on the host side, outside the heap, and world code has
 no way to reach them. The agent can propose a check, and it is enrolled only after it has been seen failing on a
 counterexample. Removing or loosening one is an operator call with a reason. The built-ins a check calls are frozen.
-One case is still open: a check that calls a function the agent defined, which is open decision 13 in
-[`decisions.md`](decisions.md).
+A check may call a function the agent defined: every develop re-runs every check's counterexample, and a change after
+which a check can no longer fail is rejected.
 
 **How is the REST API authenticated?** In the prototype it is not: the node is reachable only on the tailnet. The real
 answer, and where the package lives, are open decisions in `decisions.md`.
+
+## Where it is going
+
+[`plan.md`](plan.md) lists the direction in order, each item tracked as a bead (`br list`, `br show <id>`): one
+runtime per world, world pages on their own origin, serializable calls, bounded incidents, replay as the upgrade
+path, then pauses, forks, scheduled world code and durable messages.
 
 ## Documents
 
@@ -574,9 +589,8 @@ answer, and where the package lives, are open decisions in `decisions.md`.
 | [`guide.md`](guide.md) | How to use pi-world, for people who use it rather than develop it |
 | [`intent.md`](intent.md) | What the system is, its position, interfaces |
 | [`design.md`](design.md) | Constraints the implementation obeys |
-| [`plan.md`](plan.md) | Milestones and where to stop for review |
+| [`plan.md`](plan.md) | Where the project is going, in order, with the beads that track it |
 | [`research.md`](research.md) | Spike results, celld facts, open checks, what is not verified |
-| [`evaluation.md`](evaluation.md) | Review of the intent against its sources |
 | [`decisions.md`](decisions.md) | Operator decisions, what they approve, open decisions |
 
 ## About Contributions

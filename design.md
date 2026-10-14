@@ -8,10 +8,9 @@ The rules the implementation obeys, each with the fact that forces it.
   rerun that finds its own revision returns the same answer. Tools are therefore `replay: "safe"`.
 - **Revisions go in documents, not raw entries.** Raw appends into a busy conversation "can misplace its system prompt
   entries" (spec §12). Use session-scoped docs: `WorldHead` (singleton) and `WorldRevision` (a family).
-- **Write blobs first, then commit the pointer.** Each snapshot is one content-addressed blob in the cell's SQLite,
-  gzipped with `gzipSync`, written idempotently before the durable commit, which commits only the manifest and
-  pointer. A crash can leave orphan blobs, but never a pointer to a missing blob. Page-level dedupe between
-  revisions, and moving old pages to R2, come later (`plan.md`, milestone 9).
+- **Write blobs first, then commit the pointer.** Each snapshot is one content-addressed blob, written idempotently
+  to the cell's SQLite before the durable commit, which commits only the manifest and pointer. A crash can leave
+  orphan blobs, but never a pointer to a missing blob.
 - **Only `develop` sources replay.** Merge, rebuild after an upgrade, and promotion between forks replay `develop`
   sources. An `execute` that wrote data replays against different tables in another world and gives a different
   result. The attempt traces host calls, and a `develop` whose evaluation made any is rejected.
@@ -80,7 +79,9 @@ The rules the implementation obeys, each with the fact that forces it.
   on the host. Each run draws 50 inputs from a choice sequence seeded by the attempt, evaluates the expression with
   `input` bound to each on its own scratch store, and on a failure shrinks the choice sequence (delete runs, lower
   single choices) to the smallest input that still fails, which the rejection names. Integers shrink toward 0, so a
-  failing input reads as the boundary it crossed.
+  failing input reads as the boundary it crossed. An input the check runs out of budget on is not shrunk, and
+  shrinking stops at the first smaller input it runs out of budget on: each such run costs a whole budget in the
+  isolate worlds share, so a check runs out of budget at most once per run.
 - **Every develop re-runs every counterexample.** After the checks hold on the developed heap, each check's
   counterexample is applied to that heap in turn and the check must fail there. A check that a change made vacuous
   (it calls a redefined function, or reads changed state) rejects the develop, because a check that cannot fail is a

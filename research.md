@@ -1,12 +1,11 @@
 # pi-world: research
 
-Written 2026-10-05 against pi commit `28dcce2ba` (pi-durable 1.0.4, quickjs-wasi 3.6.2) and celld v0.6.1 (beta).
-`evaluation.md` reviews the intent against those sources; its findings are folded into `design.md` and
-`decisions.md`.
+Started 2026-10-05 against pi commit `28dcce2ba` (pi-durable 1.0.4, quickjs-wasi 3.6.2) and celld v0.6.1 (beta).
+What is still open here is tracked as beads (`plan.md`).
 
 ## Premise already tested
 
-Three spikes ran against quickjs-wasi 3.6.2 under Node 25.2.1. Nothing has run on celld yet.
+Three spikes ran against quickjs-wasi 3.6.2 under Node 25.2.1, before anything ran on celld.
 
 - `spike/wasm-world.mjs` (`npm run spike`): checkpoint and restore undo a failed attempt; a paused async job survives
   snapshot, serialize, dispose and restore in a fresh instance; snapshot and restore each take a few milliseconds;
@@ -73,55 +72,56 @@ Object with its own SQLite database. The facts that shape the design, from celld
 
 ## Open checks on celld
 
-These are undocumented or unknown. Measure them early, at milestone 6.
+These are undocumented or unknown; each open one names its bead.
 
 1. **Memory and CPU limits per cell.** The limitations page lists none, and balancing "does not measure the CPU or
    memory that one cell uses". Memory measured on a desktop and on the node (see "Memory per world" below); CPU is
-   open.
+   open (`pw-16t.5`).
 2. **Blob size per row.** A 1.44 MB row works on the node; larger is untested. celld's docs state no row or blob
-   limit, and a raw snapshot passes 2 MB at about 410 definitions. Measure, and chunk if needed.
-3. **pi-ai and pi-durable under celld's runtime.** Settled: both run on the node (see above).
-4. **Eviction timing and alarm retry limits.** Tune the heartbeat from measurements, not Cloudflare's numbers.
-5. **Streaming lag.** Measure progress commits at about 90 ms per durable write.
+   limit, and a raw snapshot passes 2 MB at about 410 definitions. Measure, and chunk if needed (`pw-16t.4`).
+3. **pi-ai and pi-durable under celld's runtime.** Answered: both run on the node (see above).
+4. **Eviction timing and alarm retry limits.** Tune the heartbeat from measurements, not Cloudflare's numbers
+   (`pw-16t.5`).
+5. **Streaming lag.** Measure progress commits at about 90 ms per durable write (`pw-16t.5`).
 6. **Calls between worlds across nodes** (for open decision 14). One node forwards every `peerCall` locally. On a fleet
    of two or more nodes, measure the latency of a forwarded call and what the caller sees when the callee's node dies
-   mid-call. celld says a remote RPC "retries only when the failed peer attempt did not start the method".
+   mid-call. celld says a remote RPC "retries only when the failed peer attempt did not start the method"
+   (`pw-16t.6`).
 7. **celld Queues as the durable path** (for open decision 14, option C). Documented: one writer per queue, at most 256
    concurrent producer calls, batches leased and retried, at-least-once delivery, dead-letter queues. Untested here:
    enqueue latency on one node (each write waits for the bucket), and whether a world cell can be a consumer or only a
    Worker.
-8. **Deploy cut-over with open sockets.** After a deploy, idle cells moved to the new version at once; a world cell
-   with an open WebSocket from the UI moved 60 s later, and a request to it waited 38 s. The UI uses regular
-   WebSockets (`server.accept()`), which keep the cell busy. It also stalls other worlds' calls into such a cell: a
-   Dashboard call waited out its 30 s deadline on a world that was mid-swap. Fixed on 2026-10-07: the UI's sockets are
-   hibernatable (`ctx.acceptWebSocket`); see "Hibernatable sockets on the node" below.
+8. **Deploy cut-over with open sockets.** Answered: a cell held by a regular WebSocket moved to a new deploy 60 s
+   after the others and stalled calls into it; the UI's sockets are hibernatable (`ctx.acceptWebSocket`), and such a
+   cell now moves at once (see "Hibernatable sockets on the node").
 9. **Cell limits under load.** celld refuses a request with `503 cell request limit reached` when a cell has 64 in
    flight (`in_flight=64 limit=64`), and the count appears to include the cell's own calls to other worlds: 40
    concurrent calls that each call another world got 28 answers and 12 refusals. The limit is the node setting
-   `CELLD_MAX_CELL_REQUESTS` (default 64).
-10. **CPU in one world slows others.** On the node, a world computing for about 1.5 s delayed calls to unrelated worlds
-    by the same time: cells share a small pool of JavaScript isolates (`worker_count=2`). The time budget bounds it. Resolved 2026-10-07 for calls: each world's calls run in an isolate of the world's own (see "Isolation and R2 on the
-    node"). Develops and checks still run in the shared cell isolate: a develop evaluates its source, then every
-    check, a property check on up to 50 inputs, each evaluation with a whole budget. A property check no longer
-    shrinks an input it runs out of budget on, and shrinking stops at the first smaller input it runs out of budget
-    on; before, a develop whose check hung on one input replayed it 200 times (measured under vitest: 201
-    evaluations, 19.7 s at a 2 000-tick budget and 95.8 s at 10 000, so about 5 minutes at the default 30 000). A
-    check that finishes just inside the budget on every input still costs 50 budgets. Open: moving develops, checks,
-    enrolment and rollback into the world's runtime isolate, as calls already are.
+   `CELLD_MAX_CELL_REQUESTS` (default 64). A world also queues calls without a deadline once its 8 VMs are busy
+   (`pw-uhd.5`).
+10. **CPU in one world slows others.** Cells share a small pool of JavaScript isolates (`worker_count=2`): on the
+    node, a world computing for about 1.5 s delayed calls to unrelated worlds by the same time. Answered for calls,
+    which run in an isolate of the world's own (see "Isolation and R2 on the node"). Open for changes (`pw-rxw.3`):
+    develops and checks still run in the shared cell isolate, where a develop evaluates its source and then every
+    check, a property check on up to 50 inputs, each evaluation with a whole budget. A property check does not shrink
+    an input it runs out of budget on, and shrinking stops at the first smaller input it runs out of budget on, so a
+    check runs out of budget at most once per develop. Without that rule, a develop whose check hung on one input
+    replayed it 200 times: under vitest, 201 evaluations, 19.7 s at a 2 000-tick budget and 95.8 s at 10 000, about
+    5 minutes at the default 30 000. A check that finishes just inside the budget on every input still costs 50
+    budgets.
 11. **The time budget is counted in interrupt ticks, not time, and a call cannot see time pass.** Seen under
     `celld dev` on 2026-10-12: `Date.now()` returns the same value throughout one call (a loop that waits for the
     clock to move never ends), and such a loop calling `Date.now()` ran 70 s before the 30 000-tick budget stopped it,
     while a plain counting loop ran 30 million iterations in 7 s without reaching it. `VmLimits.budget` says
     "QuickJS polls about every 0.1 ms"; in a runtime isolate a tick is far slower and varies with what the code calls.
-    Not fixed: it needs a decision on what the budget should bound.
+    Open (`pw-rxw.4`): a budget in time that bounds a whole operation.
 
 ## Hibernatable sockets on the node
 
 2026-10-07, build `a88526e` deployed to `3867c06` while a client held the UI's socket open on Dashboard and on Trip
 budget, pinging every 5 s. Both cells served the new build about 23 s after the deploy was written (the node reads the
 deployment pointer every 30 s), within 0.2 s of each other. Both sockets stayed open and received a `world` frame from
-the new code; their REST summaries changed at the same moment. Before, with regular sockets, such a cell moved 60 s
-after the others and its sockets were closed (open check 8).
+the new code; their REST summaries changed at the same moment.
 
 ## Isolation and R2 on the node
 
@@ -133,8 +133,8 @@ cell's request for 9 s, the same work in a facet held it for 2 ms; R2 stored a g
 
 - Data: every world's revision, function count and data were identical before and after the deploy that moved the
   data into each world's facet, compared once every world reported the new build.
-- CPU: a world computing for 1.75 s; two other worlds answered in 63 to 82 ms over the tailnet. Before the change the
-  same test held Demo todos for 1.47 s.
+- CPU: a world computing for 1.75 s; two other worlds answered in 63 to 82 ms over the tailnet. With calls in the
+  shared cell isolate, the same test had held Demo todos for 1.47 s.
 - R2: seven older snapshots archived under `snapshots/<hash>.gz`; a rollback to an archived revision took 0.82 s.
 - Preview: `addTodo` inside `execute` reported its write as rolled back, and the todo count stayed the same.
 
@@ -237,7 +237,7 @@ What this settles:
 
 ## Not verified
 
-- Which mechanism wakes a cell after a restart (see above), idle eviction, and a run resuming on another node: the
-  fleet has one node.
-- Merge-by-replay, tiering and pauses are designs, not code.
+- Which mechanism wakes a cell after a restart (see above), idle eviction (`pw-16t.5`), and a run resuming on another
+  node: the fleet has one node (`pw-16t.6`).
+- Merge by replay and pauses are designs, not code (`plan.md`, "Later").
 - jiti's handling of checks was read in its source at commit `a9f46a6`, not run.
