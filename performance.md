@@ -68,6 +68,10 @@ current build `83f5643` (`node/lost-update-…024549Z`, `node/slow-overload-…0
 | O4 develop computing elsewhere | +14 ms |
 | O4 develop with 3 property checks elsewhere | +4 ms |
 
+On `808bd57`, which also validates a read-only call that read either side of an await (found by the TLA+ model's
+author), `lost-update` held again (20 of 20) and the chain of three measured p50 8.6, p99 87 ms
+(`node/lost-update-…`, `node/chain-…` of that build).
+
 ## Workload model
 
 The node's traffic is too thin to give rates: celld logs no requests at INFO, its metrics are blackbox probes only, and

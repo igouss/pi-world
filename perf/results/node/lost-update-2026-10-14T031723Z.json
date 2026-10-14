@@ -1,0 +1,49 @@
+{
+	"scenario": "lost-update",
+	"title": "Concurrent read-modify-write calls",
+	"target": {
+		"base": "http://127.0.0.1:8787",
+		"kind": "node",
+		"loopback": true,
+		"build": "808bd57-dirty"
+	},
+	"startedAt": "2026-10-14T03:17:23.536Z",
+	"git": "808bd57-dirty",
+	"host": "oracle-arm",
+	"approval": "I approve, good job so far I believe we can drive real improvement here way past original parameters (operator, 2026-10-14)",
+	"params": {
+		"calls": 20
+	},
+	"phases": [],
+	"verdicts": [
+		{
+			"objective": "correctness",
+			"metric": "bump: count after 20 successful concurrent increments",
+			"measured": 20,
+			"limit": 20,
+			"holds": true
+		},
+		{
+			"objective": "correctness",
+			"metric": "bump: concurrent increments that succeeded",
+			"measured": 20,
+			"limit": 20,
+			"holds": true
+		},
+		{
+			"objective": "correctness",
+			"metric": "bumpSync: count after 20 successful concurrent increments",
+			"measured": 20,
+			"limit": 20,
+			"holds": true
+		},
+		{
+			"objective": "correctness",
+			"metric": "bumpSync: concurrent increments that succeeded",
+			"measured": 20,
+			"limit": 20,
+			"holds": true
+		}
+	],
+	"notes": []
+}
