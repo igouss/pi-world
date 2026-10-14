@@ -1,0 +1,536 @@
+{
+	"scenario": "read-call",
+	"title": "Direct read-only call at the rated rate",
+	"target": {
+		"base": "http://127.0.0.1:8791",
+		"kind": "dev",
+		"loopback": true
+	},
+	"startedAt": "2026-10-14T01:03:05.126Z",
+	"git": "a781c76-dirty",
+	"host": "fedora",
+	"params": {
+		"rate": 100,
+		"duration": 20,
+		"warmup": 5
+	},
+	"phases": [
+		{
+			"name": "steady",
+			"warmupS": 5,
+			"durationS": 20,
+			"streams": [
+				{
+					"name": "convert",
+					"rate": 100,
+					"arrivals": "poisson",
+					"intended": 2058,
+					"ok": {
+						"count": 2058,
+						"minMs": 4.695,
+						"p50Ms": 7.479,
+						"p90Ms": 16.199,
+						"p99Ms": 31.343,
+						"p999Ms": 40.831,
+						"maxMs": 188.033,
+						"meanMs": 9.506985422740525
+					},
+					"failed": {
+						"count": 0,
+						"minMs": 0,
+						"p50Ms": 0,
+						"p90Ms": 0,
+						"p99Ms": 0,
+						"p999Ms": 0,
+						"maxMs": 0,
+						"meanMs": 0
+					},
+					"service": {
+						"count": 2058,
+						"minMs": 4.557,
+						"p50Ms": 6.859,
+						"p90Ms": 15.367,
+						"p99Ms": 30.271,
+						"p999Ms": 39.711,
+						"maxMs": 186.857,
+						"meanMs": 8.839908649173955
+					},
+					"sendLag": {
+						"count": 2058,
+						"minMs": 0.004,
+						"p50Ms": 0.618,
+						"p90Ms": 1.125,
+						"p99Ms": 2.481,
+						"p999Ms": 3.747,
+						"maxMs": 3.785,
+						"meanMs": 0.6670889212827988
+					},
+					"failures": {},
+					"maxInFlight": 8,
+					"histograms": {
+						"ok": "HISTFAAAAxB4nD1US4oVQRBMI6Ozq7unHYZmkGEUkUFciAjC4ErcCa5cex9v4Ck8h6dypURkP9/j9auq/EVGRvXzHz+PiPoTEU8iIqM/WsfD7y9x2f/6gAfcYgMQBCf9+5uYkCB7J2sAlQhSnkUmQLCAKKxaAjpB4KrkMWBTyTn0bDNJ1lgVqJjScwUGGQPF0o6MWsnCGu2nqgCHYLjaQMV5guJTjtXBRV6SDgyGcpRA0j+OsT5lVBVr5cqBKwBjoNYRY1RxyIlUB4HBvAoiBEB+GFUYxQpeUR1Sh1BnjOpiYqzUqgCOGE5UZ/Nqb5gjOq/4FCPJaHJS5mienFoMEkmBRHQy2auCpWkJpgF4LNoPpOvR2Uawl2leUDFEkZrooaZSGIzggJgcIKsc0hOtakiCjTR8cqITww32/KsCbMGwhRN9rmW683JJ7aukMbZmqhWGSq1mmobqJBRNk1qUELJkSzHeqk1/W7qmzXQGhxQ8MTghhhSYp7qZPNFlidPuIdRtI1tz1W2QUIwvWRoELClLOEzGMOPG5bFS+isPLjgED5637kN0jPXZ2mIly0IwqSbK5KT3s8MNc+L8H6IYuMyHmmIzvyosWDMlp9aSpl3W0NTZlWD4Ynd8cNNBiKV2ENPJHOKk/c/5cMLUHLNfDyYdwub2kn2Ks1NPU9WNd/HhRqGf0PUrzVyLUFNNwLapiTAF0b6JrNl6ANIp/k++sc1mJLmf6FJDx+57193ivGUHplNCnZ0XOqwy1ZybiDQZl2jMinNWNbNYpBsm8yWJLcK2QK/SQAv2YK8Ch9+wEuwG7C6ZzeFi6d6JASxdesa9sFPb6/Z6gRmJ/TJ2AVrE6zVmni2on74DfUU1GuwttrBMEq6mpVzn1pb+nuESGJf3/+zWNizYrA68aiYNe0OibrDJ/VaP1yYusWPBgTuPCQ+8VrAid8zYkZIbdmdfABtvBJO3gvYKn2mRPWLmHe5xnDQlDm54Y+HuBvwSH/ENBx6x4AUS77DhKzZsuDFm4C2u8Z0H3iuzmvj9BPf4hO/4C/x9iX/z2CKX",
+						"failed": "HISTFAAAAB14nJNpmSzMwMDACMXMDBAAYjMoH3ZjgPMBQQsCeg==",
+						"service": "HISTFAAAAwt4nEVUy40lRRDMjYrKqv69t8PTaLQa0AjticNqxQHtiQOHXQewAQPwAQ8wAQ+4YAC2YAQ3FJH9hpmRurryE5ER2fP1b7/fIvLPiHgTES3qR+d4//eXuL//8z3QsXAjgCBAIJdJBrIlmXPNABPJZE6uM3b4yTVncibXfd8vzHXN3HmZ3DNnRjK/ynw7FV2xKo+XeZnrnJy57xlYL5yJHTv3mZeZMxO4JDGhvjvmFFKswZjByYJEJEVzMEmukSASc3IkEsgowgAmnEkiZoKcmlH3DKiR0gNrpKNAZH+rWp0zEFTjQMYEGCkWgkjLZMHAQJuru3bdCIPOUDTUs80EWjZBzKxAqyCIYEcT1QCSuiXYoN9ONDeCQiS4BrppRQb/b8Nwod7VsnHqotMh5aupsgSXVWIlmv+conttQACLw2b82qOWI/POzszvg6LGPbk2MCOxsMPYMkD+CSiXrBQPL7TZsgSppkmd0kwFm3Qyu20fAElXcGSgpcXTZLQpnkxHNI4c6BjScLCoqKHGAbYa11TuSh4CXYqfrBCuN2BmETaASaNpMAtdkSgdAjlg1/wFldCSX+M3tnpvJbRIM9LOTaXSksx4dfaQ4rOUDW+o+25+djXqtWb09lhIemLVdAF1t0p7r7dyD6f8lpnIwxa2E9h5pqTt9C5hlFjttK1GliVl87nPPjc2udVwXygEt2pcK1qb0oGeMmRYWdYm4orHVMa50ichFTbtwigmDmwYIG61gP3+/6vSiY5nP4ezPUitWdceNTP4xoCt/Bs49YJxnlkYupMCStqsfcP78/tabOpmYbayY8GGKwYOAEctW9TnfGoG3HCg5QMau3t7xE2DyDwPOAR8ffVEVkaxCCs1NOfijIOPsgoPtnahxiucjidsWLC4oeI47MXmYr2J5yFCFO47ScZnduTBwA1Xj7K551XWloP6sDoe8WRKm4d7xiccWPCCq2Pq960gHvCEd078rMob8AG/YOAnl1UJfkDDRww88kcc+BUf8F250PDHG7zgZ3zCXw3/vuA/P3oizQ=="
+					}
+				}
+			],
+			"utilization": {
+				"samples": 21,
+				"cpuMeanPct": 69.8,
+				"cpuMaxPct": 82.7,
+				"busiestThreadMeanPct": 15.3,
+				"busiestThreadMaxPct": 20.6,
+				"rssMaxMb": 239.6,
+				"capacityWaitingMax": 0,
+				"activationWaitingMax": 0,
+				"cellIsolatesMax": 1
+			},
+			"samples": [
+				{
+					"at": 1791939787435,
+					"cpuPct": 82.7,
+					"topThreadsPct": [
+						15.3,
+						15.3,
+						14.5,
+						11.1
+					],
+					"rssMb": 198.2,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939788548,
+					"cpuPct": 80.9,
+					"topThreadsPct": [
+						18,
+						14.4,
+						11.7,
+						11.7
+					],
+					"rssMb": 194.6,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939789660,
+					"cpuPct": 71,
+					"topThreadsPct": [
+						14.4,
+						13.5,
+						12.6,
+						10.8
+					],
+					"rssMb": 205.1,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939790772,
+					"cpuPct": 80.9,
+					"topThreadsPct": [
+						18.9,
+						18,
+						11.7,
+						9.9
+					],
+					"rssMb": 204.8,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 0,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939791885,
+					"cpuPct": 71.9,
+					"topThreadsPct": [
+						17.1,
+						13.5,
+						9.9,
+						8.1
+					],
+					"rssMb": 193.6,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939793010,
+					"cpuPct": 66.7,
+					"topThreadsPct": [
+						14.2,
+						13.3,
+						12.4,
+						8
+					],
+					"rssMb": 207.4,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939794124,
+					"cpuPct": 67.3,
+					"topThreadsPct": [
+						14.4,
+						13.5,
+						9.9,
+						9
+					],
+					"rssMb": 196.8,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939795304,
+					"cpuPct": 58.5,
+					"topThreadsPct": [
+						13.6,
+						12.7,
+						10.2,
+						9.3
+					],
+					"rssMb": 196.4,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 0,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939796415,
+					"cpuPct": 78.3,
+					"topThreadsPct": [
+						18,
+						11.7,
+						11.7,
+						10.8
+					],
+					"rssMb": 220.4,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939797546,
+					"cpuPct": 69,
+					"topThreadsPct": [
+						13.3,
+						12.4,
+						11.5,
+						8
+					],
+					"rssMb": 222.6,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939798664,
+					"cpuPct": 68.9,
+					"topThreadsPct": [
+						13.4,
+						11.6,
+						11.6,
+						10.7
+					],
+					"rssMb": 237,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939799826,
+					"cpuPct": 65.4,
+					"topThreadsPct": [
+						15.5,
+						12,
+						11.2,
+						7.7
+					],
+					"rssMb": 209.4,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939800940,
+					"cpuPct": 57.5,
+					"topThreadsPct": [
+						11.7,
+						11.7,
+						10.8,
+						8.1
+					],
+					"rssMb": 206,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.4,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939802055,
+					"cpuPct": 71.7,
+					"topThreadsPct": [
+						14.3,
+						13.5,
+						13.5,
+						11.7
+					],
+					"rssMb": 231.7,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.4,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939803246,
+					"cpuPct": 67.2,
+					"topThreadsPct": [
+						17.6,
+						12.6,
+						11.8,
+						9.2
+					],
+					"rssMb": 222,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.6,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939804359,
+					"cpuPct": 64.7,
+					"topThreadsPct": [
+						14.4,
+						14.4,
+						11.7,
+						9.9
+					],
+					"rssMb": 239.6,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.6,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939805485,
+					"cpuPct": 64.8,
+					"topThreadsPct": [
+						14.2,
+						12.4,
+						12.4,
+						10.7
+					],
+					"rssMb": 216.6,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.6,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939806610,
+					"cpuPct": 65.8,
+					"topThreadsPct": [
+						14.2,
+						13.3,
+						10.7,
+						9.8
+					],
+					"rssMb": 227.8,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.6,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939807725,
+					"cpuPct": 75.3,
+					"topThreadsPct": [
+						20.6,
+						13.5,
+						9.9,
+						9
+					],
+					"rssMb": 205.6,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.6,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939808838,
+					"cpuPct": 62.9,
+					"topThreadsPct": [
+						12.6,
+						11.7,
+						10.8,
+						8.1
+					],
+					"rssMb": 204,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.6,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939809964,
+					"cpuPct": 73.7,
+					"topThreadsPct": [
+						16,
+						13.3,
+						12.4,
+						10.7
+					],
+					"rssMb": 217.2,
+					"state": {
+						"residentCells": 2,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.9,
+						"shedding": null
+					}
+				}
+			]
+		}
+	],
+	"verdicts": [
+		{
+			"objective": "O1a",
+			"metric": "convert p50 ms",
+			"measured": 7.479,
+			"limit": 10,
+			"holds": true
+		},
+		{
+			"objective": "O1a",
+			"metric": "convert p99 ms",
+			"measured": 31.343,
+			"limit": 50,
+			"holds": true
+		},
+		{
+			"objective": "O6a",
+			"metric": "convert failed or timed out",
+			"measured": 0,
+			"limit": 0,
+			"holds": true
+		}
+	],
+	"notes": []
+}

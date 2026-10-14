@@ -1,0 +1,591 @@
+{
+	"scenario": "chain",
+	"title": "Chain of three worlds",
+	"target": {
+		"base": "http://127.0.0.1:8791",
+		"kind": "dev",
+		"loopback": true
+	},
+	"startedAt": "2026-10-14T01:04:06.920Z",
+	"git": "a781c76-dirty",
+	"host": "fedora",
+	"params": {
+		"rate": 10,
+		"duration": 20,
+		"warmup": 5
+	},
+	"phases": [
+		{
+			"name": "steady",
+			"warmupS": 5,
+			"durationS": 20,
+			"streams": [
+				{
+					"name": "convert (one world)",
+					"rate": 10,
+					"arrivals": "poisson",
+					"intended": 205,
+					"ok": {
+						"count": 205,
+						"minMs": 5.406,
+						"p50Ms": 8.255,
+						"p90Ms": 14.311,
+						"p99Ms": 24.735,
+						"p999Ms": 25.791,
+						"maxMs": 25.781,
+						"meanMs": 9.383960975609757
+					},
+					"failed": {
+						"count": 0,
+						"minMs": 0,
+						"p50Ms": 0,
+						"p90Ms": 0,
+						"p99Ms": 0,
+						"p999Ms": 0,
+						"maxMs": 0,
+						"meanMs": 0
+					},
+					"service": {
+						"count": 205,
+						"minMs": 5.094,
+						"p50Ms": 7.619,
+						"p90Ms": 13.623,
+						"p99Ms": 23.679,
+						"p999Ms": 25.023,
+						"maxMs": 25.019,
+						"meanMs": 8.749317073170733
+					},
+					"sendLag": {
+						"count": 205,
+						"minMs": 0.013,
+						"p50Ms": 0.611,
+						"p90Ms": 1.06,
+						"p99Ms": 1.975,
+						"p999Ms": 2.479,
+						"maxMs": 2.479,
+						"meanMs": 0.6345268292682926
+					},
+					"failures": {},
+					"maxInFlight": 3,
+					"histograms": {
+						"ok": "HISTFAAAAPd4nDXPP2obURAG8NHvveWxPMSyLGIRihCLMCG4FiaoSGFwTpDSRfrcIG3aVC58Ep/AR8oFwj4lU83M92e++fDrZYrY/IiITUSkuNXax/n9Kf7Pvy8G95LBJ9Wos+jN+SLphJRDr2enKmubIw9ZrxCCTi90TJKi/hN2irO+zSe55E7n0KBqyZLJrklDMTXmR4PJYDSZm9vNZ+9q4U5iaKwkNeU5J8wt4lYzXaMoSq5q3ubTup3dpMW8wjudUTU5mR0Uo/A1V/bt8J1ntorPZqUlefTFUXW1t/etvWFxsHhw5dmR7yYHbxtHF8Wf5HUljZKf/gJ37xOc",
+						"failed": "HISTFAAAAB14nJNpmSzMwMDACMXMDBAAYjMoH3ZjgPMBQQsCeg==",
+						"service": "HISTFAAAAPZ4nDWQQUpDMRCGp19miCE8HiE8SsGHPB6lSFfShQsp7hSX4qK4VOnaS3gDz+ApXHoibyCTYrJJJh//N5nzj88qsngVkYWIBDktP8v8cyf/998dxiOZjSYigiiBDkRFDQq9QoJAVjkzopIxhAnxqhFBnBAGEoXIpgHBgZ6h8USMwFV72yLsiAS1ljBAR4VMYkWPsKXj2auR0JBMx4TRYyxR0creYzGMwnTSe2BHoJJd7d9hpKc0v2bG5vedeGLUygUT17rikgC3+BAKwswDgZHkknsOZAqFJYkDRiWwJvHeurhh9pGt+faWj3wpb7xgHNnzB22eE7o="
+					}
+				},
+				{
+					"name": "tripIn (three worlds)",
+					"rate": 10,
+					"arrivals": "poisson",
+					"intended": 207,
+					"ok": {
+						"count": 207,
+						"minMs": 16.126,
+						"p50Ms": 22.287,
+						"p90Ms": 39.455,
+						"p99Ms": 57.951,
+						"p999Ms": 66.879,
+						"maxMs": 66.862,
+						"meanMs": 25.23717874396135
+					},
+					"failed": {
+						"count": 0,
+						"minMs": 0,
+						"p50Ms": 0,
+						"p90Ms": 0,
+						"p99Ms": 0,
+						"p999Ms": 0,
+						"maxMs": 0,
+						"meanMs": 0
+					},
+					"service": {
+						"count": 207,
+						"minMs": 15.442,
+						"p50Ms": 21.679,
+						"p90Ms": 38.751,
+						"p99Ms": 56.415,
+						"p999Ms": 66.879,
+						"maxMs": 66.824,
+						"meanMs": 24.576502415458936
+					},
+					"sendLag": {
+						"count": 207,
+						"minMs": 0.014,
+						"p50Ms": 0.585,
+						"p90Ms": 1.123,
+						"p99Ms": 2.287,
+						"p999Ms": 5.159,
+						"maxMs": 5.157,
+						"meanMs": 0.6611207729468599
+					},
+					"failures": {},
+					"maxInFlight": 3,
+					"histograms": {
+						"ok": "HISTFAAAAPF4nDWPMUoEQRBFa15VWwxNMwzDsAzrMiyDgSxiYGAgpmay7AHWGxh4BNEbGBp6Ag9g5MWkerFpqrr/f9WfPn//GESaJxFpRETltOIsy++D/N9/9gjMTCiJFNUEoyAoYA5qbhkntoRjaoUKxzAnNFmiRRBSraSwTgr1lRa1kNcWUxf0eM2sRGHEmbllDFxoWVdfUZye3Zkz0DGibHCUlmwkLiNphVvCEp0tODsGMhuy3ZEqHCFXiE3Qs+K14YhTONLhdMws3JAZESZy/ZPULtyz5cAeJVOgo2dgywvXFBIzh6p8NjzjfMFbwyPfyh+gZBJK",
+						"failed": "HISTFAAAAB14nJNpmSzMwMDACMXMDBAAYjMoH3ZjgPMBQQsCeg==",
+						"service": "HISTFAAAAPZ4nDWPQUoEMRBFq18lE5smNKEJzaBNL5pBRKQXs5LZ60rBI7h05QHcunM5aw/gCTyAR/BCUjWYhFSl6uf/+hfvx0GkeRaRRkRUTstyWX7u5P99fKRnR0tEuWZLFwqKoCQUFKVFzoToECGR2EhQgoJFCZlExMAIZLvjxj+fTmehtXLnJD0umAKRnswSJkP0RAo9wsxKwhMGmEkUFh+loIEcErPR2KxhRE1enbuSrZLpmHgKo3UWItVskBipVAru57thQrhkxw0DWyK3VDpW9m69hNa1hT0HXhjIRMT3lnNaHnjD/N9TWflseKXyBVd8NPwqf/u7EtE="
+					}
+				}
+			],
+			"utilization": {
+				"samples": 21,
+				"cpuMeanPct": 34.9,
+				"cpuMaxPct": 47.6,
+				"busiestThreadMeanPct": 9.2,
+				"busiestThreadMaxPct": 11.7,
+				"rssMaxMb": 471.9,
+				"capacityWaitingMax": 0,
+				"activationWaitingMax": 0,
+				"cellIsolatesMax": 1
+			},
+			"samples": [
+				{
+					"at": 1791939850085,
+					"cpuPct": 45.4,
+					"topThreadsPct": [
+						10.7,
+						8.9,
+						7.1,
+						4.5
+					],
+					"rssMb": 422.9,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 19.4,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939851263,
+					"cpuPct": 38.2,
+					"topThreadsPct": [
+						11,
+						5.9,
+						5.9,
+						3.4
+					],
+					"rssMb": 409.9,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 19.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939852375,
+					"cpuPct": 32.4,
+					"topThreadsPct": [
+						9,
+						7.2,
+						5.4,
+						4.5
+					],
+					"rssMb": 426.9,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 20.6,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939853507,
+					"cpuPct": 26.5,
+					"topThreadsPct": [
+						6.2,
+						4.4,
+						4.4,
+						2.7
+					],
+					"rssMb": 422.8,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 0,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939854624,
+					"cpuPct": 34,
+					"topThreadsPct": [
+						11.6,
+						6.3,
+						4.5,
+						3.6
+					],
+					"rssMb": 400.9,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 20.6,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939855763,
+					"cpuPct": 18.4,
+					"topThreadsPct": [
+						5.3,
+						4.4,
+						3.5,
+						2.6
+					],
+					"rssMb": 427,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 21.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939856873,
+					"cpuPct": 39.6,
+					"topThreadsPct": [
+						9.9,
+						8.1,
+						7.2,
+						4.5
+					],
+					"rssMb": 419.8,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 22.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939858023,
+					"cpuPct": 30.4,
+					"topThreadsPct": [
+						8.7,
+						6.1,
+						5.2,
+						2.6
+					],
+					"rssMb": 404.9,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 15.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939859202,
+					"cpuPct": 34.8,
+					"topThreadsPct": [
+						7.6,
+						6.8,
+						6.8,
+						4.2
+					],
+					"rssMb": 438,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.6,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939860314,
+					"cpuPct": 29.7,
+					"topThreadsPct": [
+						7.2,
+						7.2,
+						6.3,
+						3.6
+					],
+					"rssMb": 441.2,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939861460,
+					"cpuPct": 30.5,
+					"topThreadsPct": [
+						7.9,
+						6.1,
+						5.2,
+						4.4
+					],
+					"rssMb": 415.5,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 0,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939862605,
+					"cpuPct": 41,
+					"topThreadsPct": [
+						11.4,
+						7.9,
+						6.1,
+						5.2
+					],
+					"rssMb": 463.1,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.6,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939863748,
+					"cpuPct": 31.5,
+					"topThreadsPct": [
+						7.9,
+						5.2,
+						4.4,
+						4.4
+					],
+					"rssMb": 444.6,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939864860,
+					"cpuPct": 36,
+					"topThreadsPct": [
+						8.1,
+						6.3,
+						6.3,
+						4.5
+					],
+					"rssMb": 415.8,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939865970,
+					"cpuPct": 29.7,
+					"topThreadsPct": [
+						8.1,
+						7.2,
+						5.4,
+						4.5
+					],
+					"rssMb": 448.6,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 15.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939867121,
+					"cpuPct": 38.2,
+					"topThreadsPct": [
+						9.6,
+						8.7,
+						7,
+						2.6
+					],
+					"rssMb": 471.9,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939868232,
+					"cpuPct": 38.7,
+					"topThreadsPct": [
+						11.7,
+						7.2,
+						7.2,
+						3.6
+					],
+					"rssMb": 455.6,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939869405,
+					"cpuPct": 35.8,
+					"topThreadsPct": [
+						10.2,
+						9.4,
+						8.5,
+						4.3
+					],
+					"rssMb": 438.6,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939870518,
+					"cpuPct": 47.6,
+					"topThreadsPct": [
+						9.9,
+						9,
+						7.2,
+						5.4
+					],
+					"rssMb": 467.7,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939871639,
+					"cpuPct": 40.1,
+					"topThreadsPct": [
+						11.6,
+						10.7,
+						8,
+						2.7
+					],
+					"rssMb": 458.2,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939872780,
+					"cpuPct": 35.1,
+					"topThreadsPct": [
+						9.6,
+						8.8,
+						5.3,
+						2.6
+					],
+					"rssMb": 431.3,
+					"state": {
+						"residentCells": 6,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 16.9,
+						"shedding": null
+					}
+				}
+			]
+		}
+	],
+	"verdicts": [
+		{
+			"objective": "O2",
+			"metric": "tripIn (three worlds) p50 ms",
+			"measured": 22.287,
+			"limit": 30,
+			"holds": true
+		},
+		{
+			"objective": "O2",
+			"metric": "tripIn (three worlds) p99 ms",
+			"measured": 57.951,
+			"limit": 100,
+			"holds": true
+		},
+		{
+			"objective": "O7",
+			"metric": "tripIn (three worlds) failed or timed out",
+			"measured": 0,
+			"limit": 0,
+			"holds": true
+		}
+	],
+	"notes": [
+		"a chain of three costs 14.0 ms at p50 over one direct call"
+	]
+}

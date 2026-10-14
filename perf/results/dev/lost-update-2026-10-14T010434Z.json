@@ -1,0 +1,35 @@
+{
+	"scenario": "lost-update",
+	"title": "Concurrent read-modify-write calls",
+	"target": {
+		"base": "http://127.0.0.1:8791",
+		"kind": "dev",
+		"loopback": true
+	},
+	"startedAt": "2026-10-14T01:04:34.907Z",
+	"git": "a781c76-dirty",
+	"host": "fedora",
+	"params": {
+		"calls": 20,
+		"duration": 20,
+		"warmup": 5
+	},
+	"phases": [],
+	"verdicts": [
+		{
+			"objective": "correctness",
+			"metric": "bump: count after 20 successful concurrent increments",
+			"measured": 3,
+			"limit": 20,
+			"holds": false
+		},
+		{
+			"objective": "correctness",
+			"metric": "bumpSync: count after 20 successful concurrent increments",
+			"measured": 20,
+			"limit": 20,
+			"holds": true
+		}
+	],
+	"notes": []
+}

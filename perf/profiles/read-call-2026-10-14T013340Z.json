@@ -1,0 +1,273 @@
+{
+	"samples": 3932,
+	"selfByLayer": {
+		"celld native": 1764,
+		"libc/kernel": 667,
+		"v8": 1038,
+		"quickjs wasm": 258,
+		"other js": 127,
+		"gc": 36,
+		"cell js": 16,
+		"runtime js": 26
+	},
+	"topSelf": [
+		{
+			"frame": "__memmove_avx_unaligned_erms",
+			"layer": "libc/kernel",
+			"samples": 433
+		},
+		{
+			"frame": "Builtins_WasmLiftoffFrameSetup",
+			"layer": "v8",
+			"samples": 50
+		},
+		{
+			"frame": "JS:wasm-function[92]-92-turbofan",
+			"layer": "quickjs wasm",
+			"samples": 40
+		},
+		{
+			"frame": "lock",
+			"layer": "celld native",
+			"samples": 30
+		},
+		{
+			"frame": "[unknown [vdso]]",
+			"layer": "libc/kernel",
+			"samples": 25
+		},
+		{
+			"frame": "_int_malloc",
+			"layer": "libc/kernel",
+			"samples": 24
+		},
+		{
+			"frame": "tokio::runtime::context::budget",
+			"layer": "celld native",
+			"samples": 21
+		},
+		{
+			"frame": "cache_bin_alloc_impl",
+			"layer": "celld native",
+			"samples": 21
+		},
+		{
+			"frame": "core::ops::function::FnOnce::call_once",
+			"layer": "celld native",
+			"samples": 21
+		},
+		{
+			"frame": "v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)",
+			"layer": "v8",
+			"samples": 19
+		},
+		{
+			"frame": "clock_gettime@@GLIBC_2.17",
+			"layer": "libc/kernel",
+			"samples": 19
+		},
+		{
+			"frame": "__memcmp_avx2_movbe",
+			"layer": "libc/kernel",
+			"samples": 19
+		},
+		{
+			"frame": "v8::internal::LookupIterator::State v8::internal::LookupIterator::LookupInRegularHolder<false>(v8::internal::Tagged<v8::internal::Map>, v8::internal::Tagged<v8::internal::JSReceiver>)",
+			"layer": "v8",
+			"samples": 18
+		},
+		{
+			"frame": "JS:+project :3732:19",
+			"layer": "other js",
+			"samples": 16
+		},
+		{
+			"frame": "std::__Cr::optional<v8::internal::DirectHandle<v8::internal::InternalizedString> > v8::internal::StringTable::TryLookupKey<v8::internal::InternalizedStringKey, v8::internal::Isolate>(v8::internal::Isolate*, v8::internal::InternalizedStringKey*)",
+			"layer": "v8",
+			"samples": 16
+		},
+		{
+			"frame": "tcache_alloc_small",
+			"layer": "celld native",
+			"samples": 14
+		},
+		{
+			"frame": "__memset_avx2_unaligned_erms",
+			"layer": "libc/kernel",
+			"samples": 14
+		},
+		{
+			"frame": "celld_ltx::path_clean",
+			"layer": "celld native",
+			"samples": 14
+		},
+		{
+			"frame": "unlock",
+			"layer": "celld native",
+			"samples": 14
+		},
+		{
+			"frame": "Builtins_BaselineOutOfLinePrologue",
+			"layer": "v8",
+			"samples": 14
+		},
+		{
+			"frame": "JS:wasm-function[684]-684-turbofan",
+			"layer": "quickjs wasm",
+			"samples": 13
+		},
+		{
+			"frame": "v8::internal::Factory::AllocateRaw(int, v8::internal::AllocationType, v8::internal::AllocationAlignment, v8::internal::AllocationHint)",
+			"layer": "v8",
+			"samples": 13
+		},
+		{
+			"frame": "malloc",
+			"layer": "libc/kernel",
+			"samples": 13
+		},
+		{
+			"frame": "{closure#52}",
+			"layer": "celld native",
+			"samples": 13
+		},
+		{
+			"frame": "{closure#0}",
+			"layer": "celld native",
+			"samples": 13
+		}
+	],
+	"topInclusive": [
+		{
+			"frame": "std::sys::backtrace::__rust_begin_short_backtrace",
+			"layer": "celld native",
+			"samples": 3812
+		},
+		{
+			"frame": "start_thread",
+			"layer": "libc/kernel",
+			"samples": 3695
+		},
+		{
+			"frame": "__GI___clone3",
+			"layer": "libc/kernel",
+			"samples": 3695
+		},
+		{
+			"frame": "as_ref<alloc::sync::ArcInner<std::thread::lifecycle::Packet<()>>>",
+			"layer": "celld native",
+			"samples": 3576
+		},
+		{
+			"frame": "inner<std::thread::lifecycle::Packet<()>, alloc::alloc::Global>",
+			"layer": "celld native",
+			"samples": 3576
+		},
+		{
+			"frame": "deref<std::thread::lifecycle::Packet<()>, alloc::alloc::Global>",
+			"layer": "celld native",
+			"samples": 3576
+		},
+		{
+			"frame": "core::ops::function::FnOnce::call_once{{vtable.shim}}",
+			"layer": "celld native",
+			"samples": 3576
+		},
+		{
+			"frame": "core::mem::size_of_val_raw::<dyn core::ops::function::FnOnce<(), Output =",
+			"layer": "celld native",
+			"samples": 3576
+		},
+		{
+			"frame": "<core::alloc::layout::Layout>::for_value_raw::<dyn core::ops::function::FnOnce<(), Output =",
+			"layer": "celld native",
+			"samples": 3576
+		},
+		{
+			"frame": "<alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Output =",
+			"layer": "celld native",
+			"samples": 3576
+		},
+		{
+			"frame": "<std::sys::thread::unix::Thread>::new::thread_start",
+			"layer": "celld native",
+			"samples": 3576
+		},
+		{
+			"frame": "{closure#0}",
+			"layer": "celld native",
+			"samples": 3466
+		},
+		{
+			"frame": "{closure#1}<tokio::runtime::blocking::pool::{impl#6}::spawn_thread::{closure_env#0},",
+			"layer": "celld native",
+			"samples": 3420
+		},
+		{
+			"frame": "tokio::runtime::blocking::pool::Inner::run",
+			"layer": "celld native",
+			"samples": 3415
+		},
+		{
+			"frame": "poll",
+			"layer": "celld native",
+			"samples": 3410
+		},
+		{
+			"frame": "run<tokio::runtime::blocking::schedule::BlockingSchedule>",
+			"layer": "celld native",
+			"samples": 3407
+		},
+		{
+			"frame": "run",
+			"layer": "celld native",
+			"samples": 3407
+		},
+		{
+			"frame": "tokio::runtime::task::harness::Harness<T,S>::poll",
+			"layer": "celld native",
+			"samples": 3398
+		},
+		{
+			"frame": "tokio::runtime::task::core::Core<T,S>::poll",
+			"layer": "celld native",
+			"samples": 3392
+		},
+		{
+			"frame": "<tokio::runtime::blocking::task::BlockingTask<T> as core::future::future::Future>::poll",
+			"layer": "celld native",
+			"samples": 3376
+		},
+		{
+			"frame": "tokio::runtime::task::harness::Harness<T,S>::poll_inner",
+			"layer": "celld native",
+			"samples": 3366
+		},
+		{
+			"frame": "tokio::runtime::task::harness::poll_future",
+			"layer": "celld native",
+			"samples": 3365
+		},
+		{
+			"frame": "tokio::runtime::context::runtime::enter_runtime",
+			"layer": "celld native",
+			"samples": 3296
+		},
+		{
+			"frame": "tokio::runtime::context::scoped::Scoped<T>::set",
+			"layer": "celld native",
+			"samples": 3216
+		},
+		{
+			"frame": "atomic_sub<usize, usize>",
+			"layer": "celld native",
+			"samples": 3084
+		}
+	],
+	"byThread": {
+		"tokio-rt-worker": 3421,
+		"celld": 236,
+		"celld-core": 156,
+		"V8 DefaultWorke": 119
+	}
+}

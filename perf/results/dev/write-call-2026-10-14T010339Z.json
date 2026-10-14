@@ -1,0 +1,557 @@
+{
+	"scenario": "write-call",
+	"title": "Direct call writing one key at the rated rate",
+	"target": {
+		"base": "http://127.0.0.1:8791",
+		"kind": "dev",
+		"loopback": true
+	},
+	"startedAt": "2026-10-14T01:03:39.947Z",
+	"git": "a781c76-dirty",
+	"host": "fedora",
+	"params": {
+		"rate": 50,
+		"duration": 20,
+		"warmup": 5,
+		"keys": 50
+	},
+	"phases": [
+		{
+			"name": "steady",
+			"warmupS": 5,
+			"durationS": 20,
+			"streams": [
+				{
+					"name": "setTodo",
+					"rate": 50,
+					"arrivals": "poisson",
+					"intended": 1011,
+					"ok": {
+						"count": 1011,
+						"minMs": 20.902,
+						"p50Ms": 68.799,
+						"p90Ms": 105.727,
+						"p99Ms": 238.079,
+						"p999Ms": 348.159,
+						"maxMs": 356.071,
+						"meanMs": 73.33884075173096
+					},
+					"failed": {
+						"count": 0,
+						"minMs": 0,
+						"p50Ms": 0,
+						"p90Ms": 0,
+						"p99Ms": 0,
+						"p999Ms": 0,
+						"maxMs": 0,
+						"meanMs": 0
+					},
+					"service": {
+						"count": 1011,
+						"minMs": 20.665,
+						"p50Ms": 68.159,
+						"p90Ms": 105.087,
+						"p99Ms": 236.671,
+						"p999Ms": 347.903,
+						"maxMs": 355.306,
+						"meanMs": 72.72007121661721
+					},
+					"sendLag": {
+						"count": 1011,
+						"minMs": 0.006,
+						"p50Ms": 0.598,
+						"p90Ms": 1.073,
+						"p99Ms": 1.774,
+						"p999Ms": 3.831,
+						"maxMs": 4.972,
+						"meanMs": 0.6191523244312561
+					},
+					"failures": {},
+					"maxInFlight": 16,
+					"histograms": {
+						"ok": "HISTFAAAAmt4nD2UsY7UQAyGvd94JjeKoihaRavVgU4IUWyBgJoSHVdSQEeFeAxaegpEQcVD8AgU1DwQAv12cjndzmTs+f37t50Hn78ezepzMzuYWbF8tLfHv17b/v7zHd8KH/lz4BGcuGaAwhEq0DHMCwPGEL9GYWaNdaG67LIxxlGhYkwUTAgzF2YKKysTXhjp3rlhQKAT1wGptxum2J/9RJHrJMyFMyMzI0li9MEVB6p3IpgbemTt7Qgbj7DF6Zka9y3+O8VlqiyBMybeEMd0RiXn4CLVA8pCh4ljkGfmBeYDrOFeYMls5ea6pH3J4C5uJRg48R6IoVtpulc8OMuU17rWTEpPyL8d2VX6ecGF4bEh/3ygKa+oQRuQgjW1sMCz1GaXZ9ySi9wqVWFEx9I8hzErngg1tO5RCtWCzpJN0YzuXlPzJN+yeRh9DV8PKh6Uyz2R+zyVzcQezmVsA7Vt4UOoJAiOt4gqEQJQ8gSuF1Z3Sd1oXlLxyN3D6JsOoR5tW7XBtfdo+KxPkzQeLNUaAlJfUCSzcYVcQq3JQ6sqYjUaqeyiuVLOGk1uXClO5O3WNqV8rxGpSRta6mOujFsrvjVI8dJs7wW3pCalUpZWfIjxVcBQpaXSLdFKyhBN4ZbDmzcjDTdJIIAhBIi5btmfOTiRlNBrltNa9OreWvKv3Bcxe7tv1LcBGVjanKMsh2nvwc5KTGSPVpx4yBMGuutbZCzt4pzovnJyY2ZmoTPr4iU+SYWTIpwZ9PGaucNPGsWgcpPRjmqxaRv+N7znLi7+PfCWHwc+YHzR8u/ALSuveMozbrnw/cDvwide8h9ohyFe",
+						"failed": "HISTFAAAAB14nJNpmSzMwMDACMXMDBAAYjMoH3ZjgPMBQQsCeg==",
+						"service": "HISTFAAAAm94nD2Uv4oUQRDGa3/9dffODcOwLMcp53Eci8ghcqEYGJiYHHKJiRgbGPgMJhoZivgExj6EkQ/jO2hV9Tq7zExXd1d9f6rnwaeve7N6z8w2ZlYsL3+3w6+Xdhx/e83PwsyPDe+4ZoGJhUJVoYNx3wcYJipFlUJR8QCmDgWuNMOlMDgweWiFayYqlV2ku5Kx93RnWrli59v2mYTCBZ0bGcCiJzBjTFwSxVosWVWYElHxzRVTo0eCGhAdJBU6M/sRYUXFgU/smFFgMiiO/FyeLwIF5z07gEzov9Ok4zpc0tmpR2lXa4ep+vZdQOjyMrnTWVTNIq/qI5OJElOEYqhmISftS32zTDV2FGKps2wONIqabNyB5k9fHUn9VlvgWJyiHPSwjWasTOlbYJ/R3OpxmlVD0WAQxY48OQ12JX2IGQ0EzsHnHHhnYWklpQuTzN+V3qLeFPlUc7XlPhlz5EElhaBoxbXdVtgKuXchVTP3ullSTc+UFQwJNR9Hd8ghxiovq7gFaJOap8v6FkHRGxEsSb36zEno6wrbyZoFe1oSvdKyb0KAMNbdpxUdjbOGAkZJKFk963rfVqffRiQ5uVHOL5Y2GLITAiiERwqvZdJopUBbHMNR9NHdZQjh8daZaGWbJ9b/oXX3dNOAEC4MYdoUDRBUepRU+mz8B+z9ZOrHVp4DgOeWZ9wzacKdDG7LOGYLix56jk4c0NtBcg4i7HkcFixx+A7qnFPiI5F1nsdZPGOJ5zmdSucV2VIXlO2jSNg5G18D/4ysvOGOF+zp/Nnwnq8bPvw7B182vOUzPOOCWw7ccMc13zf8LnzkKX8BPzog6Q=="
+					}
+				}
+			],
+			"utilization": {
+				"samples": 22,
+				"cpuMeanPct": 58.8,
+				"cpuMaxPct": 176.8,
+				"busiestThreadMeanPct": 10.2,
+				"busiestThreadMaxPct": 26.9,
+				"rssMaxMb": 370.2,
+				"capacityWaitingMax": 0,
+				"activationWaitingMax": 0,
+				"cellIsolatesMax": 1
+			},
+			"samples": [
+				{
+					"at": 1791939821984,
+					"cpuPct": 67.6,
+					"topThreadsPct": [
+						9,
+						7.2,
+						7.2,
+						6.3
+					],
+					"rssMb": 256.4,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939823150,
+					"cpuPct": 54,
+					"topThreadsPct": [
+						14.6,
+						6,
+						6,
+						6
+					],
+					"rssMb": 293.2,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939824262,
+					"cpuPct": 59.4,
+					"topThreadsPct": [
+						10.8,
+						9.9,
+						6.3,
+						5.4
+					],
+					"rssMb": 285.2,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939825440,
+					"cpuPct": 62,
+					"topThreadsPct": [
+						11,
+						9.3,
+						6.8,
+						6.8
+					],
+					"rssMb": 277.1,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939826548,
+					"cpuPct": 52.3,
+					"topThreadsPct": [
+						9,
+						8.1,
+						7.2,
+						5.4
+					],
+					"rssMb": 224,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939827664,
+					"cpuPct": 49.3,
+					"topThreadsPct": [
+						8.1,
+						7.2,
+						6.3,
+						5.4
+					],
+					"rssMb": 251.2,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939828795,
+					"cpuPct": 70.7,
+					"topThreadsPct": [
+						13.3,
+						10.6,
+						8,
+						8
+					],
+					"rssMb": 246,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939829912,
+					"cpuPct": 53.7,
+					"topThreadsPct": [
+						9,
+						8.1,
+						7.2,
+						6.3
+					],
+					"rssMb": 233.5,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 17.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939831043,
+					"cpuPct": 49.5,
+					"topThreadsPct": [
+						8.8,
+						7.1,
+						6.2,
+						5.3
+					],
+					"rssMb": 273.3,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 18.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939832155,
+					"cpuPct": 51.3,
+					"topThreadsPct": [
+						8.1,
+						7.2,
+						5.4,
+						5.4
+					],
+					"rssMb": 263.1,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 18.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939833327,
+					"cpuPct": 48.6,
+					"topThreadsPct": [
+						9.4,
+						6.8,
+						5.1,
+						5.1
+					],
+					"rssMb": 244.3,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 18.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939834437,
+					"cpuPct": 46.8,
+					"topThreadsPct": [
+						8.1,
+						6.3,
+						6.3,
+						5.4
+					],
+					"rssMb": 267.7,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 18.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939835552,
+					"cpuPct": 51.1,
+					"topThreadsPct": [
+						9,
+						8.1,
+						6.3,
+						5.4
+					],
+					"rssMb": 246.2,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 18.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939836661,
+					"cpuPct": 55,
+					"topThreadsPct": [
+						9.9,
+						7.2,
+						6.3,
+						5.4
+					],
+					"rssMb": 281.2,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 18.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939837776,
+					"cpuPct": 48.4,
+					"topThreadsPct": [
+						8.1,
+						6.3,
+						6.3,
+						6.3
+					],
+					"rssMb": 241.8,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 18.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939838896,
+					"cpuPct": 44.6,
+					"topThreadsPct": [
+						8,
+						6.3,
+						5.4,
+						4.5
+					],
+					"rssMb": 273.8,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 18.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939840010,
+					"cpuPct": 176.8,
+					"topThreadsPct": [
+						26.9,
+						21.5,
+						20.6,
+						20.6
+					],
+					"rssMb": 367.2,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 18.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939841180,
+					"cpuPct": 46.2,
+					"topThreadsPct": [
+						8.5,
+						7.7,
+						6.8,
+						6
+					],
+					"rssMb": 349.6,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 18.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939842290,
+					"cpuPct": 48.6,
+					"topThreadsPct": [
+						7.2,
+						6.3,
+						6.3,
+						5.4
+					],
+					"rssMb": 368.8,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 18.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939843463,
+					"cpuPct": 48.6,
+					"topThreadsPct": [
+						9.4,
+						6.8,
+						6.8,
+						6
+					],
+					"rssMb": 344.4,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 18.1,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939844584,
+					"cpuPct": 57.1,
+					"topThreadsPct": [
+						9.8,
+						8.9,
+						8,
+						6.2
+					],
+					"rssMb": 336.8,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 18.6,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791939845709,
+					"cpuPct": 52.4,
+					"topThreadsPct": [
+						8.9,
+						8,
+						6.2,
+						5.3
+					],
+					"rssMb": 370.2,
+					"state": {
+						"residentCells": 3,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 1,
+						"cellIsolateHeapMb": 18.6,
+						"shedding": null
+					}
+				}
+			]
+		}
+	],
+	"verdicts": [
+		{
+			"objective": "O1b",
+			"metric": "setTodo p50 ms",
+			"measured": 68.799,
+			"limit": 120,
+			"holds": true
+		},
+		{
+			"objective": "O1b",
+			"metric": "setTodo p99 ms",
+			"measured": 238.079,
+			"limit": 250,
+			"holds": true
+		},
+		{
+			"objective": "O6b",
+			"metric": "setTodo failed or timed out",
+			"measured": 0,
+			"limit": 0,
+			"holds": true
+		}
+	],
+	"notes": []
+}

@@ -7,3 +7,5 @@ dist/
 .stryker-tmp/
 reports/
 .hegel/
+perf/profiles/*.perf.data
+isolate-0x*-v8.log

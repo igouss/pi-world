@@ -1,0 +1,273 @@
+{
+	"samples": 13144,
+	"selfByLayer": {
+		"v8": 2123,
+		"celld native": 7854,
+		"libc/kernel": 1185,
+		"quickjs wasm": 1222,
+		"cell js": 71,
+		"gc": 644,
+		"other js": 45
+	},
+	"topSelf": [
+		{
+			"frame": "compress_normal",
+			"layer": "celld native",
+			"samples": 694
+		},
+		{
+			"frame": "find_match",
+			"layer": "celld native",
+			"samples": 689
+		},
+		{
+			"frame": "celld_ltx::wal_checksum",
+			"layer": "celld native",
+			"samples": 661
+		},
+		{
+			"frame": "__memmove_avx_unaligned_erms",
+			"layer": "libc/kernel",
+			"samples": 475
+		},
+		{
+			"frame": "sha256_digest_block_u32",
+			"layer": "celld native",
+			"samples": 448
+		},
+		{
+			"frame": "lt",
+			"layer": "celld native",
+			"samples": 410
+		},
+		{
+			"frame": "sha2::sha256::soft::sha256_digest_round_x2",
+			"layer": "celld native",
+			"samples": 343
+		},
+		{
+			"frame": "v8::internal::ConcurrentMarking::RunMajor(v8::JobDelegate*, v8::base::EnumSet<v8::internal::CodeFlushMode, int>, unsigned int, bool)",
+			"layer": "v8",
+			"samples": 343
+		},
+		{
+			"frame": "void v8::internal::MarkingVisitorBase<v8::internal::ConcurrentMarkingVisitor>::ProcessStrongHeapObject<v8::internal::FullHeapObjectSlot>(v8::internal::Tagged<v8::internal::HeapObject>, v8::internal::FullHeapObjectSlot, v8::internal::Tagged<v8::internal::HeapObject>)",
+			"layer": "gc",
+			"samples": 311
+		},
+		{
+			"frame": "wrapping_add",
+			"layer": "celld native",
+			"samples": 258
+		},
+		{
+			"frame": "rotate_right<u32>",
+			"layer": "celld native",
+			"samples": 186
+		},
+		{
+			"frame": "JS:wasm-function[92]-92-turbofan",
+			"layer": "quickjs wasm",
+			"samples": 137
+		},
+		{
+			"frame": "lll_mutex_unlock_optimized",
+			"layer": "celld native",
+			"samples": 132
+		},
+		{
+			"frame": "JS:wasm-function[674]-674-turbofan",
+			"layer": "quickjs wasm",
+			"samples": 125
+		},
+		{
+			"frame": "JS:wasm-function[984]-984-turbofan",
+			"layer": "quickjs wasm",
+			"samples": 103
+		},
+		{
+			"frame": "__memset_avx2_unaligned_erms",
+			"layer": "libc/kernel",
+			"samples": 98
+		},
+		{
+			"frame": "JS:wasm-function[684]-684-turbofan",
+			"layer": "quickjs wasm",
+			"samples": 98
+		},
+		{
+			"frame": "lz4_flex::block::compress::compress_internal",
+			"layer": "celld native",
+			"samples": 85
+		},
+		{
+			"frame": "lll_mutex_lock_optimized",
+			"layer": "celld native",
+			"samples": 75
+		},
+		{
+			"frame": "copied<[u8; 8], core::array::TryFromSliceError>",
+			"layer": "celld native",
+			"samples": 74
+		},
+		{
+			"frame": "_int_malloc",
+			"layer": "libc/kernel",
+			"samples": 73
+		},
+		{
+			"frame": "v8::internal::Sweeper::RawSweep(v8::internal::NormalPage*, v8::internal::FreeSpaceTreatmentMode, v8::internal::Sweeper::SweepingMode, bool, bool)",
+			"layer": "gc",
+			"samples": 73
+		},
+		{
+			"frame": "update_hash",
+			"layer": "celld native",
+			"samples": 67
+		},
+		{
+			"frame": "__internal_syscall_cancel",
+			"layer": "libc/kernel",
+			"samples": 64
+		},
+		{
+			"frame": "size_hint<u8>",
+			"layer": "celld native",
+			"samples": 63
+		}
+	],
+	"topInclusive": [
+		{
+			"frame": "start_thread",
+			"layer": "libc/kernel",
+			"samples": 12926
+		},
+		{
+			"frame": "__GI___clone3",
+			"layer": "libc/kernel",
+			"samples": 12921
+		},
+		{
+			"frame": "std::sys::backtrace::__rust_begin_short_backtrace",
+			"layer": "celld native",
+			"samples": 11552
+		},
+		{
+			"frame": "as_ref<alloc::sync::ArcInner<std::thread::lifecycle::Packet<()>>>",
+			"layer": "celld native",
+			"samples": 11493
+		},
+		{
+			"frame": "inner<std::thread::lifecycle::Packet<()>, alloc::alloc::Global>",
+			"layer": "celld native",
+			"samples": 11493
+		},
+		{
+			"frame": "deref<std::thread::lifecycle::Packet<()>, alloc::alloc::Global>",
+			"layer": "celld native",
+			"samples": 11493
+		},
+		{
+			"frame": "core::ops::function::FnOnce::call_once{{vtable.shim}}",
+			"layer": "celld native",
+			"samples": 11493
+		},
+		{
+			"frame": "core::mem::size_of_val_raw::<dyn core::ops::function::FnOnce<(), Output =",
+			"layer": "celld native",
+			"samples": 11491
+		},
+		{
+			"frame": "<core::alloc::layout::Layout>::for_value_raw::<dyn core::ops::function::FnOnce<(), Output =",
+			"layer": "celld native",
+			"samples": 11491
+		},
+		{
+			"frame": "<alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Output =",
+			"layer": "celld native",
+			"samples": 11491
+		},
+		{
+			"frame": "<std::sys::thread::unix::Thread>::new::thread_start",
+			"layer": "celld native",
+			"samples": 11491
+		},
+		{
+			"frame": "{closure#0}",
+			"layer": "celld native",
+			"samples": 11470
+		},
+		{
+			"frame": "tokio::runtime::task::core::Core<T,S>::poll",
+			"layer": "celld native",
+			"samples": 11420
+		},
+		{
+			"frame": "tokio::runtime::task::harness::Harness<T,S>::poll",
+			"layer": "celld native",
+			"samples": 11405
+		},
+		{
+			"frame": "tokio::runtime::blocking::pool::Inner::run",
+			"layer": "celld native",
+			"samples": 11392
+		},
+		{
+			"frame": "poll",
+			"layer": "celld native",
+			"samples": 11391
+		},
+		{
+			"frame": "run<tokio::runtime::blocking::schedule::BlockingSchedule>",
+			"layer": "celld native",
+			"samples": 11390
+		},
+		{
+			"frame": "run",
+			"layer": "celld native",
+			"samples": 11390
+		},
+		{
+			"frame": "{closure#1}<tokio::runtime::blocking::pool::{impl#6}::spawn_thread::{closure_env#0},",
+			"layer": "celld native",
+			"samples": 11388
+		},
+		{
+			"frame": "<tokio::runtime::blocking::task::BlockingTask<T> as core::future::future::Future>::poll",
+			"layer": "celld native",
+			"samples": 11357
+		},
+		{
+			"frame": "tokio::runtime::task::harness::Harness<T,S>::poll_inner",
+			"layer": "celld native",
+			"samples": 11299
+		},
+		{
+			"frame": "tokio::runtime::task::harness::poll_future",
+			"layer": "celld native",
+			"samples": 11298
+		},
+		{
+			"frame": "tokio::runtime::context::scoped::Scoped<T>::set",
+			"layer": "celld native",
+			"samples": 8746
+		},
+		{
+			"frame": "atomic_sub<usize, usize>",
+			"layer": "celld native",
+			"samples": 8703
+		},
+		{
+			"frame": "fetch_sub",
+			"layer": "celld native",
+			"samples": 8703
+		}
+	],
+	"byThread": {
+		"tokio-rt-worker": 11545,
+		"V8 DefaultWorke": 1416,
+		"celld-core": 105,
+		"celld": 57,
+		"jemalloc_bg_thd": 21
+	}
+}
