@@ -385,11 +385,13 @@ npm run dev         # build, then `celld dev` on 127.0.0.1:8791 (restart it afte
 npm run mutate -- --mutate src/world/world.ts   # Stryker mutation testing on the files you changed
 npm run spike:memory                            # one VM's snapshot size, heap and restore time at 10, 100, 400 definitions
 sh spike/memory/cell.sh                         # a celld server's memory per world and per held call (after npm run build)
-npm run deploy      # typecheck, test, build, then `celld deploy` to gs://pi-world-celld
+npm run deploy      # typecheck, test, build, `celld deploy` to gs://pi-world-celld, then wait for the node to serve it
 ```
 
 `npm run deploy` stamps the git revision into the bundle (`/api/version`, and `build` in each world's summary), so you
-can see a deploy reach each world. It reads the fleet's service-account key from `~/.config/celld/pi-world.json`; set
+can see a deploy reach each world. A working tree with changes is stamped `<revision>-dirty-<hash of the changes>`, so
+two different dirty deploys never share a build. The deploy returns once the node serves the new build, or fails after
+90 s. It reads the fleet's service-account key from `~/.config/celld/pi-world.json`; set
 `GOOGLE_APPLICATION_CREDENTIALS` and `CELLD_BUCKET` to deploy elsewhere. A running node adopts a new deployment
 without a restart. Keep the Worker `name` (`pi-world`) stable: celld derives every cell id from it.
 
