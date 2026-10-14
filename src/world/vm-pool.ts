@@ -21,6 +21,8 @@ export class VmPool {
 	private readonly idle: Idle[] = [];
 	private readonly waiting: (() => void)[] = [];
 	private active: number = 0;
+	/** VMs returning to the newest head, which count as warm while they reset. */
+	private resetting: number = 0;
 	private newest: PoolHead | undefined;
 
 	constructor(
@@ -56,19 +58,22 @@ export class VmPool {
 		}
 	}
 
-	/** Return a used VM to the newest head, or drop it when enough are warm. */
+	/** Return a used VM to the newest head, or drop it when enough are warm or resetting toward it. */
 	private async recycle(vm: WorldVm): Promise<void> {
+		if (this.idle.length + this.resetting >= this.warm) {
+			vm.dispose();
+			this.free();
+			return;
+		}
+		this.resetting++;
 		try {
 			const head = this.newest!;
-			if (this.idle.length >= this.warm) {
-				vm.dispose();
-				return;
-			}
 			await vm.reset(head.snapshot);
 			this.idle.push({ vm, revision: head.revision });
 		} catch {
 			vm.dispose();
 		} finally {
+			this.resetting--;
 			this.free();
 		}
 	}
