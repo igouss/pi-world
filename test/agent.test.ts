@@ -4,7 +4,6 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-work
 import { MemoryStorage, type JsonObject } from "@earendil-works/pi-durable";
 import { describe, expect, it } from "vitest";
 import { openWorld } from "../src/cell/open-world.ts";
-import { wasm } from "./wasm.ts";
 import { worldDeps } from "./world-deps.ts";
 
 const call = (name: string, args: JsonObject) => fauxAssistantMessage(fauxToolCall(name, args), { stopReason: "toolUse" });
@@ -13,12 +12,12 @@ async function setup() {
 	const faux = fauxProvider();
 	const models = createModels();
 	models.setProvider(faux.provider);
-	const { blobs, calls } = worldDeps();
+	const { blobs, calls, workbench } = worldDeps();
 	const opened = await openWorld({
 		storage: new MemoryStorage(),
 		blobs,
 		calls,
-		wasm,
+		workbench,
 		models,
 		model: { provider: "faux", modelId: faux.getModel().id },
 	});

@@ -2,12 +2,12 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { AgentDoc, type AgentState } from "@earendil-works/pi-durable";
 import { SqliteStorage, type SqliteDatabase } from "@earendil-works/pi-durable/storage/sqlite";
 import { DurableObject } from "cloudflare:workers";
-import wasm from "quickjs-wasi/quickjs.wasm";
 import { DEFAULT_MODEL, type Transcript, type WorldSummary } from "../api/types.ts";
 import { build } from "../build.ts";
 import { toTranscript } from "../conversation/transcript.ts";
 import { ACCOUNT_NAME, type Env } from "../env.ts";
 import { FacetCallRunner } from "../isolate/host/facet-call-runner.ts";
+import { FacetWorkbench } from "../isolate/host/facet-workbench.ts";
 import { runtimeFacet, type RuntimeFacetStub } from "../isolate/host/runtime-loader.ts";
 import { sqlDataRecords } from "../isolate/runtime/sql-data-port.ts";
 import type { CatalogueEntry, Outcome } from "../world/world-vm.ts";
@@ -34,7 +34,7 @@ const HEARTBEAT_MS: number = 30_000;
 const PROGRESS_MS: number = 400;
 
 /**
- * One world's cell: its storage, its VM, its agent and its sockets. Opened lazily at the first event after a wake;
+ * One world's cell: its storage, its agent and its sockets; its VM work is in its runtime isolate. Opened lazily at the first event after a wake;
  * opening resumes any run the previous owner left unfinished.
  */
 export class WorldCell extends DurableObject<Env> {
@@ -135,7 +135,7 @@ export class WorldCell extends DurableObject<Env> {
 			storage: await SqliteStorage.open(db),
 			blobs,
 			calls: runtime,
-			wasm,
+			workbench: new FacetWorkbench(facet),
 			models: claudeModels(() => account.accessToken()),
 			model: { provider: "anthropic", modelId: DEFAULT_MODEL },
 			settings: { progress: { partialIntervalMs: PROGRESS_MS, outputIntervalMs: PROGRESS_MS } },

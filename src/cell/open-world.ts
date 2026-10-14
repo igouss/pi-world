@@ -4,13 +4,14 @@ import { createRegistry, Harness, type Conversation, type HarnessSettings, type 
 import { worldExtension } from "../agent/world-extension.ts";
 import type { BlobStore } from "../revision/blob-store.ts";
 import type { CallRunner } from "../world/call-runner.ts";
+import type { Workbench } from "../world/workbench.ts";
 import { World } from "../world/world.ts";
 
 export interface OpenWorldDeps {
 	readonly storage: Storage;
 	readonly blobs: BlobStore;
 	readonly calls: CallRunner;
-	readonly wasm: WebAssembly.Module;
+	readonly workbench: Workbench;
 	readonly models: Models;
 	readonly model: ModelRef;
 	readonly settings?: HarnessSettings;
@@ -38,7 +39,7 @@ export async function openWorld(deps: OpenWorldDeps): Promise<OpenedWorld> {
 		session: harness,
 		blobs: deps.blobs,
 		calls: deps.calls,
-		wasm: deps.wasm,
+		workbench: deps.workbench,
 		...(deps.now ? { now: deps.now } : {}),
 	});
 	registry.install(worldExtension(world));

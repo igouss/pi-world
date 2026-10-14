@@ -1,16 +1,14 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { JsonObject, Session, Tx } from "@earendil-works/pi-durable";
-import type { Snapshot } from "quickjs-wasi";
 import type { Check, RemovedCheck } from "../check/check.ts";
 import { parseGenerator } from "../check/generator.ts";
-import { contentHash, type BlobStore } from "../revision/blob-store.ts";
+import type { BlobStore } from "../revision/blob-store.ts";
 import { WorldChecks, WorldGrants, WorldHead, WorldRejection, WorldRejections, WorldRevision, type ChecksState } from "../revision/documents.ts";
 import { NumberedLog } from "../revision/numbered-log.ts";
 import type { Attempted, Rejection, RejectionRecord, Rejections } from "../revision/rejection.ts";
 import { developSources, type Head, type Origin, type Revision } from "../revision/revision.ts";
 import { references, type References } from "../source/references.ts";
 import { rewriteSource } from "../source/rewrite.ts";
-import { attemptDevelop, attemptEnrolment } from "./attempt.ts";
 import { diffCatalogues } from "./catalogue-diff.ts";
 import type { CallRunner, CallScope, ExecuteResult } from "./call-runner.ts";
 import { IncidentLog } from "../incident/incident-log.ts";
@@ -19,7 +17,8 @@ import { ANY_WORLD, type Grants } from "./grants.ts";
 import { Mutex } from "./mutex.ts";
 import { PRELUDE_VERSION } from "./prelude.ts";
 import { rememberCall } from "./remember-call.ts";
-import { DEFAULT_LIMITS, WorldVm, type AttemptMode, type CatalogueEntry, type Failure, type Outcome, type VmLimits } from "./world-vm.ts";
+import type { Heap, Workbench } from "./workbench.ts";
+import { WorldVm, type AttemptMode, type CatalogueEntry, type Failure, type Outcome } from "./world-vm.ts";
 
 /** Runs one atomic commit; a tool passes its own `api.commit`, everything else the Session's. */
 export type Commit = <T>(change: (tx: Tx) => T | Promise<T>) => Promise<T>;
@@ -29,8 +28,8 @@ export interface WorldDeps {
 	readonly blobs: BlobStore;
 	/** Where calls and previews run. */
 	readonly calls: CallRunner;
-	readonly wasm: WebAssembly.Module;
-	readonly limits?: VmLimits;
+	/** Where changes do their VM work. */
+	readonly workbench: Workbench;
 	readonly now?: () => number;
 }
 
@@ -58,8 +57,8 @@ const KEPT_CALLS: number = 200;
 /**
  * One world: its head revision, and the only path that changes it.
  *
- * Changes (develop, rollback, checks, upgrades) run one at a time under the world's lock, on the main VM, which is
- * always at the head between them. Calls and previews belong to its `CallRunner`, which runs each call on a VM of its
+ * Changes (develop, rollback, checks, upgrades) run one at a time under the world's lock; their VM work is the
+ * `Workbench`'s, which holds the head between them. Calls and previews belong to its `CallRunner`, which runs each call on a VM of its
  * own at the head the call started at, reading that head's snapshot from the blob store: a call never observes an attempt in progress, a call that
  * started before a new revision finishes on the old one, and heap changes a call makes vanish with its VM, because
  * only revisions persist heap state. A call's data writes are made when it succeeds; a failed call is an incident.
@@ -76,8 +75,6 @@ export class World {
 
 	private constructor(
 		private readonly deps: WorldDeps,
-		private readonly vm: WorldVm,
-		private headSnapshot: Snapshot,
 		private current: Head,
 		private currentCatalogue: readonly CatalogueEntry[],
 		private checksState: ChecksState,
@@ -92,26 +89,20 @@ export class World {
 
 	/** Open the world at its head, creating revision 0 (the prelude alone) on first use. */
 	static async open(deps: WorldDeps): Promise<World> {
-		const limits = deps.limits ?? DEFAULT_LIMITS;
 		const head = await deps.session.snapshot(WorldHead, BACKGROUND_CONTEXT);
 		const checks = (await deps.session.snapshot(WorldChecks, BACKGROUND_CONTEXT)) ?? { checks: [], removed: [] };
 		const rejections = (await deps.session.snapshot(WorldRejections, BACKGROUND_CONTEXT)) ?? { count: 0, calls: {} };
 		const grants = (await deps.session.snapshot(WorldGrants, BACKGROUND_CONTEXT)) ?? ANY_WORLD;
 		const incidents = await IncidentLog.load(deps.session);
 		if (head && head.revision >= 0) {
-			const bytes = await requireBlob(deps.blobs, head.blob, "the world head");
-			const vm = await WorldVm.fromBytes(bytes, deps.wasm, limits);
-			const world = new World(deps, vm, vm.snapshot(), head, vm.catalogue(), checks, rejections, grants, incidents);
-			await world.upgradePrelude();
+			const world = new World(deps, head, [], checks, rejections, grants, incidents);
+			await world.openHead();
 			return world;
 		}
-		const vm = await WorldVm.create(deps.wasm, limits);
-		const snapshot = vm.snapshot();
-		const world = new World(deps, vm, snapshot, { revision: -1, blob: "", calls: {} }, [], checks, rejections, grants, incidents);
+		const world = new World(deps, { revision: -1, blob: "", calls: {} }, [], checks, rejections, grants, incidents);
 		await world.accept(
-			snapshot,
+			await deps.workbench.genesis(),
 			{ kind: "genesis", summary: "the prelude", at: world.now(), origin: { by: "host" }, changes: { added: [], changed: [], removed: [] } },
-			[],
 			world.sessionCommit,
 		);
 		return world;
@@ -166,18 +157,13 @@ export class World {
 			const at = this.now();
 			const sources = developSources(written, rewriteSource(written));
 			const evaluated = sources.source;
-			const attempt = await attemptDevelop(this.vm, evaluated, this.checksState.checks, this.attemptMode(at));
+			const attempt = await this.deps.workbench.develop(this.current.blob, evaluated, this.checksState.checks, this.attemptMode(at));
 			if (!attempt.accepted) {
 				const { failure, reason, check } = attempt;
 				const rejection = await this.reject({ kind: "develop", ...sources, failure, check, summary, at, origin, reason }, commit);
 				return { status: "rejected", rejection };
 			}
-			const revision = await this.accept(
-				attempt.snapshot,
-				{ kind: "develop", ...sources, summary, at, origin, changes: attempt.changes },
-				attempt.catalogue,
-				commit,
-			);
+			const revision = await this.accept(attempt.heap, { kind: "develop", ...sources, summary, at, origin, changes: attempt.changes }, commit);
 			return { status: "accepted", revision, replayed: false };
 		});
 	}
@@ -190,17 +176,10 @@ export class World {
 			if (previous?.kind === "revision") return previous.revision;
 			const revision = await this.revisions.require(target);
 			if (target === this.current.revision) throw new Error(`revision ${target} is already the head`);
-			const bytes = await requireBlob(this.deps.blobs, revision.blob, `revision ${target}`);
-			const before = this.catalogue();
-			await this.vm.reset(WorldVm.deserialize(bytes));
-			if (revision.prelude < WorldVm.preludeVersion) this.vm.upgrade(revision.prelude);
-			const catalogue = this.vm.catalogue();
-			return this.accept(
-				this.vm.snapshot(),
-				{ kind: "rollback", target, reason, summary: `rollback to revision ${target}: ${reason}`, at: this.now(), origin, changes: diffCatalogues(before, catalogue) },
-				catalogue,
-				commit,
-			);
+			await requireBlob(this.deps.blobs, revision.blob, `revision ${target}`);
+			const heap = await this.deps.workbench.rollback(revision.blob, revision.prelude);
+			const changes = diffCatalogues(this.catalogue(), heap.catalogue);
+			return this.accept(heap, { kind: "rollback", target, reason, summary: `rollback to revision ${target}: ${reason}`, at: this.now(), origin, changes }, commit);
 		});
 	}
 
@@ -268,7 +247,7 @@ export class World {
 			if (existing && sameJson([existing.expression, existing.counterexample, existing.generator], [expression, sources.source, candidate.generator]))
 				return { status: "enrolled", check: existing };
 			if (existing) return refuse(`a different check named "${name}" is already enrolled`);
-			const enrolment = await attemptEnrolment(this.vm, candidate, this.attemptMode(at));
+			const enrolment = await this.deps.workbench.enrol(this.current.blob, candidate, this.attemptMode(at));
 			if (!enrolment.enrolled) return refuse(enrolment.reason);
 			const check: Check = plain({ name, ...candidate, written: sources.written, enrolledAt: this.now() });
 			this.checksState = await commit(async (tx) => {
@@ -321,59 +300,50 @@ export class World {
 
 	dispose(): void {
 		this.deps.calls.dispose();
-		this.vm.dispose();
+		this.deps.workbench.dispose();
 	}
 
-	/** Bring a heap built by an older prelude up to date, as a revision of its own. */
-	private async upgradePrelude(): Promise<void> {
+	/** Read the head's definitions; a heap built by an older prelude is brought up to date as a revision of its own. */
+	private async openHead(): Promise<void> {
 		const head = await this.revisions.require(this.current.revision);
-		if (head.prelude >= WorldVm.preludeVersion) return;
 		await this.exclusive(async () => {
-			this.vm.upgrade(head.prelude);
+			const { catalogue, upgraded } = await this.deps.workbench.open(this.current.blob, head.prelude);
+			this.currentCatalogue = catalogue;
+			if (!upgraded) return;
 			const changes = { added: [], changed: [], removed: [] };
 			const summary = `prelude ${head.prelude} to ${WorldVm.preludeVersion}`;
-			await this.accept(this.vm.snapshot(), { kind: "upgrade", from: head.prelude, summary, at: this.now(), origin: { by: "host" }, changes }, this.currentCatalogue, this.sessionCommit);
+			await this.accept(upgraded, { kind: "upgrade", from: head.prelude, summary, at: this.now(), origin: { by: "host" }, changes }, this.sessionCommit);
 		});
 	}
 
-	/** Hold the lock for a change; the main VM is at the head. */
+	/** Hold the lock for a change. */
 	private exclusive<T>(body: () => Promise<T>): Promise<T> {
 		return this.lock.run(body);
 	}
 
-	/** Blob first, then the revision and the head pointer in one commit: a crash leaves an orphan blob at worst. */
-	private async accept(
-		snapshot: Snapshot,
-		draft: AcceptDraft,
-		catalogue: readonly CatalogueEntry[],
-		commit: Commit,
-	): Promise<Revision> {
-		try {
-			const bytes = WorldVm.serialize(snapshot);
-			const blob = await contentHash(bytes);
-			await this.deps.blobs.put(blob, bytes);
-			const n = this.current.revision + 1;
-			const parent = this.current.revision >= 0 ? this.current.revision : null;
-			const revision: Revision = { ...draft, n, parent, blob, bytes: bytes.length, prelude: PRELUDE_VERSION };
-			const head = await commit(async (tx) => {
-				const doc = await tx.doc(WorldHead);
-				if (doc.revision !== this.current.revision) throw new Error(`the head moved from ${this.current.revision} to ${doc.revision}`);
-				await tx.doc(WorldRevision, String(n), revision as Revision & JsonObject);
-				doc.revision = n;
-				doc.blob = blob;
-				if (draft.origin.by === "agent") rememberCall(doc.calls as Record<string, number>, draft.origin.callId, n, KEPT_CALLS);
-				return plain<Head>(doc);
-			});
-			this.current = head;
-			this.headSnapshot = snapshot;
-			this.currentCatalogue = catalogue;
-			this.revisions.remember(n, revision);
-			this.notify();
-			return revision;
-		} catch (error) {
-			await this.vm.reset(this.headSnapshot);
-			throw error;
-		}
+	/**
+	 * Blob first, then the revision and the head pointer in one commit: a crash leaves an orphan blob at worst. A
+	 * commit that fails leaves the head where it was; the workbench returns to it at the next change.
+	 */
+	private async accept(heap: Heap, draft: AcceptDraft, commit: Commit): Promise<Revision> {
+		await this.deps.blobs.put(heap.blob, heap.bytes);
+		const n = this.current.revision + 1;
+		const parent = this.current.revision >= 0 ? this.current.revision : null;
+		const revision: Revision = { ...draft, n, parent, blob: heap.blob, bytes: heap.bytes.length, prelude: PRELUDE_VERSION };
+		const head = await commit(async (tx) => {
+			const doc = await tx.doc(WorldHead);
+			if (doc.revision !== this.current.revision) throw new Error(`the head moved from ${this.current.revision} to ${doc.revision}`);
+			await tx.doc(WorldRevision, String(n), revision as Revision & JsonObject);
+			doc.revision = n;
+			doc.blob = heap.blob;
+			if (draft.origin.by === "agent") rememberCall(doc.calls as Record<string, number>, draft.origin.callId, n, KEPT_CALLS);
+			return plain<Head>(doc);
+		});
+		this.current = head;
+		this.currentCatalogue = heap.catalogue;
+		this.revisions.remember(n, revision);
+		this.notify();
+		return revision;
 	}
 
 	/** Record a rejected attempt. The world itself is unchanged. */
