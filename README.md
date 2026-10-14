@@ -571,6 +571,7 @@ answer, and where the package lives, are open decisions in `decisions.md`.
 
 | File | Content |
 |---|---|
+| [`guide.md`](guide.md) | How to use pi-world, for people who use it rather than develop it |
 | [`intent.md`](intent.md) | What the system is, its position, interfaces |
 | [`design.md`](design.md) | Constraints the implementation obeys |
 | [`plan.md`](plan.md) | Milestones and where to stop for review |
