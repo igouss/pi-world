@@ -1,7 +1,8 @@
 # pi-world: research
 
 Started 2026-10-05 against pi commit `28dcce2ba` (pi-durable 1.0.4, quickjs-wasi 3.6.2) and celld v0.6.1 (beta).
-What is still open here is tracked as beads (`plan.md`).
+What is still open here is tracked as beads (`plan.md`). The measured limits against the approved objectives are
+in `performance.md`, produced by the load harness in `perf/` (`perf/README.md`).
 
 ## Premise already tested
 
@@ -57,8 +58,9 @@ Object with its own SQLite database. The facts that shape the design, from celld
 
 - **Single writer.** "Exactly one node serves a cell at a time." This matches pi-durable's rule that one process owns
   a storage.
-- **Durable writes.** "celld does not answer a write until that write survives a failure". Region-local durable write
-  latency is about 90 ms.
+- **Durable writes.** "celld does not answer a write until that write survives a failure". The docs give about
+  90 ms region-local. A one-node fleet proves every write in the bucket: on the node, writing calls take p50 164 to
+  170 ms and p99 303 ms at 50/s (`performance.md`, finding 8, `pw-djz.4`).
 - **Output gates.** "A SQL write cursor must finish before a response, an outbound effect, or `storage.sync()`."
   The intent commit is therefore durable before a model call or tool effect leaves the cell, the order pi-durable's
   spec §5.2 relies on.
@@ -82,7 +84,8 @@ These are undocumented or unknown; each open one names its bead.
 3. **pi-ai and pi-durable under celld's runtime.** Answered: both run on the node (see above).
 4. **Eviction timing and alarm retry limits.** Tune the heartbeat from measurements, not Cloudflare's numbers
    (`pw-16t.5`).
-5. **Streaming lag.** Measure progress commits at about 90 ms per durable write (`pw-16t.5`).
+5. **Streaming lag.** Measure progress commits at the node's durable write latency (`performance.md`, finding 8;
+   `pw-16t.5`).
 6. **Calls between worlds across nodes** (for open decision 14). One node forwards every `peerCall` locally. On a fleet
    of two or more nodes, measure the latency of a forwarded call and what the caller sees when the callee's node dies
    mid-call. celld says a remote RPC "retries only when the failed peer attempt did not start the method"
@@ -97,18 +100,25 @@ These are undocumented or unknown; each open one names its bead.
 9. **Cell limits under load.** celld refuses a request with `503 cell request limit reached` when a cell has 64 in
    flight (`in_flight=64 limit=64`), and the count appears to include the cell's own calls to other worlds: 40
    concurrent calls that each call another world got 28 answers and 12 refusals. The limit is the node setting
-   `CELLD_MAX_CELL_REQUESTS` (default 64). A world also queues calls without a deadline once its 8 VMs are busy
-   (`pw-uhd.5`).
-10. **CPU in one world slows others.** Cells share a small pool of JavaScript isolates (`worker_count=2`): on the
-    node, a world computing for about 1.5 s delayed calls to unrelated worlds by the same time. Answered for calls,
-    which run in an isolate of the world's own (see "Isolation and R2 on the node"). Open for changes (`pw-rxw.3`):
-    develops and checks still run in the shared cell isolate, where a develop evaluates its source and then every
-    check, a property check on up to 50 inputs, each evaluation with a whole budget. A property check does not shrink
-    an input it runs out of budget on, and shrinking stops at the first smaller input it runs out of budget on, so a
-    check runs out of budget at most once per develop. Without that rule, a develop whose check hung on one input
-    replayed it 200 times: under vitest, 201 evaluations, 19.7 s at a 2 000-tick budget and 95.8 s at 10 000, about
-    5 minutes at the default 30 000. A check that finishes just inside the budget on every input still costs 50
-    budgets.
+   `CELLD_MAX_CELL_REQUESTS` (default 64); its interaction with calls between worlds is open (`pw-uhd.5`). A world
+   refuses a call that cannot start within a second of arriving (503, `Retry-After: 1`), so a busy world does not
+   queue up to the cell limit; the longest wait is 1 s plus one call's service time, 1.25 s on the node
+   (`performance.md`, finding 7, `pw-djz.3`).
+10. **CPU in one world slows others.** Cells share a small pool of JavaScript isolates (`worker_count=2`, up to 32
+    cells per isolate): on the node, a world computing for about 1.5 s delayed calls to unrelated worlds by the same
+    time. Answered for stalls: calls, and the VM work of develops, checks, enrolment, rollbacks and upgrades, run in an
+    isolate of the world's own (see "Isolation and R2 on the node"). On the node a computing develop adds 14 to 23 ms
+    to another world's p99, against 464 ms measured with that work in the shared cell isolate (build `81f37aa`;
+    `performance.md`, finding 3).
+    Open: isolates are not cores, so on the 2-core node a call computing in one world adds 16 to 65 ms to another
+    world's p99 and a flood of 200 cheap calls/s about 90 ms, and celld has no CPU quota per isolate (finding 10,
+    `pw-djz.6`); storing and archiving a develop's snapshot still run in the shared cell isolate (finding 11,
+    `pw-djz.7`). A develop evaluates its source and then every check, a property check on up to 50 inputs, each
+    evaluation with a whole budget. A property check does not shrink an input it runs out of budget on, and shrinking
+    stops at the first smaller input it runs out of budget on, so a check runs out of budget at most once per
+    develop. Without that rule, a develop whose check hung on one input replayed it 200 times: under vitest, 201
+    evaluations, 19.7 s at a 2 000-tick budget and 95.8 s at 10 000, about 5 minutes at the default 30 000. A check
+    that finishes just inside the budget on every input still costs 50 budgets of the world's own isolate.
 11. **The time budget is counted in interrupt ticks, not time, and a call cannot see time pass.** Seen under
     `celld dev` on 2026-10-12: `Date.now()` returns the same value throughout one call (a loop that waits for the
     clock to move never ends), and such a loop calling `Date.now()` ran 70 s before the 30 000-tick budget stopped it,
@@ -134,7 +144,8 @@ cell's request for 9 s, the same work in a facet held it for 2 ms; R2 stored a g
 - Data: every world's revision, function count and data were identical before and after the deploy that moved the
   data into each world's facet, compared once every world reported the new build.
 - CPU: a world computing for 1.75 s; two other worlds answered in 63 to 82 ms over the tailnet. With calls in the
-  shared cell isolate, the same test had held Demo todos for 1.47 s.
+  shared cell isolate, the same test had held Demo todos for 1.47 s. Open-loop runs over loopback show what remains
+  on the 2-core node: tens of milliseconds added to another world's p99 (`performance.md`, finding 10).
 - R2: seven older snapshots archived under `snapshots/<hash>.gz`; a rollback to an archived revision took 0.82 s.
 - Preview: `addTodo` inside `execute` reported its write as rolled back, and the todo count stayed the same.
 
@@ -152,14 +163,13 @@ Closest fits:
 | Queues | Durable delivery, at least once, with retries and dead-letter queues | Durable messages between worlds, `worlds.send(...)`: open decision 14, option C |
 | Alarms, beyond the heartbeat | One scheduled wake-up per cell | Scheduled world code (a daily digest, expiring items); world code has no timers. A per-world schedule fits alarms better than fleet-wide cron |
 | Workflows | Durable functions of steps, sleeps and waits for events; each instance is a cell | Pauses (`restart`) as recorded facts with a rerun from the start, the alternative in open decision 8; long jobs that span several worlds |
-| `transactionSync` | Several SQL writes that commit together or roll back on a throw | A call's data writes made all-or-nothing within each synchronous stretch; today a call that throws halfway keeps its earlier writes. Cannot span an `await` |
 
 For planned features:
 
 | Feature | What it is | What it would give pi-world |
 |---|---|---|
 | R2 | Object storage | Adopted 2026-10-07 for every snapshot but the head. Still open: files a world stores or serves |
-| Dynamic Workers | Code loaded at runtime into its own isolate, with only the capabilities the loader passes | Adopted 2026-10-07: each world's calls run in an isolate of the world's own (open check 10). Still open: the compiled tier, and effectful host functions granted one capability at a time (open decision 6) |
+| Dynamic Workers | Code loaded at runtime into its own isolate, with only the capabilities the loader passes | Adopted 2026-10-07: each world's calls, and the VM work of its changes, run in an isolate of the world's own (open check 10). Still open: the compiled tier, and effectful host functions granted one capability at a time (open decision 6) |
 | Durable Object Facets | A child object with its own SQLite inside a Durable Object, for generated or untrusted code | Adopted 2026-10-07: the world's runtime is a facet, and its data lives in the facet's SQLite |
 | HTMLRewriter | Streaming HTML rewriting | Injecting the `world.call` client into world pages; today a regular expression finds `<head>` |
 | TCP sockets, EventSource, Streams | Outbound TCP, server-sent events, streamed bodies | Host functions that reach databases or services; streaming a long call's output |
@@ -169,6 +179,7 @@ Little or no use now:
 | Feature | Why |
 |---|---|
 | KV | Read-mostly global data; the directory cell already holds the world list |
+| `transactionSync` | Several SQL writes that commit together or roll back on a throw. A call's writes already go to an overlay and are made in one transaction at commit (`OverlayDataPort`), which spans awaits |
 | D1 | A SQL database shared across Workers; worlds keep their data in their own cells. Only cross-world queries would use it |
 | Cron Triggers | Fleet-wide schedules; per-world alarms fit better |
 | Containers (experimental) | Heavy tools, such as a build toolchain for the compiled tier |
@@ -202,8 +213,8 @@ What this changes:
 - Scheduled world code on alarms works and survives a crash, but a crash delays it by about a minute on one node.
 - Pauses as Workflows (open decision 8) keep their state across a crash; the step results are the durable record,
   not a heap continuation.
-- Running world code in a Dynamic Worker isolates its CPU from other worlds (open check 10), at the cost of crossing
-  an isolate for every host call.
+- Running world code in a Dynamic Worker keeps it from stalling other worlds (open check 10), at the cost of crossing
+  an isolate for every host call. It does not give it a core of its own (`performance.md`, finding 10).
 - The 64-request cell limit (open check 9) is the node setting `CELLD_MAX_CELL_REQUESTS`.
 
 ## Memory per world, 2026-10-12
@@ -216,7 +227,7 @@ Measured on a desktop (x86-64, 31 GB) under `celld dev` 0.6.1 with `npm run spik
 | One VM, world of 10 definitions | 1408 KB snapshot (146 KB gzipped), 123 KB of QuickJS heap |
 | One VM, world of 100 definitions | 1728 KB snapshot (206 KB gzipped), 234 KB of QuickJS heap |
 | One VM, world of 400 definitions | 2688 KB snapshot (421 KB gzipped), 615 KB of QuickJS heap |
-| Snapshot, restore, reset of one VM | 1.5 to 2.5 ms, 2.7 to 4.4 ms, 3.0 to 4.3 ms over those sizes |
+| Snapshot, restore, reset of one VM | 1.5 to 2.5 ms, 2.7 to 4.4 ms, 3.0 to 4.3 ms over those sizes; a call VM is not reset this way but rewound in place, by copying the snapshot over its own memory (`performance.md`, finding 5) |
 | Evaluating a small expression | 0.15 to 0.4 ms |
 | A world that has run a call (its cell plus its own runtime isolate) | 24 to 26 MB of the server's resident set, in two runs of 10 worlds |
 | One more call held open in a world (a VM of a small world) | 2.4 MB |
@@ -227,9 +238,12 @@ What this settles:
 
 - The snapshot is the VM's whole linear memory, so a VM costs about its snapshot's size, and the per-world isolate
   (V8 plus its own compiled QuickJS) costs about ten small VMs. The pool's 8 VMs at most and 2 warm add at most
-  about 20 MB and 5 MB to a world: the isolate, not the pool, is what bounds how many worlds a node holds.
-- The node has about 9 GB available and a world costs it about 16 MB, so it holds about five hundred worlds that have
-  run a call, fewer while they hold calls open. Whether an idle world's isolate is released, and when, is not measured.
+  about 20 MB and 5 MB to a world.
+- Memory does not bound how many worlds a node holds; celld's loaded-worker limit does. celld allows 255 loaded
+  workers per script and generation, one per world, freed only when collected. The node has no idle eviction, so it
+  holds at most 255 worlds that have run something since the last deploy, forgotten ones included. Under `celld dev`
+  the 255th world of the server's life failed at creation; the server was at 4.36 GB with 255 worlds; with `CELLD_IDLE_EVICT_S=5`, 320 worlds opened and the server
+  peaked at 2.1 GB (`performance.md`, findings 2 and 13, `pw-djz.9`).
 - A develop re-runs every check's counterexample at one restore each, a few milliseconds per check.
 - A world's calls share one single-threaded isolate. Calls overlap only while they await another world; a call that
   computes holds the isolate, and the next call starts after it.

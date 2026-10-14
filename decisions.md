@@ -139,8 +139,8 @@ Made on 2026-10-06 under the prototype authorization above. Each is a default to
 - **Worlds calling worlds:** any world may call any definition of any other world it is granted (see below); the call carries its chain, and a cycle or a chain of more than four worlds is refused. Calls between worlds
   are for calls only, never for a develop or a check.
 - **Incidents** (flagged choices inside the approved idea): only calls of a name the world defines are recorded; one
-  open incident per definition and first line of error, counting repeats; each failure is one durable commit, so a
-  page that calls a broken definition in a loop writes as often as it calls; arguments over 64 KB are not kept and
+  open incident per definition and first line of error, counting repeats; opening and closing an incident are each
+  one durable commit, and repeats are written together at most every 30 s (`performance.md`, finding 4); arguments over 64 KB are not kept and
   such an incident cannot be retried; a REST caller that sends `Prefer: respond-async` gets `202` and the incident;
   the agent reads incidents and retries them, and only the owner answers or dismisses one.
 - **Grants** (the operator's approval of a capability grant per world, 2026-10-12, with the default "existing worlds may

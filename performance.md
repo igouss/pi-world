@@ -90,7 +90,7 @@ Each prediction was written before its measurement; a miss is a finding.
 | Cell SQL queue and durable commits | If commits serialize at the bucket's round trip (~90 to 150 ms), a world records at most ~7 incidents/s, so failing calls queue | node: 50 failing calls/s answered with no timeout (p99 485 ms); instead every response of the cell waited for the bucket | missed: commits share uploads; the cost is the output gate, which holds every response of the cell |
 | Durable writes to the bucket | If writes of one world serialize, O6b ≈ 1 / 0.09 ≈ 11/s | node: 50 writes/s, no failure, p50 164 ms; N = X·R ≈ 8 in flight | missed: concurrent writes share one upload (celld docs, testing page) |
 | celld per-cell request limit (64) | Little: refusals start when X·R > 64; computing calls at 2× capacity build a backlog of seconds | dev: 225 of 407 refused with `503 cell request limit reached`, accepted calls waited up to 8.3 s | hit; pi-world now refuses first (O8) |
-| Loaded workers per process (256; 255 per script and generation, celld `js.rs:7252`) | One per world, released only when its handle is collected, so a node holds at most 255 worlds that have run something since the last deploy, forgotten ones included | dev: world 239 of the run, the 255th of the server's life, failed: `too many loaded workers for script "pi-world" in generation 1 (limit 255)` | hit; research.md's "about five hundred worlds" was wrong |
+| Loaded workers per process (256; 255 per script and generation, celld `js.rs:7252`) | One per world, released only when its handle is collected, so a node holds at most 255 worlds that have run something since the last deploy, forgotten ones included | dev: world 239 of the run failed, after 16 worlds of earlier runs on the same server: `too many loaded workers for script "pi-world" in generation 1 (limit 255)` | hit; research.md's "about five hundred worlds" was wrong |
 | Memory | 16 MB per world on the node (research.md), so ~500 in 9 GB | dev: 4.36 GB at 255 worlds (17 MB each); with `CELLD_IDLE_EVICT_S=5`, 320 worlds peaked at 2.1 GB | the loaded-worker limit binds first |
 
 ## Profiles
@@ -128,7 +128,7 @@ bead.
    id (`src/isolate/host/runtime-loader.ts:14`); celld allows 255 per script and generation (`js.rs:7252-7255`) and
    releases one only when its handle is collected. Nothing evicts an idle cell on the node (`CELLD_IDLE_EVICT_S` is
    unset), and `DELETE /api/worlds/:id` only forgets the directory entry (`src/worker.ts:32`), so even forgotten worlds
-   hold their slot. Bead `pw-djz.9`. Under celld dev the 255th world of the server failed at creation (`dev/worlds-…011908Z`); with
+   hold their slot. Bead `pw-djz.9`. Under celld dev world 239 of the run failed at creation, after 16 worlds of earlier runs on the same server, (`dev/worlds-…011908Z`); with
    `CELLD_IDLE_EVICT_S=5`, 320 of 320 opened and answered and the server peaked at 2.1 GB instead of 4.36 GB
    (`dev/worlds-…022242Z`); the node's cold call after an eviction took at most 491 ms (O1c holds). Operator
    decision.

@@ -33,7 +33,11 @@ The 2026-10-13 review's recommendations, which the operator agreed with:
 - Debt the documents had already named (epic `pw-16t`): authentication, the one-time data move, the page client
   injection, snapshot rows over 1.44 MB, celld's unmeasured limits, two-node behaviour, previews that write to other
   worlds.
-- A deeper review of performance and design from raw evidence (epic `pw-djz`).
+- The performance review against the approved objectives (epic `pw-djz`, `performance.md`): its fixes are in, and
+  its open findings are beads `pw-djz.2` to `pw-djz.13`, among them the 255-world limit (`pw-djz.9`), writes that
+  wait for the bucket (`pw-djz.4`) and snapshots stored as pages (`pw-djz.5`). Serializable calls (`pw-rxw.2`),
+  changes in the world's isolate (`pw-rxw.3`) and bounded incidents (`pw-rxw.5`) are built; what each still needs is
+  in its bead.
 
 ## Later: designed, not built
 

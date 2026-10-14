@@ -4,9 +4,9 @@
 
 > **Status: working prototype, running on one celld node** at `http://oracle-arm.mist-walleye.ts.net:8787`. The web UI,
 > the agent on a Claude subscription, revisions, checks, direct calls, calls between worlds and world pages work there,
-> with each world's calls in an isolate of its own. Pauses, forks, replay, scheduled world code and durable messages
-> between worlds are still designs. Sections below say *on the node* (seen working on the deployed node), *built* (code and
-> tests exist), *spike* (a spike shows it) or *designed* (a document says it).
+> with each world's calls and changes in an isolate of its own. Pauses, forks, replay, scheduled world code and
+> durable messages between worlds are still designs. Sections below say *on the node* (seen working on the deployed
+> node), *built* (code and tests exist), *spike* (a spike shows it) or *designed* (a document says it).
 
 ---
 
@@ -44,8 +44,8 @@ result is validated and iterated on immediately. It is one station of a larger l
 |---|---|---|
 | Grow an app by talking | The agent writes `develop` sources; each accepted one is a revision | on the node |
 | Checkpoint and restore | A failed attempt leaves no trace; snapshot and restore take a few milliseconds | on the node |
-| Direct calls without a model | `POST /api/worlds/:id/call/:fn` runs the function in the world's own isolate, 62 to 71 ms over the tailnet | on the node |
-| Worlds that do not slow each other | Each world's calls run in an isolate of its own; a world computing for 1.75 s left others answering in 63 to 82 ms | on the node |
+| Direct calls without a model | `POST /api/worlds/:id/call/:fn` runs the function in the world's own isolate; on the node over loopback, p50 3.2 ms and p99 60 ms at 100 calls/s (`performance.md`, findings 5 and 6) | on the node |
+| Worlds that do not stall each other | Each world's calls and changes run in an isolate of its own. Isolates are not cores: on the 2-core node, a call computing in one world adds 16 to 65 ms to another world's p99, and a flood of 200 cheap calls/s about 90 ms (`performance.md`, finding 10) | on the node |
 | Trying without touching data | `execute` is a preview: its data writes are rolled back and listed in its result | on the node |
 | History that stays small | The head snapshot stays local; older ones move to R2, gzipped from 1.4 MB to about 146 KB | on the node |
 | Worlds calling worlds | `await worlds.call(id, name, ...args)` uses another world's service; cycles are refused | on the node |
@@ -58,7 +58,8 @@ result is validated and iterated on immediately. It is one station of a larger l
 | Who calls whom | `describe` and the Functions tab list what a definition calls and what calls it | on the node |
 | Memory per world, measured | A world that has run a call costs the node about 16 MB; each call it holds open about 2.4 MB more (`research.md`) | on the node |
 | Failed calls you can fix and retry | A failed call is an incident with its arguments and error; ask the agent to fix the definition, then retry the call at the new revision. A failed call wrote no data, so the retry is safe | on the node |
-| Atomic calls | A call's data writes are made together when it succeeds and dropped when it fails | on the node |
+| Serializable calls | A call's data writes are made together when it succeeds and nothing it read has changed, and dropped when it fails; a call whose reads went stale runs again | on the node |
+| Busy worlds refuse, not queue | A call that cannot start within a second of arriving is refused with 503 and `Retry-After: 1`, and opens no incident | on the node |
 | Rejections kept as records | Every rejected `develop` and refused check is numbered and kept with its source and reason, so compaction cannot lose it | on the node |
 | Immutable revisions and rollback | Rollback creates a new revision | on the node |
 | Runs that survive a crash | A run interrupted by a celld restart continues and finishes, with no revision accepted twice | on the node |
@@ -160,9 +161,9 @@ sequenceDiagram
 
 In A's isolate, `chainedPeers` refuses a call that would loop back into the chain before anything is sent, and
 `WorldVm.settle` waits outside the VM for the answer, then resolves or rejects the promise. Each world has three parts
-on the node. Its **cell** holds the agent, the revisions and the head snapshot, and runs
-develops and checks. Its **runtime isolate**, a facet of the cell loaded through a Worker Loader, runs its calls and
-holds its data. Its **`WorldHost`** is a capability in the host isolate that the runtime calls back through: for
+on the node. Its **cell** holds the agent, the revisions, the head snapshot and the lock. Its **runtime isolate**, a
+facet of the cell loaded through a Worker Loader, runs its calls, holds its data, and does the VM work of its
+develops and checks. Its **`WorldHost`** is a capability in the host isolate that the runtime calls back through: for
 snapshots by hash, and for every call that leaves the world. The runtime has no other way out.
 
 - **It is asynchronous for the code.** `worlds.call` returns a promise, so a function that uses it is `async`. Calls
@@ -170,18 +171,23 @@ snapshots by hash, and for every call that leaves the world. The runtime has no 
   (`test/peers.test.ts`).
 - **A world answers many calls at once.** Each call runs on its own VM in the world's runtime isolate, taken from a
   pool and restored from the head revision the call started at. A call that awaits another world keeps its VM, and the
-  world's other calls run meanwhile on other VMs. A world runs up to 8 calls at once; more wait for a VM.
-- **Worlds do not slow each other.** Each world's calls run in its own isolate, so a world busy computing delays only
-  its own calls.
-- **Changes do not wait for calls.** A develop, rollback or check runs in the world's cell, on its main VM, under the
-  world's lock, which calls do not take. A call that started before a new revision finishes on the revision it
-  started at; the next call sees the new one.
+  world's other calls run meanwhile on other VMs. A world runs up to 8 calls at once. A call that cannot start within
+  a second of reaching the world's cell, because no VM is free or the isolate is busy, is refused without running:
+  HTTP 503 with `Retry-After: 1` and `{ ok: false, refused: "busy", error }`. A refusal is not a failure and opens no
+  incident.
+- **Worlds do not stall each other.** Each world's calls and changes run in its own isolate, so a world busy
+  computing holds up only its own calls. The isolates still share the node's cores: on the 2-core node, a call
+  computing in one world adds 16 to 65 ms to another world's p99 (`performance.md`, finding 10).
+- **Changes do not wait for calls.** A develop, rollback or check runs under the world's lock, which calls do not
+  take, on the workbench VM in the world's runtime isolate. A call that started before a new revision finishes on the
+  revision it started at; the next call sees the new one.
 - **`execute` is a preview.** Its data writes are rolled back and listed in the result; other worlds it calls write
   for real.
-- **Calls are atomic, heap is not kept.** Heap changes a call makes vanish with its VM. A call's data writes are made
-  together, in one transaction, when it succeeds, and dropped when it fails; until then the call reads its own writes
-  and other calls do not see them. Two calls that write the same key while both are running: the one that finishes
-  last wins.
+- **Calls are serializable, heap is not kept.** Heap changes a call makes vanish with its VM. A call's data writes
+  are made together, in one transaction, when it succeeds, and dropped when it fails; until then the call reads its
+  own writes and other calls do not see them. The commit checks that nothing the call read has changed. A call whose
+  reads went stale runs again from the start, one rerun at a time per world, at most 5 times, and then fails as a
+  `conflict` incident. A rerun repeats the calls it made to other worlds, and what those worlds wrote stays.
 - **Errors cross over as rejections.** A throw in the other world rejects the promise with an `Error` whose message
   names where it came from, hop by hop.
 - **Cycles are refused.** A call carries the chain of worlds it has passed through, and a call back into a world
@@ -249,14 +255,15 @@ parameters.
 
 | Limit | Value | What happens past it |
 |---|---|---|
-| Calls one world runs at once | 8 VMs (`concurrentCalls`) | Further calls wait in the cell for a VM |
+| Calls one world runs at once | 8 VMs (`concurrentCalls`) | Further calls wait for a VM; one that cannot start within 1 s of arriving is refused, 503 with `Retry-After: 1`. The longest wait is 1 s plus one call's service time: 1.25 s on the node (`performance.md`, finding 7) |
 | Requests in flight in one cell | 64 (the node setting `CELLD_MAX_CELL_REQUESTS`), counting incoming requests and the cell's own calls to other worlds | celld answers `503 cell request limit reached` at once |
 | One call's wait on other worlds | 30 s | The call fails |
-| CPU | Each world's calls run in an isolate of the world's own | A world busy computing slows only its own calls; develops and checks still run in the shared cell isolate |
+| CPU | Each world's calls and changes run in an isolate of the world's own; the node has 2 vCPUs | A world busy computing holds its own calls; others see their p99 rise by 16 to 65 ms (`performance.md`, finding 10) |
+| Worlds per node | 255 loaded workers per script and generation (a deploy), one per world, freed only when collected | With no idle eviction on the node, at most 255 worlds that have run something since the last deploy, forgotten worlds included; a world past the limit fails to load. Under `celld dev` world 239 of a run failed at creation, after 16 worlds of earlier runs (`performance.md`, finding 2, `pw-djz.9`) |
 
 On the node, 20 concurrent calls that each call another world finished in about 0.25 s. At 40 concurrent calls, 28
 were answered and 12 refused with 503; at 60, 16 and 44. The cell answered again within seconds. These numbers were
-measured before calls moved into each world's isolate.
+measured with calls running in the shared cell isolate.
 
 ### What it is not, yet
 
@@ -402,7 +409,7 @@ checks. Designed but not built: `answer`, pauses.
 | `GET /api/version` | The build (git revision) the node runs; each world's summary carries the build of its cell |
 | `POST /api/worlds/:id/messages {content, requestId}` | Submit to the agent; `requestId` makes a retry a no-op |
 | `POST /api/worlds/:id/abort`, `POST /api/worlds/:id/reset` | Stop the run; start a new context |
-| `POST /api/worlds/:id/call/:fn {args}` | Call a definition directly, no model; world code reaches other worlds with `worlds.call` |
+| `POST /api/worlds/:id/call/:fn {args}` | Call a definition directly, no model; world code reaches other worlds with `worlds.call`. A call the world cannot start within 1 s is refused: 503, `Retry-After: 1`, `{ ok: false, refused: "busy", error }` |
 | `POST /api/worlds/:id/execute {expression}` | Preview an expression against the world: data writes are rolled back and listed in `rolledBack` |
 | `POST /api/worlds/:id/develop {source, summary}` | Develop by hand, through the same attempt |
 | `GET /api/worlds/:id/revisions[/:n]`, `POST /api/worlds/:id/rollback {revision, reason}` | History and rollback |
@@ -427,10 +434,11 @@ flowchart LR
     C --> H["pi-durable harness<br/>tools: develop, execute, ..."]
     C --> WS["World service<br/>lock, attempts, revisions, checks"]
     H --> WS
-    WS --> MAIN["Main VM<br/>develops and checks"]
     WS -- "calls, previews, data" --> RT
+    WS -- "develops, checks, rollbacks" --> WB
     subgraph ISO["The world's own isolate (a facet, loaded through a Worker Loader)"]
         RT["RuntimeFacet<br/>VM pool"] --> D[("world_data<br/>the facet's SQLite")]
+        WB["Workbench<br/>the changes' VM"]
     end
     RT -. "snapshots, other worlds" .-> HOST["WorldHost<br/>capability"]
     HOST --> C
@@ -440,10 +448,14 @@ flowchart LR
     B -. "older snapshots, gzipped" .-> R2[("R2<br/>snapshots/&lt;hash&gt;.gz")]
 ```
 
-- **Changes run in the world's cell.** Develops, rollbacks and checks hold the world's lock and use the main VM.
+- **Changes are decided in the world's cell and computed in its isolate.** Develops, rollbacks and checks hold the
+  world's lock in the cell, which keeps durability, documents and the agent; their VM work runs behind the
+  `Workbench` port in the world's facet. Storing the new snapshot and archiving the previous one still run in the
+  cell isolate that worlds share (`pw-djz.7`).
 - **Calls run in the world's own isolate.** Calls, `execute` previews and the world's data live in a facet of the
-  cell, loaded through a Worker Loader under a loader id of the world's own. CPU work there does not hold up other
-  worlds: on the node, a world computing for 1.75 s left two other worlds answering in 63 to 82 ms. The facet keeps the
+  cell, loaded through a Worker Loader under a loader id of the world's own. CPU work there does not stall other
+  worlds, but it shares the node's two cores with them: a call computing in one world adds 16 to 65 ms to another
+  world's p99 (`performance.md`, finding 10). The facet keeps the
   world's data in its own SQLite, asks the cell for snapshots by hash, and reaches other worlds through `WorldHost`, a
   capability the cell lends it. The domain sees all of this as a `CallRunner` port; tests use the in-process
   `LocalCallRunner`, which the facet also runs.
@@ -482,7 +494,8 @@ are in [`research.md`](research.md).
 | An agent session | A todo app with seven functions, a check and a page, built through the UI; a todo added on the page read back by a direct call |
 | Direct calls need no model | 62 to 71 ms per call, conversation unchanged; on a `celld dev` with no credential, calls work while agent messages fail |
 | A crash mid-run | celld restarted between tool rounds with nothing sent afterwards; the run finished, no revision accepted twice |
-| CPU isolation between worlds | A world computing for 1.75 s; two other worlds answered in 63 to 82 ms. Before, an unrelated world waited 1.47 s |
+| CPU isolation between worlds | A world computing for 1.75 s; two other worlds answered in 63 to 82 ms over the tailnet. With calls in the shared cell isolate, an unrelated world had waited 1.47 s |
+| Load against the objectives | Open-loop runs over loopback, judged against the approved objectives: read calls, writing calls, chains, develops, stalls, overload, lost updates (`performance.md`) |
 | Data moved into each world's isolate | Every world's revision, function count and data identical before and after the deploy that moved them |
 | Snapshots in R2 | Seven older snapshots archived, gzipped; a rollback to an archived revision read it back in 0.82 s |
 | `execute` is a preview | An `addTodo` in `execute` reported its write as rolled back; the todo count was unchanged afterwards |
@@ -491,9 +504,10 @@ are in [`research.md`](research.md).
 | Prelude upgrade | Demo todos, built on prelude 1, opened on the new version and got revision 6, "prelude 1 to 2" |
 | Snapshot rows | A 1.44 MB snapshot round-trips through the cell's SQLite |
 
-The test suite (`npm test`, 210 tests in 20 files) covers the VM, attempts, checks and property checks, the shrinker,
+The test suite (`npm test`, 234 tests in 22 files) covers the VM, attempts, checks and property checks, the shrinker,
 the VM pool, the `World` service, the agent with a scripted model, that a direct call makes no model request, calls
-between worlds (results, errors, cycles, discovery, grants), concurrent and atomic calls, incidents, rejections, the
+between worlds (results, errors, cycles, discovery, grants), concurrent and serializable calls, start deadlines, the
+in-place rewind against a fresh restore, incidents, rejections, the
 `execute` preview, the tiered snapshot store, and the upgrade of a heap built by an older prelude. The shrinker and
 the generators have property-based tests (Hegel); `npm run mutate` runs Stryker. The runtime facet and the R2 archive
 run only on celld, so they are covered by runs under `celld dev` and on the node, not by unit tests. There are no
@@ -514,17 +528,21 @@ gzipped in R2. Real worlds may differ.
 
 - A prototype: no authentication, one node, no pauses, forks or replay. The defaults chosen for open questions are
   listed in [`decisions.md`](decisions.md) under "Prototype assumptions".
-- celld is in beta. Open checks that remain (memory per world, now that each world compiles QuickJS in an isolate of its
-  own; what wakes a cell after a restart; a run moving to another node; streaming lag) are in
-  [`research.md`](research.md).
-- Develops and checks still run in the cell isolate that worlds share, so a develop's CPU delays other worlds' cells.
-  Each evaluation has its own budget and a develop runs every check, so the delay grows with the number of checks;
-  a check runs out of budget at most once per develop. Moving changes into the world's own isolate is next
-  (`pw-rxw.3`).
+- celld is in beta. Open checks that remain (CPU per cell; what wakes a cell after a restart; a run moving to another
+  node; streaming lag) are in [`research.md`](research.md).
+- A develop's VM work runs in the world's own isolate, where it holds up that world's calls; each evaluation has its
+  own budget and a develop runs every check, so the delay grows with the number of checks, and a check runs out of
+  budget at most once per develop. Storing and archiving the snapshot still run in the shared cell isolate: under
+  `celld dev`, a develop with 3 property checks raised another world's p99 by 73 ms (`performance.md`, finding 11,
+  `pw-djz.7`).
+- A node holds at most 255 worlds that have run something since the last deploy, forgotten ones included
+  (`performance.md`, findings 2 and 13, `pw-djz.9`).
 - World pages are served on the same origin as the operator API, so a page's script can use every route
   (`pw-rxw.1`).
-- Of two concurrent calls that write one key, the one finishing last wins (`pw-rxw.2`); `data.list` returns at most
+- A call whose reads went stale reruns, and a rerun repeats its calls to other worlds; `data.list` returns at most
   1000 rows without saying so (`pw-rxw.6`).
+- A busy world refuses calls after 1 s plus one call's service time, not at 1 s exactly (`performance.md`, finding 7,
+  `pw-djz.3`).
 - Checks cannot read data, so a behaviour that depends on stored data is hard to protect with one.
 - `execute` rolls back its own world's data writes, but a world it calls through `worlds.call` writes for real.
 - A snapshot belongs to the exact `quickjs.wasm` build. After a runtime upgrade, the world is rebuilt by replaying the
@@ -532,7 +550,8 @@ gzipped in R2. Real worlds may differ.
 - Only instances built with `new` through a class are tracked and migrated.
 - State values must be objects, not primitives.
 - A running frame keeps the bytecode it started with.
-- Each durable write waits for the bucket on a single node; progress commits are spaced 400 ms apart.
+- Each durable write waits for the bucket on a single node: writing calls take p50 164 to 170 ms and p99 303 ms on
+  the node at 50/s (`performance.md`, finding 8, `pw-djz.4`); progress commits are spaced 400 ms apart.
 
 ## FAQ
 
@@ -579,9 +598,10 @@ answer, and where the package lives, are open decisions in `decisions.md`.
 
 ## Where it is going
 
-[`plan.md`](plan.md) lists the direction in order, each item tracked as a bead (`br list`, `br show <id>`): one
-runtime per world, world pages on their own origin, serializable calls, bounded incidents, replay as the upgrade
-path, then pauses, forks, scheduled world code and durable messages.
+[`plan.md`](plan.md) lists the direction in order, each item tracked as a bead (`br list`, `br show <id>`): world
+pages on their own origin, a time budget that bounds a whole operation, incidents grouped by kind, a `data.list` that
+never truncates silently, new worlds that start with no grants, replay as the upgrade path, then pauses, forks,
+scheduled world code and durable messages.
 
 ## Documents
 
@@ -592,6 +612,8 @@ path, then pauses, forks, scheduled world code and durable messages.
 | [`design.md`](design.md) | Constraints the implementation obeys |
 | [`plan.md`](plan.md) | Where the project is going, in order, with the beads that track it |
 | [`research.md`](research.md) | Spike results, celld facts, open checks, what is not verified |
+| [`performance.md`](performance.md) | Measured limits against the approved objectives, with a bead per finding |
+| [`perf/`](perf/README.md) | The load harness that produced them |
 | [`decisions.md`](decisions.md) | Operator decisions, what they approve, open decisions |
 
 ## About Contributions

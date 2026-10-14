@@ -17,11 +17,18 @@ The rules the implementation obeys, each with the fact that forces it.
 - **Direct calls never persist heap changes.** A call that mutates heap state, such as a global counter, loses it on
   the next eviction. Only revisions persist heap state; data a call writes goes through the host database functions.
 - **A failed call is an incident.** A call of a defined name that fails is recorded with its arguments (up to 64 KB),
-  error and revision, one durable commit per failure; while it is open, the same definition failing with the same
-  first line of error counts into it. Retrying runs the call again at the current head; because the failed call wrote
-  nothing, the retry is the call, not a second one. An incident closes when a retry succeeds, the owner answers it
+  error, revision and failure kind (`threw`, `budget`, `host-call`, `pending` or `conflict`). While it is open, the
+  same definition failing with the same first line of error counts into it. Opening and closing an incident are each
+  one durable commit. Repeats of an open incident are counted in memory, shown merged to readers, and written together
+  at most every 30 s, or before a retry or a close changes the incident, so a crash loses at most 30 s of repeat
+  counts, never an incident. The reason: celld holds every response of a cell until a durability proof covers it, so
+  a write per failed call held up the world's good calls (`performance.md`, finding 4). Whether the grouping key
+  should stay the definition and first line of error is open (`pw-rxw.5`). Retrying runs the call again at the
+  current head; because the failed call wrote nothing, the retry is the call, not a second one. A retry refused as
+  busy changes nothing. An incident closes when a retry succeeds, the owner answers it
   with a value, or it is dismissed with a reason. A call of a name the world does not define is the caller's mistake
-  and is not recorded. The agent learns of an incident only when the owner asks it to fix one.
+  and is not recorded. A call refused as busy (see below) did not run and is not recorded either. The agent learns
+  of an incident only when the owner asks it to fix one.
 - **Attempts are synchronous.** From checkpoint to accept or restore, an attempt never yields to the event loop, so no
   direct call can observe an uncommitted heap. A job that pauses on `restart` is snapshotted into a pending revision,
   which releases the VM.
@@ -66,8 +73,9 @@ The rules the implementation obeys, each with the fact that forces it.
   side, in a `WorldChecks` document, outside the heap. The host evaluates them in the VM after each attempt. No host
   function lets world code read or write them, so a `develop` cannot change a check. jiti keeps its checks with the
   caller for the same reason; there the wall is a filter over the submitted form, here it is the sandbox boundary.
-- **A check is enrolled only after it has been seen failing.** The agent proposes a check through its own tool,
-  with a counterexample: a small change to the world that the check must reject. The host applies the counterexample
+- **A check is enrolled only after it has been seen failing.** The agent proposes a check through its own tool, and
+  the operator through `POST /api/worlds/:id/checks`, each with a counterexample: a small change to the world that
+  the check must reject. The host applies the counterexample
   on a checkpoint, requires the check to fail there, restores, and requires it to pass on the current world. Only
   then is it enrolled. Removing or loosening a check is an operator call with a recorded reason, never an agent
   tool.
@@ -81,7 +89,7 @@ The rules the implementation obeys, each with the fact that forces it.
   single choices) to the smallest input that still fails, which the rejection names. Integers shrink toward 0, so a
   failing input reads as the boundary it crossed. An input the check runs out of budget on is not shrunk, and
   shrinking stops at the first smaller input it runs out of budget on: each such run costs a whole budget in the
-  isolate worlds share, so a check runs out of budget at most once per run.
+  world's isolate, where it holds up the world's calls, so a check runs out of budget at most once per run.
 - **Every develop re-runs every counterexample.** After the checks hold on the developed heap, each check's
   counterexample is applied to that heap in turn and the check must fail there. A check that a change made vacuous
   (it calls a redefined function, or reads changed state) rejects the develop, because a check that cannot fail is a
@@ -106,30 +114,50 @@ The rules the implementation obeys, each with the fact that forces it.
   and a shared isolate would let one world's CPU work hold up the others. The facet owns the world's data in its own
   SQLite (synchronous, as world code needs), fetches snapshots from the cell by content hash, and reaches other worlds
   only through the `WorldHost` capability. The runtime bundle is built from `src/isolate/runtime/` and the world core
-  alone, so host code cannot leak into it. Develops and checks stay on the cell's main VM, in the cell isolate that
-  worlds share: they touch no data, but their CPU holds up other worlds' cells (research, open check 10). Snapshots reach a runner by content hash from the blob store, so `World` does not
-  serve them.
+  alone, so host code cannot leak into it. Snapshots reach a runner by content hash from the blob store, so `World`
+  does not serve them.
+- **Changes do their VM work in the world's own isolate.** Develops, checks, enrolment, rollbacks and prelude
+  upgrades evaluate behind a `Workbench` port, which in the cell is the same facet (`FacetWorkbench`), so the CPU they
+  spend holds up only that world. The cell keeps durability, documents, the lock and the agent, and does not import
+  QuickJS. Every workbench operation names the head blob the cell holds; the workbench keeps its VM at a blob of its
+  own and restores the named head when the two differ, so a commit that failed, an evicted isolate or a rollback
+  needs no other protocol. Storing the new blob and archiving the previous one to R2 still run in the cell isolate
+  that worlds share (`performance.md`, finding 11, bead `pw-djz.7`).
 - **`execute` is a preview.** Its data writes go to an overlay that is dropped afterwards (`OverlayDataPort`), and
   the result lists them. An overlay rather than a SQL transaction, because an evaluation can span awaits.
 - **Snapshots are tiered.** The head's blob stays in the cell's SQLite; every other blob moves to R2, gzipped, and the
   local copy is deleted only once R2 holds it (`TieredBlobStore`). A pass runs when the head changes; requests during
   a pass collapse into one more. Blobs are content-addressed, so a key never needs
   rewriting and identical snapshots of different worlds share one object.
-- **Calls run concurrently, each on its own VM; changes run one at a time on the main VM.** A call takes a VM from the
-  world's pool (`VmPool`, 8 by default), restored from the head the call started at, and keeps it until it settles.
-  A develop, rollback, check or upgrade holds the world's lock and uses the main VM, which is always at the head
-  between changes. One VM cannot serve two calls at once: two evaluations would share one heap, and resetting it after
-  one would wipe the other. Consequences:
+- **Calls run concurrently, each on its own VM; changes run one at a time on the workbench VM.** A call takes a VM
+  from the world's pool (`VmPool`, 8 by default) at the head the call started at, and keeps it until it settles. The
+  VM then returns to the newest head by copying the snapshot over its own memory (`quickjs-rewind.ts`), and falls
+  back to a full restore when the call grew the memory or quickjs-wasi's layout differs. A develop, rollback, check
+  or upgrade holds the world's lock and uses the workbench's VM. One VM cannot serve two calls at once: two
+  evaluations would share one heap, and resetting it after one would wipe the other. Consequences:
   - A call that awaits another world does not block the world's other calls or its changes
     (`test/concurrency.test.ts`).
   - A call that started before a new revision finishes on the old one.
-  - A call is atomic: its data writes go to an overlay it reads back, and are made in one transaction of the
-    world's `DataStore` (the runtime's SQLite) when it succeeds; a call that fails leaves no write. Other calls see them only then, and of two
-    running calls that write one key, the one that finishes last wins.
+  - A call is atomic and serializable. Its data writes go to an overlay it reads back, and the overlay records what
+    the call read. When the call succeeds, its commit validates those reads and makes its writes in the same
+    transaction of the world's `DataStore` (the runtime's SQLite); a call that fails leaves no write. A call whose
+    reads went stale reruns from the start in the world's rerun lane, one rerun at a time, at most 5 times, and then
+    fails with failure kind `conflict`, an incident. A call that wrote nothing never conflicts. A rerun repeats the
+    calls it made to other worlds, and data those worlds wrote is not rolled back (`overlay-data-port.ts`,
+    `local-call-runner.ts`).
+  - A call starts within a second or is refused. Each call carries a start deadline one second after the world's cell
+    received it. A call that cannot start by then, because no VM is free or the isolate is busy, is refused without
+    running: HTTP 503 with `Retry-After: 1` and `{ ok: false, refused: "busy", error }` (`BUSY_REFUSAL` in
+    `call-runner.ts`). A refusal is not a failure and opens no incident. Reruns of an admitted call are exempt. The
+    longest wait is one second plus one call's service time, because a single-threaded isolate sees a late call only
+    when the call before it ends (`performance.md`, finding 7, bead `pw-djz.3`).
   - Each running call costs a VM of about the snapshot's size: 2.4 MB of the server for a world whose snapshot is
     1.4 MB, against about 25 MB for the world's own isolate (research, "Memory per world").
-  - The isolate is single-threaded: calls overlap only while they await another world, and a call that computes
-    holds the isolate until it returns.
+  - The isolate is single-threaded: calls overlap only while they await another world, and a call or a change that
+    computes holds the isolate until it returns.
+  - Isolates are not cores. On the node (2 vCPUs), a call computing in one world adds 16 to 65 ms to another world's
+    p99, a flood of 200 cheap calls/s into one world about 90 ms, and a computing develop 14 to 23 ms
+    (`performance.md`, finding 10).
 - **Calls between worlds are request and response over Durable Object RPC.** World code calls
   `worlds.call(id, name, ...args)` and gets a QuickJS promise; the evaluation step ends, the runtime asks its
   `WorldHost`, which sends `peerCall` to the other world's cell, and that cell runs the call in the other world's own
@@ -146,6 +174,8 @@ The rules the implementation obeys, each with the fact that forces it.
   Open decision 14 is what calls between worlds should be.
 - **Portable core.** No `node:` modules in the core: celld's Node compatibility is "Partial", and Node-only code sits
   behind separate exports. The `.wasm` import comes from the bundle; the host passes the compiled module in.
-- **Streaming cadence.** Each durable write takes about 90 ms, and viewer output is held until its write is durable.
+- **Streaming cadence.** A one-node fleet proves every durable write in the bucket: on the node, writing calls take
+  p50 164 to 170 ms and p99 303 ms at 50/s (`performance.md`, finding 8), and viewer output is held until its write
+  is durable.
   pi-durable's default 100 ms progress commits will show as streaming lag. Tune `settings.progress` against
   measurements.
