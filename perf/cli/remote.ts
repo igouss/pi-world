@@ -30,7 +30,8 @@ export function remote(options: Options, args: readonly string[]): number {
 		code = 1;
 	}
 	execFileSync("ssh", ["-o", "BatchMode=yes", NODE.ssh, `mkdir -p ${REMOTE_DIR}/perf/results/node`]);
-	execFileSync("rsync", ["-a", `${NODE.ssh}:${REMOTE_DIR}/perf/results/node/`, `${join(PERF, "results", "node")}/`], { stdio: "inherit" });
+	// A result file never changes once written; one kept here may carry more than the node's copy, so it is not replaced.
+	execFileSync("rsync", ["-a", "--ignore-existing", `${NODE.ssh}:${REMOTE_DIR}/perf/results/node/`, `${join(PERF, "results", "node")}/`], { stdio: "inherit" });
 	return code;
 }
 

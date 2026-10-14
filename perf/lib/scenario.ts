@@ -25,6 +25,8 @@ export class Context {
 	readonly loopback: boolean;
 	private readonly host: Host | undefined;
 	private readonly log: (line: string) => void;
+	/** The client host's 1-minute load average when the scenario was set up, before it put any load on. */
+	private readonly idleLoad: number = loadavg()[0]!;
 
 	constructor(api: Api, fixture: Fixture, params: Readonly<Record<string, number>>, host: Host | undefined, loopback: boolean, log: (line: string) => void) {
 		this.api = api;
@@ -61,9 +63,9 @@ export class Context {
 		const records = results.map(streamRecord);
 		const clientLoad = { start: loadStart, end: loadavg()[0]!, cores: availableParallelism() };
 		this.phases.push({ name, warmupS: window.warmupS, durationS: window.durationS, streams: records, utilization: sampler ? Sampler.summarize(samples) : undefined, samples, clientLoad });
-		// The run's own load counts in the end figure; a load above the cores at the start was something else.
-		if (clientLoad.start > clientLoad.cores * BUSY_HOST)
-			this.note(`phase ${name} started on a busy client host (load ${clientLoad.start.toFixed(1)} on ${clientLoad.cores} cores): its latencies include other work`);
+		// The 1-minute load average carries this run's own earlier phases, so the host is judged once, before any load.
+		if (this.phases.length === 1 && this.idleLoad > clientLoad.cores * BUSY_HOST)
+			this.note(`the client host was busy before the first phase (load ${this.idleLoad.toFixed(1)} on ${clientLoad.cores} cores): latencies include other work`);
 		for (const r of records) {
 			const failures = Object.entries(r.failures).map(([k, v]) => `${v}× ${k}`).join(", ");
 			this.log(`  ${r.name}: n=${r.ok.count}/${r.intended} p50=${r.ok.p50Ms} p99=${r.ok.p99Ms} p99.9=${r.ok.p999Ms} max=${r.ok.maxMs} ms; service p99=${r.service.p99Ms}; lag p99=${r.sendLag.p99Ms}${failures ? `; failures: ${failures}` : ""}`);
