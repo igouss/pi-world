@@ -22,12 +22,13 @@ export class Operator {
 		return this.curl("POST", `/evict/${scope}`);
 	}
 
+	/** Over ssh through curl on the host; on the host itself through fetch, so a container without curl can run it. */
 	private async curl(method: string, path: string): Promise<string> {
 		if (!this.host.internal) throw new Error("the target has no internal listener configured (--internal)");
+		if (!this.host.ssh) return (await fetch(`http://${this.host.internal}${path}`, { method, signal: AbortSignal.timeout(30_000) })).text();
 		const args = ["-s", "-m", "30", "-X", method, `http://${this.host.internal}${path}`];
 		const sudo = this.host.sudo ? ["sudo", "-n"] : [];
-		const { stdout } = this.host.ssh ? await run("ssh", ["-o", "BatchMode=yes", this.host.ssh, ...sudo, "curl", ...args.map(quote)]) : await run("curl", args);
-		return stdout;
+		return (await run("ssh", ["-o", "BatchMode=yes", this.host.ssh, ...sudo, "curl", ...args.map(quote)])).stdout;
 	}
 }
 

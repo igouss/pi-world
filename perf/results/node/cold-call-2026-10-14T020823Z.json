@@ -1,0 +1,21 @@
+{
+	"scenario": "cold-call",
+	"title": "Cold call after eviction",
+	"target": {
+		"base": "http://127.0.0.1:8787",
+		"kind": "node",
+		"loopback": true
+	},
+	"startedAt": "2026-10-14T02:08:23.002Z",
+	"git": "unknown",
+	"host": "oracle-arm",
+	"approval": "I approve, good job so far I believe we can drive real improvement here way past original parameters (operator, 2026-10-14)",
+	"params": {
+		"rounds": 20
+	},
+	"phases": [],
+	"verdicts": [],
+	"notes": [
+		"the scenario stopped: spawn curl ENOENT"
+	]
+}

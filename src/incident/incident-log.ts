@@ -20,13 +20,34 @@ export interface FailedCall {
 /** How an incident closes, before the log stamps it with who and when. */
 export type Closing = { readonly kind: "retried"; readonly revision: number; readonly value: unknown } | { readonly kind: "returned"; readonly value: unknown } | { readonly kind: "dismissed"; readonly reason: string };
 
+/** The latest of the repeats of one open incident not yet written, and how many there were. */
+interface Repeats {
+	readonly failure: Failure;
+	readonly error: string;
+	readonly revision: number;
+	readonly lastAt: number;
+	readonly count: number;
+}
+
 /**
- * A world's incidents: each failed call of a definition, numbered, with what closed it. Every change is one durable
- * commit, by default the session's; this object is the only writer, so it keeps its cache current. `changed` is told
- * whenever the set of open incidents changes.
+ * How long repeats of open incidents wait before they are written, together, in one commit. A durable write holds
+ * every response of the world's cell until the bucket proves it (celld's output gate), so a write per failed call
+ * held up the world's good calls too: under celld dev, 50 failing calls a second raised a good call's p50 from 4 to
+ * 34 ms. A crash loses at most this much of the repeat counts, never an incident.
+ */
+export const REPEATS_FLUSH_MS: number = 30_000;
+
+/**
+ * A world's incidents: each failed call of a definition, numbered, with what closed it. Opening or closing an incident
+ * is one durable commit, by default the session's; repeats of an open incident are counted in memory and written
+ * together at most every `REPEATS_FLUSH_MS`, and before anything reads or changes an incident. This object is the only
+ * writer, so it keeps its cache current. `changed` is told whenever the set of open incidents changes.
  */
 export class IncidentLog {
 	private readonly log: NumberedLog<Incident>;
+	private pending: Map<number, Repeats> = new Map();
+	private flushing: Promise<void> = Promise.resolve();
+	private scheduled: boolean = false;
 
 	constructor(
 		session: Pick<Session, "snapshot">,
@@ -34,6 +55,8 @@ export class IncidentLog {
 		private state: Incidents,
 		private readonly now: () => number,
 		private readonly changed: () => void,
+		/** Runs the flush of repeats later; a timer by default. */
+		private readonly later: (run: () => void, ms: number) => void = (run, ms) => void setTimeout(run, ms),
 	) {
 		this.log = new NumberedLog(session, WorldIncident, "incident");
 	}
@@ -47,30 +70,42 @@ export class IncidentLog {
 	}
 
 	/** Every open incident, newest first. */
-	openOnes(): Promise<Incident[]> {
+	async openOnes(): Promise<Incident[]> {
+		await this.flush();
 		return Promise.all(Object.values(this.state.open).sort((a, b) => b - a).map((n) => this.log.require(n)));
 	}
 
-	get(n: number): Promise<Incident | undefined> {
+	async get(n: number): Promise<Incident | undefined> {
+		await this.flush();
 		return this.log.get(n);
 	}
 
 	/** Newest first. */
-	list(limit: number, before?: number): Promise<Incident[]> {
+	async list(limit: number, before?: number): Promise<Incident[]> {
+		await this.flush();
 		return this.log.newestFirst(this.state.count, limit, before);
 	}
 
 	async requireOpen(n: number): Promise<Incident> {
+		await this.flush();
 		return assertOpen(await this.log.require(n));
 	}
 
-	/** Record a failed call: one more failure of the open incident with its key, or a new incident. */
+	/** Record a failed call: one more failure of the open incident with its key, counted for the next flush, or a new incident. */
 	async record(call: FailedCall, commit: Commit = this.sessionCommit): Promise<number> {
 		const at = this.now();
 		const key = incidentKey(call.name, call.error);
 		const open = this.state.open[key];
 		if (open !== undefined) {
-			await this.update(open, (incident) => ({ failure: call.failure, error: call.error, revision: call.revision, lastAt: at, count: incident.count + 1 }), commit);
+			const before = this.pending.get(open);
+			this.pending.set(open, { failure: call.failure, error: call.error, revision: call.revision, lastAt: at, count: (before?.count ?? 0) + 1 });
+			if (!this.scheduled) {
+				this.scheduled = true;
+				this.later(() => {
+					this.scheduled = false;
+					void this.flush().catch(() => undefined);
+				}, REPEATS_FLUSH_MS);
+			}
 			return open;
 		}
 		const args = JSON.stringify(call.args).length <= MAX_ARGS_JSON ? { args: call.args } : {};
@@ -90,17 +125,51 @@ export class IncidentLog {
 	}
 
 	/** A retry of an open incident failed again; it stays open, under the key it was opened with, with the new error. */
-	retryFailed(n: number, failure: Failure, error: string, revision: number, commit: Commit = this.sessionCommit): Promise<Incident> {
+	async retryFailed(n: number, failure: Failure, error: string, revision: number, commit: Commit = this.sessionCommit): Promise<Incident> {
+		await this.flush();
 		return this.update(n, (incident) => (assertOpen(incident) && { failure, error, revision, lastAt: this.now(), retries: incident.retries + 1 }), commit);
 	}
 
 	/** Close an open incident: retried, answered with a value, or dismissed with a reason. */
 	async close(n: number, by: Origin["by"], closing: Closing, commit: Commit = this.sessionCommit): Promise<Incident> {
 		if (closing.kind === "dismissed" && !closing.reason.trim()) throw new Error("dismissing an incident needs a reason");
+		await this.flush();
 		const resolution = { ...closing, at: this.now(), by } as Resolution;
 		const incident = await this.update(n, (stored) => (assertOpen(stored) && { resolution }), commit, (open, stored) => delete open[stored.key]);
 		this.changed();
 		return incident;
+	}
+
+	/**
+	 * Write the counted repeats, every incident in one commit of the session's. Flushes run one at a time; a flush that
+	 * fails puts its repeats back for the next.
+	 */
+	flush(): Promise<void> {
+		this.flushing = this.flushing.catch(() => undefined).then(async () => {
+			if (this.pending.size === 0) return;
+			const repeats = this.pending;
+			this.pending = new Map();
+			try {
+				for (const n of repeats.keys()) await this.log.require(n);
+				const updated = await this.sessionCommit(async (tx) => {
+					const written: Incident[] = [];
+					for (const [n, { count, ...latest }] of repeats) {
+						const draft = await tx.doc(WorldIncident, String(n), {} as Incident & JsonObject);
+						Object.assign(draft, plain({ ...latest, count: (draft.count as number) + count }));
+						written.push(plain<Incident>(draft));
+					}
+					return written;
+				});
+				for (const incident of updated) this.log.remember(incident.n, incident);
+			} catch (error) {
+				for (const [n, r] of repeats) {
+					const newer = this.pending.get(n);
+					this.pending.set(n, newer ? { ...newer, count: newer.count + r.count } : r);
+				}
+				throw error;
+			}
+		});
+		return this.flushing;
 	}
 
 	/**

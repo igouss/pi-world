@@ -9,10 +9,15 @@ export interface HeadRef {
 	readonly blob: string;
 }
 
-/** The world as a call found it when it started: the head it runs at, and what the world's grants let it reach. */
+/**
+ * The world as a call found it when it arrived: the head it runs at, what the world's grants let it reach, and the
+ * latest time it may start, in epoch milliseconds. A call that cannot start by then is refused as busy, so a world
+ * whose isolate is saturated refuses work instead of queueing it without bound.
+ */
 export interface CallScope {
 	readonly head: HeadRef;
 	readonly grants: Grants;
+	readonly startBy: number;
 }
 
 export type ExecuteResult = Outcome & { readonly rolledBack: DataChanges };

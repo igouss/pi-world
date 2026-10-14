@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { WorldIncident } from "../src/revision/documents.ts";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { REPEATS_FLUSH_MS } from "../src/incident/incident-log.ts";
 import { World } from "../src/world/world.ts";
 import { worldDeps } from "./world-deps.ts";
 
@@ -12,7 +15,50 @@ async function failing(): Promise<World> {
 	return world;
 }
 
+/** A world whose session counts its durable commits. */
+async function counting(): Promise<{ world: World; commits: () => number; stored: (n: number) => Promise<unknown> }> {
+	const deps = fixture();
+	let commits = 0;
+	const commit = deps.session.commit.bind(deps.session);
+	deps.session.commit = ((change, context) => {
+		commits++;
+		return commit(change, context);
+	}) as typeof deps.session.commit;
+	const world = await World.open(deps);
+	await world.develop(`function half(n) { if (n % 2) throw new Error("odd: " + n); return n / 2; }`, "half", operator);
+	return { world, commits: () => commits, stored: (n) => deps.session.snapshot(WorldIncident, String(n), BACKGROUND_CONTEXT) };
+}
+
 describe("incidents", () => {
+	it("open with a durable write, and count repeats without one each, writing them together when read", async () => {
+		const { world, commits, stored } = await counting();
+		const before = commits();
+		await world.call("half", [3]);
+		expect(commits()).toBe(before + 1);
+		for (let i = 0; i < 9; i++) await world.call("half", [3]);
+		expect(commits()).toBe(before + 1);
+		expect(await stored(0)).toMatchObject({ count: 1 });
+		expect(await world.incidents.get(0)).toMatchObject({ count: 10 });
+		expect(commits()).toBe(before + 2);
+		expect(await stored(0)).toMatchObject({ count: 10 });
+	});
+
+	it("write counted repeats once their flush interval has passed, with nothing reading them", async () => {
+		vi.useFakeTimers({ toFake: ["setTimeout"] });
+		try {
+			const { world, stored } = await counting();
+			await world.call("half", [3]);
+			await world.call("half", [3]);
+			await world.call("half", [3]);
+			expect(await stored(0)).toMatchObject({ count: 1 });
+			await vi.advanceTimersByTimeAsync(REPEATS_FLUSH_MS);
+			await world.incidents.flush();
+			expect(await stored(0)).toMatchObject({ count: 3 });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("are not recorded for calls that succeed, or for names the world does not define", async () => {
 		const world = await failing();
 		expect(await world.call("half", [4])).toEqual({ ok: true, value: 2 });

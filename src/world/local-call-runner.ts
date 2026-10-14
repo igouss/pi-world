@@ -18,14 +18,12 @@ export interface LocalCallRunnerDeps {
 	readonly peers?: (chain: readonly string[], grants: Grants) => PeerPort;
 	/** How many calls run at once; more wait. Each running call holds a VM of about the snapshot's size. */
 	readonly concurrentCalls?: number;
-	/** How long a call waits for a VM before it is refused as busy. */
-	readonly maxWaitMs?: number;
+	/** The clock calls' start deadlines are read on; the world's. */
+	readonly now?: () => number;
 }
 
 const CONCURRENT_CALLS: number = 8;
 const WARM_VMS: number = 2;
-/** How long a call waits for one of the world's VMs before it is refused as busy (objective O8). */
-const MAX_WAIT_MS: number = 1000;
 /** How many times a call runs again in the rerun lane before it gives up committing over data other calls keep changing. */
 const RUNS: number = 5;
 /** A run whose reads went stale before it could commit. */
@@ -41,7 +39,7 @@ export class LocalCallRunner implements CallRunner, DataAdmin {
 
 	constructor(private readonly deps: LocalCallRunnerDeps) {
 		const limits = deps.limits ?? DEFAULT_LIMITS;
-		this.pool = new VmPool((snapshot) => WorldVm.fromSnapshot(snapshot, deps.wasm, limits), deps.concurrentCalls ?? CONCURRENT_CALLS, WARM_VMS, deps.maxWaitMs ?? MAX_WAIT_MS);
+		this.pool = new VmPool((snapshot) => WorldVm.fromSnapshot(snapshot, deps.wasm, limits), deps.concurrentCalls ?? CONCURRENT_CALLS, WARM_VMS);
 	}
 
 	/**
@@ -53,15 +51,17 @@ export class LocalCallRunner implements CallRunner, DataAdmin {
 	 * once it has committed.
 	 */
 	async call(name: string, args: readonly unknown[], chain: readonly string[], scope: CallScope): Promise<Outcome> {
-		const attempt = async (): Promise<Outcome | typeof STALE> => {
+		const attempt = async (scope: CallScope): Promise<Outcome | typeof STALE> => {
 			const { outcome, writes } = await this.run(scope, chain, (vm, mode) => vm.invoke(name, args, mode));
 			return !outcome.ok || writes.commitIfUnchanged() ? outcome : STALE;
 		};
-		const first = await attempt();
+		const first = await attempt(scope);
 		if (first !== STALE) return first;
+		// The call was admitted; its start deadline does not apply to its reruns, which the lane and RUNS bound.
+		const admitted = { ...scope, startBy: Number.POSITIVE_INFINITY };
 		return this.reruns.run(async () => {
 			for (let run = 0; run < RUNS; run++) {
-				const outcome = await attempt();
+				const outcome = await attempt(admitted);
 				if (outcome !== STALE) return outcome;
 			}
 			return { ok: false, failure: "conflict", error: `data this call read kept changing under it; it ran ${RUNS + 1} times and never committed` };
@@ -86,16 +86,20 @@ export class LocalCallRunner implements CallRunner, DataAdmin {
 		this.pool.dispose();
 	}
 
+	/** Run one evaluation on a pooled VM, if it can start before the call's deadline; a call that cannot is refused as busy. */
 	private async run(
-		{ head, grants }: CallScope,
+		{ head, grants, startBy }: CallScope,
 		chain: readonly string[],
 		body: (vm: WorldVm, mode: Mode) => Promise<Outcome>,
 	): Promise<{ outcome: Outcome; writes: OverlayDataPort }> {
 		const writes = new OverlayDataPort(this.deps.data);
+		const busy: Outcome = { ok: false, failure: "busy", error: "the world is busy: the call could not start within a second of arriving; try again" };
+		const snapshot = await this.snapshotOf(head);
+		const left = startBy - (this.deps.now ?? Date.now)();
+		if (left <= 0) return { outcome: busy, writes };
 		const mode: Mode = { kind: "live", data: writes, peers: this.deps.peers?.(chain, grants) ?? NO_PEERS };
-		const ran = await this.pool.run({ revision: head.revision, snapshot: await this.snapshotOf(head) }, (vm) => body(vm, mode));
-		const outcome: Outcome = ran === BUSY ? { ok: false, failure: "busy", error: "the world is busy: no VM came free within its wait; try again" } : ran;
-		return { outcome, writes };
+		const ran = await this.pool.run({ revision: head.revision, snapshot }, (vm) => body(vm, mode), left);
+		return { outcome: ran === BUSY ? busy : ran, writes };
 	}
 
 	private snapshotOf(head: HeadRef): Promise<Snapshot> {

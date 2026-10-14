@@ -1,0 +1,1458 @@
+{
+	"scenario": "failure-storm",
+	"title": "Failing calls beside good ones in one world",
+	"target": {
+		"base": "http://127.0.0.1:8787",
+		"kind": "node",
+		"loopback": true
+	},
+	"startedAt": "2026-10-14T02:08:59.072Z",
+	"git": "unknown",
+	"host": "oracle-arm",
+	"approval": "I approve, good job so far I believe we can drive real improvement here way past original parameters (operator, 2026-10-14)",
+	"params": {
+		"rate": 50,
+		"badRate": 50,
+		"duration": 30,
+		"warmup": 5
+	},
+	"phases": [
+		{
+			"name": "good calls alone",
+			"warmupS": 5,
+			"durationS": 30,
+			"streams": [
+				{
+					"name": "good convert",
+					"rate": 50,
+					"arrivals": "poisson",
+					"intended": 1537,
+					"ok": {
+						"count": 1537,
+						"minMs": 2.841,
+						"p50Ms": 4.835,
+						"p90Ms": 8.743,
+						"p99Ms": 44.479,
+						"p999Ms": 153.599,
+						"maxMs": 163.709,
+						"meanMs": 7.0072355237475605
+					},
+					"failed": {
+						"count": 0,
+						"minMs": 0,
+						"p50Ms": 0,
+						"p90Ms": 0,
+						"p99Ms": 0,
+						"p999Ms": 0,
+						"maxMs": 0,
+						"meanMs": 0
+					},
+					"service": {
+						"count": 1537,
+						"minMs": 2.835,
+						"p50Ms": 4.159,
+						"p90Ms": 7.927,
+						"p99Ms": 38.847,
+						"p999Ms": 153.215,
+						"maxMs": 162.962,
+						"meanMs": 6.348509433962263
+					},
+					"sendLag": {
+						"count": 1537,
+						"minMs": 0.005,
+						"p50Ms": 0.569,
+						"p90Ms": 1.028,
+						"p99Ms": 1.929,
+						"p999Ms": 37.279,
+						"maxMs": 56.871,
+						"meanMs": 0.6589212752114508
+					},
+					"failures": {},
+					"maxInFlight": 11,
+					"histograms": {
+						"ok": "HISTFAAAAsB4nDWUT8obRxDFa379uqanRyNFCCGM/PFhxGcwxgRjvMzKkAuEkGXwKqssQhY+QJJVlsaE4LWP4AOEHCBLL3KAkGUOEIirRpHEqLu6/rx6/Wru//j6YFafmtlgZsXWT6zt8vvn9v/+l4f8M3DDp8w84sAtUBkp7FgwimCCPTPGnmPsKkY+ZExawDBVKnswt9gCpsIIBSiqcZKpwxtT2KtQmDLfrPC160MWVqVTDd9wrd4SUGBS+mQyqkpkjOQ+5hEFKW0qKKxVJtxQo7QqzLUGl0BzRZwgPdcRn0W0Ud+AIxouXL20Jt92to1t84Y8vpb/fWtqTlPf+kZI7p5Rgbc72sg7sLHWevcN2yY11F3Ce3M1d7q6hNxj4w6tJaBPPFK7Z9qWLnLFonmXW99EIvegxt2aS1ICkxQ5tlGrtUCUlMq7N9lWngUt+7boJlCPEpswRb0SAItowW/AseDHzc2DtuZVlrfdVFpf2SQ5NLfEWoS6rXyXJD5Is0ASRxGbUppCGR51x1UbcbPXmFUdY9pKSGK9pbjRvPj1zFKcngLM29UVTegnHCNNaMXSkmDGVUElfjVjAoMxo1XRNSHmcGjB2V9TT6tgDA9M6ybHJZAsqzGJiQmI8CXkaSS46zhE0JhI2FGYU9ORRLscg5yLc8whO+7I0awcMCZuYBI3TASSkglWso6Ee8xt9smeksVJ25zk2pUEsmyC3mtZDxRoowRzLlbajYVJhUu+Ch7zVPt4Kxw5csNXHBk5UTmzMPIZhS/4jnuceMSOnwcOvGTmyMRzKiem6IozMwsnZYFzQt1xZsoG7nHHE7jopAszEwu3jNFf4NxxywOMOyaeZJsHfoo6F17y98A3fM8fA6846/3A24EXfMm3YXrA84+43wwB67eBfwd+rfw58Jf44Lzga34oPPtI+buBZzyO2P8A1C0uVw==",
+						"failed": "HISTFAAAAB14nJNpmSzMwMDACMXMDBAAYjMoH3ZjgPMBQQsCeg==",
+						"service": "HISTFAAAArt4nD2Uv4pdVRTG1/nt76yz59x753pzGS5DhDCIhjCEYBEGqxAEU6SKID6ApYVPYCEoFlaSwtIqpLawtPIZfIIUeQ391p7xXjhn7/XnW9/6dz788fUxYv4yIqaIaDF+PsdHf38Rd/dfP+E5jcZDZs7gxIYg2CuYSwHMsLBRsCgsCYtsNR5oocmXhbn8sjzUZLldktKXNUjjhpaULNYMtowkUOuETYZtg5YOK9KCIJSFpSDDD2T7yDkHbkEumo3ZI9VlMyM0MVO2JGtYr0iawykbaejSBNQxzH2WpMgMs0qyOweZgJFVyEiZonivDuacesgZFIi6MUo/SNYxCaEqUEprFhix9oze6fQuKZXqq41sY9dtz57oXGvPlLQdOalrXTN9sngVmfHB+fk9ZSdz7b2nOveUq0TXaqttbkV39rmt5kQ6KH7m3WGrcNbFM24bUeUeMtN0Z1ySbQm7a7qOGcnolHm1dWSfbW2ekRhjFlLWRAR3k2UYj1PdXE7+761fVTM2nA0A1fCEX0ObA6W5/qOoGoPbdFv/9LSbtsUaikaNjed3xLJPObTajVksDrcw5rY2wt0ffAf27Wa02hrvxGkMzlzTzOxB8j6BGgtnRZyR61gDo57ZaaldadzBHrQZq8rgtPix4zEWc1SZboqjDXZcuEZXFWEx7fGfOepEhXQOZnDgY/Z2MqENe3Zc1nIfdOCShxUhON5+LVrFc7sOxfsotyG0q/tc1OpTUkihZ2w48i0LOx4Uu/vc55qnPCK45lNzYuEFT/ieE9/xGScOfFUoZw6zgb3zaVWBmQOhKxrP+Vx2fcWFDkXyig2XPHLqVLZGuOCGfcXmhiMvueYlL3gLD/hr4vXETxOXfM3PE28nZm74c+KfCV5x4veJPyZ+abyZeZe8T57xDT80nv5XuTcTT3jMbxP/Als8K5Y="
+					}
+				}
+			],
+			"utilization": {
+				"samples": 30,
+				"cpuMeanPct": 22.3,
+				"cpuMaxPct": 27.8,
+				"busiestThreadMeanPct": 10.3,
+				"busiestThreadMaxPct": 12.5,
+				"rssMaxMb": 975.3,
+				"capacityWaitingMax": 0,
+				"activationWaitingMax": 0,
+				"cellIsolatesMax": 2
+			},
+			"samples": [
+				{
+					"at": 1791943741247,
+					"cpuPct": 23.8,
+					"topThreadsPct": [
+						10.6,
+						9.7,
+						3.5,
+						0
+					],
+					"rssMb": 927.6,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943742371,
+					"cpuPct": 21.4,
+					"topThreadsPct": [
+						10.7,
+						7.1,
+						1.8,
+						0.9
+					],
+					"rssMb": 939.6,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943743499,
+					"cpuPct": 27.5,
+					"topThreadsPct": [
+						11.5,
+						10.6,
+						2.7,
+						0.9
+					],
+					"rssMb": 975.3,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943744855,
+					"cpuPct": 27.3,
+					"topThreadsPct": [
+						12.5,
+						11.1,
+						0.7,
+						0.7
+					],
+					"rssMb": 919.7,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943745981,
+					"cpuPct": 19.5,
+					"topThreadsPct": [
+						9.8,
+						8,
+						0.9,
+						0.9
+					],
+					"rssMb": 940.2,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943747113,
+					"cpuPct": 22.1,
+					"topThreadsPct": [
+						9.7,
+						8,
+						0.9,
+						0.9
+					],
+					"rssMb": 967.4,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943748234,
+					"cpuPct": 24.1,
+					"topThreadsPct": [
+						11.6,
+						10.7,
+						0.9,
+						0.9
+					],
+					"rssMb": 943.5,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943749362,
+					"cpuPct": 25.7,
+					"topThreadsPct": [
+						12.4,
+						8.9,
+						2.7,
+						0.9
+					],
+					"rssMb": 928.5,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943750482,
+					"cpuPct": 18.7,
+					"topThreadsPct": [
+						8,
+						7.1,
+						1.8,
+						0.9
+					],
+					"rssMb": 949.3,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943751596,
+					"cpuPct": 27.8,
+					"topThreadsPct": [
+						11.7,
+						10.8,
+						2.7,
+						0.9
+					],
+					"rssMb": 916.6,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943752720,
+					"cpuPct": 17.8,
+					"topThreadsPct": [
+						9.8,
+						7.1,
+						0.9,
+						0
+					],
+					"rssMb": 940,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943753832,
+					"cpuPct": 24.3,
+					"topThreadsPct": [
+						10.8,
+						10.8,
+						1.8,
+						0.9
+					],
+					"rssMb": 906.1,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943754958,
+					"cpuPct": 22.2,
+					"topThreadsPct": [
+						8.9,
+						8,
+						0.9,
+						0.9
+					],
+					"rssMb": 925.4,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943756079,
+					"cpuPct": 25,
+					"topThreadsPct": [
+						9.8,
+						8.9,
+						1.8,
+						0.9
+					],
+					"rssMb": 947.7,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943757219,
+					"cpuPct": 21.9,
+					"topThreadsPct": [
+						10.5,
+						7,
+						2.6,
+						0.9
+					],
+					"rssMb": 907.3,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943758348,
+					"cpuPct": 18.6,
+					"topThreadsPct": [
+						8.9,
+						8,
+						1.8,
+						0
+					],
+					"rssMb": 932.8,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943759520,
+					"cpuPct": 23,
+					"topThreadsPct": [
+						11.9,
+						7.7,
+						1.7,
+						1.7
+					],
+					"rssMb": 904.4,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943760646,
+					"cpuPct": 18.7,
+					"topThreadsPct": [
+						8.9,
+						8,
+						0.9,
+						0.9
+					],
+					"rssMb": 930.2,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943761789,
+					"cpuPct": 18.4,
+					"topThreadsPct": [
+						8.7,
+						7.9,
+						0.9,
+						0.9
+					],
+					"rssMb": 942.7,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943762919,
+					"cpuPct": 21.2,
+					"topThreadsPct": [
+						11.5,
+						7.1,
+						0.9,
+						0.9
+					],
+					"rssMb": 916.8,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943764043,
+					"cpuPct": 22.2,
+					"topThreadsPct": [
+						10.7,
+						8,
+						0.9,
+						0.9
+					],
+					"rssMb": 945.3,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943765168,
+					"cpuPct": 23.1,
+					"topThreadsPct": [
+						9.8,
+						8,
+						0.9,
+						0.9
+					],
+					"rssMb": 913.5,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943766293,
+					"cpuPct": 21.3,
+					"topThreadsPct": [
+						8.9,
+						8,
+						1.8,
+						0.9
+					],
+					"rssMb": 941.2,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943767463,
+					"cpuPct": 23.1,
+					"topThreadsPct": [
+						12,
+						7.7,
+						0.9,
+						0.9
+					],
+					"rssMb": 924.7,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943768590,
+					"cpuPct": 15.1,
+					"topThreadsPct": [
+						8,
+						7.1,
+						0,
+						0
+					],
+					"rssMb": 935.7,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943769712,
+					"cpuPct": 22.3,
+					"topThreadsPct": [
+						9.8,
+						8,
+						2.7,
+						0.9
+					],
+					"rssMb": 908.9,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943770828,
+					"cpuPct": 22.4,
+					"topThreadsPct": [
+						10.8,
+						9,
+						0.9,
+						0.9
+					],
+					"rssMb": 941.6,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943771961,
+					"cpuPct": 22.9,
+					"topThreadsPct": [
+						11.5,
+						9.7,
+						0.9,
+						0.9
+					],
+					"rssMb": 923.5,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943773078,
+					"cpuPct": 22.4,
+					"topThreadsPct": [
+						9,
+						8.1,
+						1.8,
+						0.9
+					],
+					"rssMb": 898.7,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943774211,
+					"cpuPct": 26.5,
+					"topThreadsPct": [
+						10.6,
+						9.7,
+						1.8,
+						1.8
+					],
+					"rssMb": 941.6,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				}
+			]
+		},
+		{
+			"name": "good calls beside failing ones",
+			"warmupS": 5,
+			"durationS": 30,
+			"streams": [
+				{
+					"name": "good convert",
+					"rate": 50,
+					"arrivals": "poisson",
+					"intended": 1537,
+					"ok": {
+						"count": 1537,
+						"minMs": 6.06,
+						"p50Ms": 126.847,
+						"p90Ms": 225.279,
+						"p99Ms": 459.775,
+						"p999Ms": 567.295,
+						"maxMs": 575.745,
+						"meanMs": 143.84549512036435
+					},
+					"failed": {
+						"count": 0,
+						"minMs": 0,
+						"p50Ms": 0,
+						"p90Ms": 0,
+						"p99Ms": 0,
+						"p999Ms": 0,
+						"maxMs": 0,
+						"meanMs": 0
+					},
+					"service": {
+						"count": 1537,
+						"minMs": 5.785,
+						"p50Ms": 126.335,
+						"p90Ms": 223.615,
+						"p99Ms": 458.751,
+						"p999Ms": 566.271,
+						"maxMs": 574.511,
+						"meanMs": 143.0994782042941
+					},
+					"sendLag": {
+						"count": 1537,
+						"minMs": 0.007,
+						"p50Ms": 0.595,
+						"p90Ms": 1.066,
+						"p99Ms": 2.783,
+						"p999Ms": 23.423,
+						"maxMs": 57.392,
+						"meanMs": 0.7462231620039037
+					},
+					"failures": {},
+					"maxInFlight": 26,
+					"histograms": {
+						"ok": "HISTFAAAAwd4nE2VTYosVRCFo74bGZlZ2UlRFE3RtE0jzaMHDh4OmqYRB48HiogjcQFuwIkrEJw4EBFX4sgFuAIHrsMtyDk3q3lV5K2898bPiRM/9dHPf5wi6oeI2EVEi/7Rezz8/UVc9v8+8/sNv818zC/w546f4JlbPiF4yzfMHAmvP3LgyDtWZl4YeMOX/LPjLfc8ceQznlm5Y+aRRw5cc+KBb3nihoVHIo80Dv6uLLxntuHGzA3B5ywsnAkGnaXcBs0rXLNCy5WR4Mji3xXLtpxZGLSdoTFyzUDqaeRgi6PXSMhgzvAVA4sxjKlrLbSLmHQGMipnBoYMSCKzUQzZtJvRmopgAalFbohDryMNMELbFIqEKNmK7A7REqkDmWoC1iMf07cZmWkzNL0PFLE3wpKOMDB1fFJlsL05GwfJF1GpsDC2TBluGVdFxzcYw6ZIRyJJ2ROGwZDTmBjSXux18+cgpj1bZMhl6W7DVFGSoLIzMUFMDpfMZizII1PwwTcl37MfAmL2g6oLON3ZUyqTTpWhmNDSUUX1UBJDsJeOKEunTraQCK/VW1bIFblUU7IUzMZPMtEEuWN+TXbmqPBadzHkhcaemzJJTEZcuS9qioyrqEr2tQ+uSoEJK2RNgjpN8pGqElysZHUbojUdT0aVSsClJR3TX1Lf21hPkxivHNI4sjodzpxjVdNkimxh2PMaa688R1hz5kzNRW0pUTpUkDbVWTftJng2MdlysPh46eJIFsfyWvWRo9oseyVKsHFmVW33/LoN3UJW6aZw944Zovy108bJYgu9jZvBqe8Xd2/z4xLuswArDx4VHiJ5YdqIRrerW/bIkbHWzXf41B7Fg9tWZbwSuaK68lTbyKhhmyl+7qx99rCyXHbW0ri3SGvRKOOgVs9IY9CQsgWF23p8x43GAx6izZZH5uLWm5nVs/Zg652JPmvPzNx2gCbhAV6470DfwIkzB023r3jknhMHFr5m5cQt3ylt/LrzmH/gxAtPvPApZ75n4L8do6/+2vkP4O4V+8o9/wNWNSi9",
+						"failed": "HISTFAAAAB14nJNpmSzMwMDACMXMDBAAYjMoH3ZjgPMBQQsCeg==",
+						"service": "HISTFAAAAw54nD2VQYokVRCGo774X2RmJUXRNEVTtE3TDM3QNM3gRnHVzMZhFnMCF57AQwiCC3HlETyEK1cuxQN4AFdeQiIiy6qszHzx3ov444//RX32wy/XZvGjme3MzK0/+W5v/vjaLuM/v+D3Mz8vHPkL/t7x647vdzhnnjjzgRcODFZu+I4rBp+zwnvueOKOf3a85y3vOPGK88KJZ665xbhm5ROPvPLIAysPTDgMBk8cWXiVMTHxgLHwwDPOUy7IAEs+l7qcE8JYGRy4yQnnkDdWJhacIxNYGrliIbxmGVo1MbCcNOGREXsE+aqM4wwSi3ClfdS85bsmaNT9zIkoVOoFuSNffPY0T+WgvHv9ptriODKBxZSh0pLRIEdhYVsIRH9G/6ycFVF5r2BItUy5QMix2ULpQ/XNBOXMOCudkONyRaGay9aM1ZbEKBTNTPoDdfAYnWcUO73ApSaogrHsM5zkEY02N8hCElGxQuISDJuV+WYOnYxFEhH/p2WVdyWXmG3jyecLRSBtuY590137en+CtH2B60oUrElZtsSy8VlY8jIVDqm5UxZZjaZcVh2nfMyJtOzRdesAks2lgUjT2i6mBlW1aEdRZe+niu1AGvIQM3vmpCDQrL2yUGD7ZAq0VxaN8n8RY5o8Uc8pKp/DIlqbsktqKq3UmyIKR7GRlrlKGbXaoxSsS0IWl3TKBYRhmzpipD7UQihGp4xPbJKow1mDuXlO6eN9Ir30smkB1+C4ybUPUitsU6DBscGkjD1u63iXuMYWPcXJotH++r4W816rcrKdyi8Hf1yiTHDq4myXtw9rhDG01PJkJlMO31J0Jg1GtQ6rfpPni5M601H+cyr7nbwi6GrrAbk/Vort0dkssVS7XeDcoDOJDFnMTg26WkvPTUlincqin5HDYmlssjzUjrZ54VjgrltKNtCpHNxylfvXbbtpquXVTR84d/fSW77BdOBNTtxwqkQ+8MyZW/Jv4yMHjtxx5qtK/acdj/XncM87vuSVF274loV/d0y88MhvO6555F5rde+Ve/4DYxEplQ=="
+					}
+				},
+				{
+					"name": "failing convert",
+					"rate": 50,
+					"arrivals": "poisson",
+					"intended": 1492,
+					"ok": {
+						"count": 1492,
+						"minMs": 89.248,
+						"p50Ms": 144.383,
+						"p90Ms": 237.183,
+						"p99Ms": 484.863,
+						"p999Ms": 582.143,
+						"maxMs": 585.711,
+						"meanMs": 163.89928150134048
+					},
+					"failed": {
+						"count": 0,
+						"minMs": 0,
+						"p50Ms": 0,
+						"p90Ms": 0,
+						"p99Ms": 0,
+						"p999Ms": 0,
+						"maxMs": 0,
+						"meanMs": 0
+					},
+					"service": {
+						"count": 1492,
+						"minMs": 89.005,
+						"p50Ms": 143.615,
+						"p90Ms": 235.903,
+						"p99Ms": 484.351,
+						"p999Ms": 582.143,
+						"maxMs": 584.86,
+						"meanMs": 163.2058766756032
+					},
+					"sendLag": {
+						"count": 1492,
+						"minMs": 0.006,
+						"p50Ms": 0.58,
+						"p90Ms": 1.048,
+						"p99Ms": 3.105,
+						"p999Ms": 21.919,
+						"maxMs": 68.04,
+						"meanMs": 0.6932607238605898
+					},
+					"failures": {},
+					"maxInFlight": 37,
+					"histograms": {
+						"ok": "HISTFAAAAnl4nDWUsY4cRwxEeY/VnJ7RrRaHxQXG6XAQFDgQFCoQDAeCJCcO/RGOHCpSKP+BP8mxv8I/YrN6b3bR28Nlk1Ussl/9+dclYnyOiJuIyFhP7+PN37/E8/u/X3kiSBhsDH7ixImzgp2BLpAkwcZGKLUVwQs2zv1aWYgTQLVXiE0bQyIZDECICgJy2kGpUDgs0TkUAidhq1QqO16A+q9RShEV8of1qCMq2lWKStTJFoTAEAPhb+jI/rug/bNMpUOQfRrzj07SRufoOM5hBhBHpUM1pCoftZsIahCHt9VhujCz2reQxrI7Smr9mEBRk1HLsE45m9daRFe5JOOWZmNzxqwhlzaYqdJsCrN0MGdVUnUbKhWlaievsw7J0XWgQ7cz6qhJRRVH9TOrUB2URZki1FRKsx1QGaK870JAmdLSqm5pENx2JWdbqyxc434pl0FHCWOCaZHRyxlX6s0Vn5VVEVXkkehoPq4C0xWsWMWm0rrUxOKXje4PwbEKWRSDLB90H2m1QFJhMOJ6TIPNItSZHdg6acpL2rWViqtSCm2sDurxCU+GrmKG3Oa7zbTjMPRAo9e5mtZCZmd64QloaIPS1kOkS7cN16Ye192aoMVt9JT4zTHSUBx2ZRluALZFd7n1r06ev1ir1ekx2HXlsurhQY5ng+VZ1U00aqHYWt/R53YPzblRGamnybDHUmdf5DeeEfuqWAMY6xqBi4uVjhLrHtl56LvinuTOFO87/oPjLZUeed3+Fy6cuOMB/QCPPC3j4Fd23nJh58zGJx68/5nfeM0jHfgLF4Jv7HzgzJnf7Zn8c8M7vt9w5g0/8gd8bITtEbz//6b5D9tdHEs=",
+						"failed": "HISTFAAAAB14nJNpmSzMwMDACMXMDBAAYjMoH3ZjgPMBQQsCeg==",
+						"service": "HISTFAAAAn14nD2UPW4UQRCFy19V1/TMeLBWK7SywJHlAHEAROAICUTICQgJiYgI4QYciZgTcBl41TOe1Wq7p+vnvdev9uXPX2ez9tnMrszMbTxa2/3v93bs/35j5gIYxswHVlp9DRoTMNNwVmY8GtY3cJ3N0YKupCmU7GHdqxDGFK5kS1N02HgfaVEbV7uwwGJVKqSTQFp4OEpWLRQdo6aaBN2rEBGRo8hxZKNzMYlQD8+iMYFHR1BUrmGp4tG0x3q41lafPQpaaulqaYUjBvJUb0YzR33UP30/TMQKj51wZN9BFYs63rdZxFIAWooQrRQZ6A/aUthG+vFURNa7wbqHC9QuVuU19VXNZ9p1u7a0zAhPOimcRMYSuqCMFDkds3R6ZuaiH2LRux7RI5ZQWlgu0QcCu1aDJSO7lTyQqYgouaRHL7F60nuGokxtowtNiHQlasF1CRxSxdLUUQ072YjwXtcgNFLHMXEpOJ30TBHT+xJHPsvhhBBmyl7qNGV0qk0O25WCjvXdHLqeGM4kZendAMMdbZjW2XbrbcN+atRoAsdUpogxN3U9U2w4rcao7szHzXIag0QZvskANVp1lZUrEKNCG9w8xERxepx5DKkdRU9UJSxreto+Evv4tQo+rF4+9CgdnKdIkw0ZQ3iwZsz3uhx/EzVdrLVNK6pCMBhmFKTwoVxMzOXzKrWW3tuTkzNKzE3kW00t0xh+xZWirOFDif1YlzCHs1PZ4JVEYuIcayVvdXQXEzdKeMG9Mh+44cydSuvv7JYTayXe8pET91yYOTHxyC0XVh75xD13PKfxjjON7zTeVN4XLpX754rX/Ljihgce+BqKY9NNvP3P+x/xZBwY"
+					}
+				}
+			],
+			"utilization": {
+				"samples": 30,
+				"cpuMeanPct": 54.3,
+				"cpuMaxPct": 62.9,
+				"busiestThreadMeanPct": 24,
+				"busiestThreadMaxPct": 28,
+				"rssMaxMb": 1008.1,
+				"capacityWaitingMax": 0,
+				"activationWaitingMax": 0,
+				"cellIsolatesMax": 2
+			},
+			"samples": [
+				{
+					"at": 1791943776294,
+					"cpuPct": 56.6,
+					"topThreadsPct": [
+						27.9,
+						21.8,
+						3.5,
+						1.7
+					],
+					"rssMb": 917.6,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943777421,
+					"cpuPct": 50.6,
+					"topThreadsPct": [
+						21.3,
+						21.3,
+						2.7,
+						1.8
+					],
+					"rssMb": 967,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943778576,
+					"cpuPct": 53.7,
+					"topThreadsPct": [
+						22.5,
+						22.5,
+						1.7,
+						1.7
+					],
+					"rssMb": 978.4,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943779721,
+					"cpuPct": 62.9,
+					"topThreadsPct": [
+						26.2,
+						24.5,
+						4.4,
+						1.7
+					],
+					"rssMb": 949.2,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.8,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943780851,
+					"cpuPct": 56.6,
+					"topThreadsPct": [
+						23,
+						22.1,
+						3.5,
+						1.8
+					],
+					"rssMb": 960.6,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 22.7,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943781995,
+					"cpuPct": 57.7,
+					"topThreadsPct": [
+						24.5,
+						23.6,
+						3.5,
+						1.7
+					],
+					"rssMb": 969.4,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.8,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943783120,
+					"cpuPct": 58.7,
+					"topThreadsPct": [
+						24.9,
+						24,
+						2.7,
+						1.8
+					],
+					"rssMb": 976.2,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.8,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943784267,
+					"cpuPct": 57.5,
+					"topThreadsPct": [
+						26.2,
+						20.9,
+						5.2,
+						1.7
+					],
+					"rssMb": 980.8,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943785429,
+					"cpuPct": 55.9,
+					"topThreadsPct": [
+						22.4,
+						20.7,
+						4.3,
+						1.7
+					],
+					"rssMb": 984.5,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943786580,
+					"cpuPct": 53,
+					"topThreadsPct": [
+						21.7,
+						20.9,
+						1.7,
+						1.7
+					],
+					"rssMb": 982.6,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943787904,
+					"cpuPct": 57.4,
+					"topThreadsPct": [
+						24.9,
+						22.7,
+						2.3,
+						1.5
+					],
+					"rssMb": 994.2,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943789039,
+					"cpuPct": 51.1,
+					"topThreadsPct": [
+						22,
+						20.3,
+						1.8,
+						1.8
+					],
+					"rssMb": 991.6,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943790165,
+					"cpuPct": 44.4,
+					"topThreadsPct": [
+						21.3,
+						16.9,
+						1.8,
+						1.8
+					],
+					"rssMb": 967.2,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943791292,
+					"cpuPct": 47,
+					"topThreadsPct": [
+						21.3,
+						16,
+						1.8,
+						1.8
+					],
+					"rssMb": 989.5,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.5,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943792452,
+					"cpuPct": 56.9,
+					"topThreadsPct": [
+						25.9,
+						21.6,
+						1.7,
+						1.7
+					],
+					"rssMb": 998.8,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.5,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943793592,
+					"cpuPct": 60.5,
+					"topThreadsPct": [
+						27.2,
+						23.7,
+						2.6,
+						1.8
+					],
+					"rssMb": 972.4,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.5,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943794746,
+					"cpuPct": 58.1,
+					"topThreadsPct": [
+						26,
+						20.8,
+						4.3,
+						1.7
+					],
+					"rssMb": 980.1,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.5,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943795897,
+					"cpuPct": 49.5,
+					"topThreadsPct": [
+						21.7,
+						21.7,
+						2.6,
+						0.9
+					],
+					"rssMb": 961,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.8,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943797085,
+					"cpuPct": 48,
+					"topThreadsPct": [
+						22.7,
+						17.7,
+						1.7,
+						1.7
+					],
+					"rssMb": 1008.1,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.8,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943798226,
+					"cpuPct": 52.6,
+					"topThreadsPct": [
+						22.8,
+						20.2,
+						1.8,
+						1.8
+					],
+					"rssMb": 1004.6,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.8,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943799370,
+					"cpuPct": 56.8,
+					"topThreadsPct": [
+						28,
+						20.1,
+						2.6,
+						1.7
+					],
+					"rssMb": 970.8,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.8,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943800511,
+					"cpuPct": 51.7,
+					"topThreadsPct": [
+						21.9,
+						21,
+						1.8,
+						1.8
+					],
+					"rssMb": 961.2,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.8,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943801673,
+					"cpuPct": 58.5,
+					"topThreadsPct": [
+						25.8,
+						23.2,
+						2.6,
+						1.7
+					],
+					"rssMb": 979.5,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 47,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943802822,
+					"cpuPct": 53.1,
+					"topThreadsPct": [
+						24.4,
+						20.9,
+						1.7,
+						1.7
+					],
+					"rssMb": 983.3,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 47.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943803979,
+					"cpuPct": 52.7,
+					"topThreadsPct": [
+						22.5,
+						20.7,
+						2.6,
+						1.7
+					],
+					"rssMb": 982.9,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 47.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943805147,
+					"cpuPct": 57.4,
+					"topThreadsPct": [
+						24.8,
+						20.5,
+						1.7,
+						1.7
+					],
+					"rssMb": 989.9,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 47.3,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943806310,
+					"cpuPct": 54.2,
+					"topThreadsPct": [
+						25.8,
+						19.8,
+						2.6,
+						1.7
+					],
+					"rssMb": 979.4,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 22.7,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943807446,
+					"cpuPct": 49.3,
+					"topThreadsPct": [
+						22.9,
+						17.6,
+						1.8,
+						1.8
+					],
+					"rssMb": 985,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 47.5,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943808616,
+					"cpuPct": 51.3,
+					"topThreadsPct": [
+						23.1,
+						21.4,
+						1.7,
+						0.9
+					],
+					"rssMb": 986.8,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 22.7,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943809743,
+					"cpuPct": 55.9,
+					"topThreadsPct": [
+						25.7,
+						20.4,
+						1.8,
+						1.8
+					],
+					"rssMb": 1000.7,
+					"state": {
+						"residentCells": 36,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 47.5,
+						"shedding": null
+					}
+				}
+			]
+		}
+	],
+	"verdicts": [
+		{
+			"objective": "O1a",
+			"metric": "good convert p50 ms",
+			"measured": 4.835,
+			"limit": 10,
+			"holds": true
+		},
+		{
+			"objective": "O1a",
+			"metric": "good convert p99 ms",
+			"measured": 44.479,
+			"limit": 50,
+			"holds": true
+		},
+		{
+			"objective": "O1a",
+			"metric": "good convert beside failures p50 ms",
+			"measured": 126.847,
+			"limit": 10,
+			"holds": false
+		},
+		{
+			"objective": "O1a",
+			"metric": "good convert beside failures p99 ms",
+			"measured": 459.775,
+			"limit": 50,
+			"holds": false
+		},
+		{
+			"objective": "O9",
+			"metric": "failing call p99 ms (each records an incident)",
+			"measured": 484.863,
+			"limit": 5000,
+			"holds": true
+		}
+	],
+	"notes": []
+}

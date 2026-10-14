@@ -16,8 +16,8 @@ const slowPeer: PeerTransport = {
 	functions: async () => [],
 };
 
-async function world(concurrentCalls?: number, maxWaitMs?: number): Promise<World> {
-	const opened = await World.open(worldDeps({ peers: (chain) => chainedPeers("a", chain, slowPeer), ...(concurrentCalls ? { concurrentCalls } : {}), ...(maxWaitMs ? { maxWaitMs } : {}) }));
+async function world(concurrentCalls?: number, now?: () => number): Promise<World> {
+	const opened = await World.open(worldDeps({ peers: (chain) => chainedPeers("a", chain, slowPeer), ...(concurrentCalls ? { concurrentCalls } : {}), ...(now ? { now } : {}) }));
 	await opened.develop(
 		`define("version", () => 1); define("viaSlow", async () => { await worlds.call("b", "x"); return version(); }); define("quick", () => "quick");`,
 		"setup",
@@ -60,11 +60,20 @@ describe("concurrent calls to one world", () => {
 		expect(three.ms).toBeLessThan(3 * DELAY_MS);
 	});
 
-	it("refuses a call as busy, recording no incident, once every VM is taken past the wait", async () => {
-		const a = await world(1, 50);
+	it("runs a call that waits less than a second for a VM", async () => {
+		const a = await world(1);
 		const holding = a.call("viaSlow", []);
-		expect(await a.call("quick", [])).toMatchObject({ ok: false, failure: "busy" });
+		expect(await a.call("quick", [])).toEqual({ ok: true, value: "quick" });
 		expect((await holding).ok).toBe(true);
+		expect(a.incidents.openCount()).toBe(0);
+	});
+
+	it("refuses a call as busy, recording no incident, that reaches its runner after its start deadline", async () => {
+		let clock = 0;
+		const a = await world(1, () => clock);
+		const outcome = a.call("quick", []);
+		clock = 5000;
+		expect(await outcome).toMatchObject({ ok: false, failure: "busy" });
 		expect(a.incidents.openCount()).toBe(0);
 	});
 

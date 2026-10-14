@@ -16,7 +16,7 @@ interface Counted {
 }
 
 /** A pool of up to `max` VMs, `warm` of them kept warm, that counts the VMs it opens and holds. */
-async function countedPool(max: number = 4, warm: number = WARM, maxWaitMs?: number): Promise<Counted> {
+async function countedPool(max: number = 4, warm: number = WARM): Promise<Counted> {
 	const first: WorldVm = await WorldVm.create(wasm);
 	const head: PoolHead = { revision: 0, snapshot: first.snapshot() };
 	first.develop(`define("one", () => 1);`, { kind: "attempt", at: 0, seed: 1 });
@@ -35,7 +35,7 @@ async function countedPool(max: number = 4, warm: number = WARM, maxWaitMs?: num
 		};
 		return vm;
 	};
-	return { pool: new VmPool(open, max, warm, maxWaitMs), head, next, live: () => live, opened: () => opened };
+	return { pool: new VmPool(open, max, warm), head, next, live: () => live, opened: () => opened };
 }
 
 /** Lets the pool's background recycling finish. */
@@ -43,11 +43,11 @@ const settled = (): Promise<void> => new Promise((resolve) => setTimeout(resolve
 
 describe("VmPool", () => {
 	it("refuses a call that found no VM free within its wait, and gives the slot to no one", async () => {
-		const { pool, head } = await countedPool(1, 0, 50);
+		const { pool, head } = await countedPool(1, 0);
 		let release!: () => void;
 		const holding = pool.run(head, () => new Promise<number>((resolve) => (release = () => resolve(1))));
 		const started = Date.now();
-		expect(await pool.run(head, async () => 2)).toBe(BUSY);
+		expect(await pool.run(head, async () => 2, 50)).toBe(BUSY);
 		expect(Date.now() - started).toBeGreaterThanOrEqual(45);
 		release();
 		expect(await holding).toBe(1);
@@ -55,10 +55,10 @@ describe("VmPool", () => {
 	});
 
 	it("runs a waiting call that a VM came free for before its wait ran out", async () => {
-		const { pool, head } = await countedPool(1, 0, 500);
+		const { pool, head } = await countedPool(1, 0);
 		let release!: () => void;
 		const holding = pool.run(head, () => new Promise<number>((resolve) => (release = () => resolve(1))));
-		const waiting = pool.run(head, async () => 2);
+		const waiting = pool.run(head, async () => 2, 500);
 		setTimeout(() => release(), 20);
 		expect(await waiting).toBe(2);
 		expect(await holding).toBe(1);

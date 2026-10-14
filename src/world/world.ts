@@ -54,6 +54,9 @@ type Previous = { readonly kind: "revision"; readonly revision: Revision } | { r
 
 const KEPT_CALLS: number = 200;
 
+/** How long after it arrives a call may still start (objective O8: excess is refused within 1 s). */
+const START_WITHIN_MS: number = 1000;
+
 /**
  * One world: its head revision, and the only path that changes it.
  *
@@ -374,9 +377,9 @@ export class World {
 		return undefined;
 	}
 
-	/** What a call starts from: the head as a call runner needs it (its record of tool calls stays here) and the grants. */
+	/** What a call starts from: the head as a call runner needs it (its record of tool calls stays here), the grants, and its start deadline. */
 	private scope(): CallScope {
-		return { head: { revision: this.current.revision, blob: this.current.blob }, grants: this.grantsState };
+		return { head: { revision: this.current.revision, blob: this.current.blob }, grants: this.grantsState, startBy: this.now() + START_WITHIN_MS };
 	}
 
 	private attemptMode(at: number): AttemptMode {

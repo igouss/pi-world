@@ -23,9 +23,9 @@ interface Waiter {
 /**
  * VMs for calls, so a world answers several calls at once. Each call gets a VM at the head it names and keeps it until
  * it settles, awaits on other worlds included; the VM then returns to the newest head seen, in the background. At
- * most `max` VMs exist at a time; further calls wait for one, for at most `maxWaitMs`, and are then refused with
- * `BUSY`, so an overloaded world refuses work instead of queueing it without bound. Up to `warm` idle VMs are kept
- * ready.
+ * most `max` VMs exist at a time; further calls wait for one, for at most the wait each names, and are then refused
+ * with `BUSY`, so an overloaded world refuses work instead of queueing it without bound. Up to `warm` idle VMs are
+ * kept ready.
  */
 export class VmPool {
 	private readonly idle: Idle[] = [];
@@ -39,14 +39,13 @@ export class VmPool {
 		private readonly open: (snapshot: Snapshot) => Promise<WorldVm>,
 		private readonly max: number,
 		private readonly warm: number,
-		/** How long a call waits for a VM before it is refused; `undefined` waits as long as it takes. */
-		private readonly maxWaitMs?: number,
 	) {}
 
-	async run<T>(head: PoolHead, body: (vm: WorldVm) => Promise<T>): Promise<T | typeof BUSY> {
+	/** Run `body` on a VM at `head`; with `maxWaitMs`, give up with `BUSY` if no VM came free that soon. */
+	async run<T>(head: PoolHead, body: (vm: WorldVm) => Promise<T>, maxWaitMs?: number): Promise<T | typeof BUSY> {
 		const newest = !this.newest || head.revision >= this.newest.revision ? head : this.newest;
 		this.newest = newest;
-		if (!(await this.slot())) return BUSY;
+		if (!(await this.slot(maxWaitMs))) return BUSY;
 		let vm: WorldVm | undefined;
 		try {
 			vm = this.takeIdle(head.revision) ?? (await this.open(head.snapshot));
@@ -91,7 +90,7 @@ export class VmPool {
 	}
 
 	/** A slot for one call: at once if one is free, else the next freed one, unless the wait runs out first. */
-	private slot(): Promise<boolean> {
+	private slot(maxWaitMs: number | undefined): Promise<boolean> {
 		if (this.active < this.max) {
 			this.active++;
 			return Promise.resolve(true);
@@ -100,12 +99,12 @@ export class VmPool {
 			const waiter: Waiter = {
 				grant,
 				timer:
-					this.maxWaitMs === undefined
+					maxWaitMs === undefined
 						? undefined
 						: setTimeout(() => {
 								this.waiting.splice(this.waiting.indexOf(waiter), 1);
 								grant(false);
-							}, this.maxWaitMs),
+							}, maxWaitMs),
 			};
 			this.waiting.push(waiter);
 		});

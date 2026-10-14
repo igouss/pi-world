@@ -1,0 +1,717 @@
+{
+	"scenario": "overload",
+	"title": "Overload at twice the rated rate",
+	"target": {
+		"base": "http://127.0.0.1:8787",
+		"kind": "node",
+		"loopback": true
+	},
+	"startedAt": "2026-10-14T02:08:23.015Z",
+	"git": "unknown",
+	"host": "oracle-arm",
+	"approval": "I approve, good job so far I believe we can drive real improvement here way past original parameters (operator, 2026-10-14)",
+	"params": {
+		"rate": 200,
+		"duration": 30,
+		"warmup": 5
+	},
+	"phases": [
+		{
+			"name": "twice rated",
+			"warmupS": 5,
+			"durationS": 30,
+			"streams": [
+				{
+					"name": "convert",
+					"rate": 200,
+					"arrivals": "poisson",
+					"intended": 6085,
+					"ok": {
+						"count": 6085,
+						"minMs": 2.8,
+						"p50Ms": 6.171,
+						"p90Ms": 19.631,
+						"p99Ms": 245.887,
+						"p999Ms": 319.999,
+						"maxMs": 335.457,
+						"meanMs": 15.314081676253082
+					},
+					"failed": {
+						"count": 0,
+						"minMs": 0,
+						"p50Ms": 0,
+						"p90Ms": 0,
+						"p99Ms": 0,
+						"p999Ms": 0,
+						"maxMs": 0,
+						"meanMs": 0
+					},
+					"service": {
+						"count": 6085,
+						"minMs": 2.697,
+						"p50Ms": 5.523,
+						"p90Ms": 18.623,
+						"p99Ms": 245.119,
+						"p999Ms": 319.743,
+						"maxMs": 335.033,
+						"meanMs": 14.576108463434675
+					},
+					"sendLag": {
+						"count": 6085,
+						"minMs": 0.006,
+						"p50Ms": 0.618,
+						"p90Ms": 1.18,
+						"p99Ms": 3.995,
+						"p999Ms": 15.271,
+						"maxMs": 17.251,
+						"meanMs": 0.73786540673788
+					},
+					"failures": {},
+					"maxInFlight": 58,
+					"histograms": {
+						"ok": "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",
+						"failed": "HISTFAAAAB14nJNpmSzMwMDACMXMDBAAYjMoH3ZjgPMBQQsCeg==",
+						"service": "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"
+					}
+				}
+			],
+			"utilization": {
+				"samples": 30,
+				"cpuMeanPct": 74.5,
+				"cpuMaxPct": 87.4,
+				"busiestThreadMeanPct": 34.1,
+				"busiestThreadMaxPct": 39.2,
+				"rssMaxMb": 931.4,
+				"capacityWaitingMax": 0,
+				"activationWaitingMax": 0,
+				"cellIsolatesMax": 2
+			},
+			"samples": [
+				{
+					"at": 1791943705169,
+					"cpuPct": 86.2,
+					"topThreadsPct": [
+						37.5,
+						35.8,
+						6.8,
+						2.6
+					],
+					"rssMb": 891.9,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 40.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943706336,
+					"cpuPct": 76.3,
+					"topThreadsPct": [
+						34.3,
+						31.7,
+						5.1,
+						2.6
+					],
+					"rssMb": 917.7,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 40.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943707487,
+					"cpuPct": 80.8,
+					"topThreadsPct": [
+						34.8,
+						33,
+						4.3,
+						1.7
+					],
+					"rssMb": 931.4,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 40.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943708627,
+					"cpuPct": 66.7,
+					"topThreadsPct": [
+						28.9,
+						28.1,
+						2.6,
+						2.6
+					],
+					"rssMb": 894,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 41.4,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943709771,
+					"cpuPct": 73.4,
+					"topThreadsPct": [
+						33.2,
+						30.6,
+						3.5,
+						1.7
+					],
+					"rssMb": 915.7,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 41.4,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943710929,
+					"cpuPct": 71.7,
+					"topThreadsPct": [
+						33.7,
+						29.4,
+						2.6,
+						2.6
+					],
+					"rssMb": 865,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 41.4,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943712076,
+					"cpuPct": 79.3,
+					"topThreadsPct": [
+						38.4,
+						30.5,
+						3.5,
+						1.7
+					],
+					"rssMb": 862.8,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 41.4,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943713199,
+					"cpuPct": 81,
+					"topThreadsPct": [
+						35.6,
+						34.7,
+						2.7,
+						2.7
+					],
+					"rssMb": 873.7,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 41.7,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943714333,
+					"cpuPct": 76.7,
+					"topThreadsPct": [
+						34.4,
+						33.5,
+						3.5,
+						2.6
+					],
+					"rssMb": 878.2,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 41.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943715482,
+					"cpuPct": 72.2,
+					"topThreadsPct": [
+						33.9,
+						28.7,
+						2.6,
+						1.7
+					],
+					"rssMb": 867,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 41.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943716623,
+					"cpuPct": 75.4,
+					"topThreadsPct": [
+						35.9,
+						29.8,
+						2.6,
+						2.6
+					],
+					"rssMb": 863.2,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 41.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943717759,
+					"cpuPct": 69.5,
+					"topThreadsPct": [
+						32.6,
+						28.2,
+						2.6,
+						2.6
+					],
+					"rssMb": 908.5,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 42.4,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943718901,
+					"cpuPct": 70.9,
+					"topThreadsPct": [
+						34.2,
+						27.1,
+						2.6,
+						2.6
+					],
+					"rssMb": 882.1,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 42.4,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943720049,
+					"cpuPct": 75.8,
+					"topThreadsPct": [
+						39.2,
+						26.1,
+						3.5,
+						1.7
+					],
+					"rssMb": 865.6,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 42.7,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943721201,
+					"cpuPct": 77.3,
+					"topThreadsPct": [
+						33.9,
+						32.1,
+						3.5,
+						2.6
+					],
+					"rssMb": 881.3,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 42.7,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943722348,
+					"cpuPct": 76.7,
+					"topThreadsPct": [
+						36.6,
+						31.4,
+						3.5,
+						2.6
+					],
+					"rssMb": 854.8,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 42.7,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943723512,
+					"cpuPct": 61.9,
+					"topThreadsPct": [
+						27.5,
+						26.6,
+						2.6,
+						1.7
+					],
+					"rssMb": 865,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 42.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943724676,
+					"cpuPct": 74.7,
+					"topThreadsPct": [
+						33.5,
+						30.9,
+						3.4,
+						1.7
+					],
+					"rssMb": 868.7,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 45.4,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943725919,
+					"cpuPct": 82.1,
+					"topThreadsPct": [
+						37.8,
+						34.6,
+						3.2,
+						2.4
+					],
+					"rssMb": 869.4,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.2,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943727118,
+					"cpuPct": 77.6,
+					"topThreadsPct": [
+						35.9,
+						30.9,
+						3.3,
+						2.5
+					],
+					"rssMb": 873.1,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.2,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943728253,
+					"cpuPct": 70.5,
+					"topThreadsPct": [
+						30.8,
+						30.8,
+						2.6,
+						2.6
+					],
+					"rssMb": 871.9,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.4,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943729369,
+					"cpuPct": 66.3,
+					"topThreadsPct": [
+						29.6,
+						27.8,
+						2.7,
+						0.9
+					],
+					"rssMb": 876.1,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.4,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943730505,
+					"cpuPct": 61.6,
+					"topThreadsPct": [
+						27.3,
+						25.5,
+						2.6,
+						1.8
+					],
+					"rssMb": 882.7,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.7,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943731652,
+					"cpuPct": 71.5,
+					"topThreadsPct": [
+						33.1,
+						30.5,
+						3.5,
+						1.7
+					],
+					"rssMb": 882.1,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.7,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943732801,
+					"cpuPct": 82.7,
+					"topThreadsPct": [
+						39.2,
+						30.5,
+						4.4,
+						2.6
+					],
+					"rssMb": 913.6,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943733951,
+					"cpuPct": 71.3,
+					"topThreadsPct": [
+						31.3,
+						31.3,
+						2.6,
+						2.6
+					],
+					"rssMb": 900.6,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 46.9,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943735097,
+					"cpuPct": 69.8,
+					"topThreadsPct": [
+						33.2,
+						28.8,
+						2.6,
+						1.7
+					],
+					"rssMb": 893.9,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 47.2,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943736237,
+					"cpuPct": 73.7,
+					"topThreadsPct": [
+						33.3,
+						30.7,
+						2.6,
+						2.6
+					],
+					"rssMb": 892,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 47.2,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943737374,
+					"cpuPct": 73,
+					"topThreadsPct": [
+						33.4,
+						29.9,
+						3.5,
+						1.8
+					],
+					"rssMb": 898.8,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 47.4,
+						"shedding": null
+					}
+				},
+				{
+					"at": 1791943738529,
+					"cpuPct": 87.4,
+					"topThreadsPct": [
+						39,
+						35.5,
+						3.5,
+						2.6
+					],
+					"rssMb": 865.2,
+					"state": {
+						"residentCells": 35,
+						"capacityWaiting": 0,
+						"activationWaiting": 0,
+						"restoring": 0,
+						"cellIsolates": 2,
+						"cellIsolateHeapMb": 47.4,
+						"shedding": null
+					}
+				}
+			]
+		}
+	],
+	"verdicts": [
+		{
+			"objective": "O8",
+			"metric": "accepted p99 ms",
+			"measured": 245.887,
+			"limit": 50,
+			"holds": false
+		},
+		{
+			"objective": "O8",
+			"metric": "refusals: p99 ms to the refusal",
+			"measured": 0,
+			"limit": 1000,
+			"holds": true
+		},
+		{
+			"objective": "O8",
+			"metric": "max wait of any request ms",
+			"measured": 335.457,
+			"limit": 1000,
+			"holds": true
+		}
+	],
+	"notes": []
+}
