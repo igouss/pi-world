@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VmPool, type PoolHead } from "../src/world/vm-pool.ts";
+import { BUSY, VmPool, type PoolHead } from "../src/world/vm-pool.ts";
 import { WorldVm } from "../src/world/world-vm.ts";
 import { wasm } from "./wasm.ts";
 
@@ -16,7 +16,7 @@ interface Counted {
 }
 
 /** A pool of up to `max` VMs, `warm` of them kept warm, that counts the VMs it opens and holds. */
-async function countedPool(max: number = 4, warm: number = WARM): Promise<Counted> {
+async function countedPool(max: number = 4, warm: number = WARM, maxWaitMs?: number): Promise<Counted> {
 	const first: WorldVm = await WorldVm.create(wasm);
 	const head: PoolHead = { revision: 0, snapshot: first.snapshot() };
 	first.develop(`define("one", () => 1);`, { kind: "attempt", at: 0, seed: 1 });
@@ -35,13 +35,35 @@ async function countedPool(max: number = 4, warm: number = WARM): Promise<Counte
 		};
 		return vm;
 	};
-	return { pool: new VmPool(open, max, warm), head, next, live: () => live, opened: () => opened };
+	return { pool: new VmPool(open, max, warm, maxWaitMs), head, next, live: () => live, opened: () => opened };
 }
 
 /** Lets the pool's background recycling finish. */
 const settled = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 50));
 
 describe("VmPool", () => {
+	it("refuses a call that found no VM free within its wait, and gives the slot to no one", async () => {
+		const { pool, head } = await countedPool(1, 0, 50);
+		let release!: () => void;
+		const holding = pool.run(head, () => new Promise<number>((resolve) => (release = () => resolve(1))));
+		const started = Date.now();
+		expect(await pool.run(head, async () => 2)).toBe(BUSY);
+		expect(Date.now() - started).toBeGreaterThanOrEqual(45);
+		release();
+		expect(await holding).toBe(1);
+		expect(await pool.run(head, async () => 3)).toBe(3);
+	});
+
+	it("runs a waiting call that a VM came free for before its wait ran out", async () => {
+		const { pool, head } = await countedPool(1, 0, 500);
+		let release!: () => void;
+		const holding = pool.run(head, () => new Promise<number>((resolve) => (release = () => resolve(1))));
+		const waiting = pool.run(head, async () => 2);
+		setTimeout(() => release(), 20);
+		expect(await waiting).toBe(2);
+		expect(await holding).toBe(1);
+	});
+
 	it("keeps no more VMs warm than asked when calls finish together", async () => {
 		const { pool, head, live } = await countedPool();
 		await Promise.all([pool.run(head, async () => 1), pool.run(head, async () => 2), pool.run(head, async () => 3)]);

@@ -10,7 +10,7 @@ import { wasm } from "./wasm.ts";
 export type TestWorldDeps = WorldDeps & { readonly session: Session; readonly data: MemoryDataPort; readonly blobs: MemoryBlobStore; readonly calls: LocalCallRunner };
 
 /** A world in memory with its calls in this process, as tests run it. */
-export function worldDeps(options: { peers?: (chain: readonly string[]) => PeerPort; concurrentCalls?: number; now?: () => number } = {}): TestWorldDeps {
+export function worldDeps(options: { peers?: (chain: readonly string[]) => PeerPort; concurrentCalls?: number; maxWaitMs?: number; now?: () => number } = {}): TestWorldDeps {
 	const blobs = new MemoryBlobStore();
 	const data = new MemoryDataPort();
 	const calls = new LocalCallRunner({
@@ -23,6 +23,7 @@ export function worldDeps(options: { peers?: (chain: readonly string[]) => PeerP
 		},
 		...(options.peers ? { peers: (chain, grants) => grantedPeers(options.peers!(chain), grants) } : {}),
 		...(options.concurrentCalls ? { concurrentCalls: options.concurrentCalls } : {}),
+		...(options.maxWaitMs ? { maxWaitMs: options.maxWaitMs } : {}),
 	});
 	return { session: createSession(new MemoryStorage()), blobs, data, calls, wasm, ...(options.now ? { now: options.now } : {}) };
 }

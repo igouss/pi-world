@@ -16,8 +16,8 @@ const slowPeer: PeerTransport = {
 	functions: async () => [],
 };
 
-async function world(concurrentCalls?: number): Promise<World> {
-	const opened = await World.open(worldDeps({ peers: (chain) => chainedPeers("a", chain, slowPeer), ...(concurrentCalls ? { concurrentCalls } : {}) }));
+async function world(concurrentCalls?: number, maxWaitMs?: number): Promise<World> {
+	const opened = await World.open(worldDeps({ peers: (chain) => chainedPeers("a", chain, slowPeer), ...(concurrentCalls ? { concurrentCalls } : {}), ...(maxWaitMs ? { maxWaitMs } : {}) }));
 	await opened.develop(
 		`define("version", () => 1); define("viaSlow", async () => { await worlds.call("b", "x"); return version(); }); define("quick", () => "quick");`,
 		"setup",
@@ -60,6 +60,14 @@ describe("concurrent calls to one world", () => {
 		expect(three.ms).toBeLessThan(3 * DELAY_MS);
 	});
 
+	it("refuses a call as busy, recording no incident, once every VM is taken past the wait", async () => {
+		const a = await world(1, 50);
+		const holding = a.call("viaSlow", []);
+		expect(await a.call("quick", [])).toMatchObject({ ok: false, failure: "busy" });
+		expect((await holding).ok).toBe(true);
+		expect(a.incidents.openCount()).toBe(0);
+	});
+
 	it("keeps each call's heap changes to itself", async () => {
 		const a = await world();
 		await a.develop(`const s = state("s", () => ({ n: 0 })); define("bumpAfterWait", async () => { s.n++; await worlds.call("b", "x"); return s.n; });`, "bump", operator);
@@ -77,6 +85,30 @@ describe("concurrent calls to one world", () => {
 		expect(await a.call("read", [])).toEqual({ ok: true, value: null });
 		expect(await writing).toEqual({ ok: true, value: 1 });
 		expect(await a.call("read", [])).toEqual({ ok: true, value: 1 });
+	});
+});
+
+describe("serializable calls", () => {
+	it("count every one of concurrent increments that read, await another world, then write", async () => {
+		const a = await world();
+		await a.develop(`define("bump", async () => { const n = data.get("n") ?? 0; await worlds.call("b", "x"); data.set("n", n + 1); return n + 1; }); define("n", () => data.get("n") ?? 0);`, "bump", operator);
+		const outcomes = await Promise.all(Array.from({ length: 4 }, () => a.call("bump", [])));
+		expect(outcomes.every((o) => o.ok)).toBe(true);
+		expect(await a.call("n", [])).toEqual({ ok: true, value: 4 });
+		expect(outcomes.map((o) => (o.ok ? o.value : null)).sort()).toEqual([1, 2, 3, 4]);
+	});
+
+	it("give up with a conflict, writing nothing, when what a call reads changes under every run", async () => {
+		const deps = worldDeps();
+		const a = await World.open(deps);
+		await a.develop(`define("copy", () => { data.set("copy", data.get("x") ?? null); return true; });`, "copy", operator);
+		let reads = 0;
+		const get = deps.data.get.bind(deps.data);
+		// Another writer changes x between every read of a run and its commit.
+		deps.data.get = (key) => (key === "x" ? String(reads++) : get(key));
+		const outcome = await a.call("copy", []);
+		expect(outcome).toMatchObject({ ok: false, failure: "conflict" });
+		expect(deps.data.get("copy")).toBeUndefined();
 	});
 });
 

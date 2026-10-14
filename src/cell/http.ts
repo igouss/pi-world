@@ -1,6 +1,6 @@
 /** JSON in and out of the HTTP routes. Responses are never cached: they show live world state. */
-export function json(value: unknown, status: number = 200): Response {
-	return Response.json(value, { status, headers: { "cache-control": "no-store" } });
+export function json(value: unknown, status: number = 200, headers: Record<string, string> = {}): Response {
+	return Response.json(value, { status, headers: { "cache-control": "no-store", ...headers } });
 }
 
 /** The request body as JSON; a body that does not parse is the caller's error. */

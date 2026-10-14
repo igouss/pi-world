@@ -12,14 +12,24 @@ interface Idle {
 	readonly revision: number;
 }
 
+/** What `VmPool.run` answers when no VM came free within the pool's wait: the call did not run. */
+export const BUSY: unique symbol = Symbol("busy");
+
+interface Waiter {
+	readonly grant: (granted: boolean) => void;
+	readonly timer: ReturnType<typeof setTimeout> | undefined;
+}
+
 /**
  * VMs for calls, so a world answers several calls at once. Each call gets a VM at the head it names and keeps it until
  * it settles, awaits on other worlds included; the VM then returns to the newest head seen, in the background. At
- * most `max` VMs exist at a time; further calls wait for one. Up to `warm` idle VMs are kept ready.
+ * most `max` VMs exist at a time; further calls wait for one, for at most `maxWaitMs`, and are then refused with
+ * `BUSY`, so an overloaded world refuses work instead of queueing it without bound. Up to `warm` idle VMs are kept
+ * ready.
  */
 export class VmPool {
 	private readonly idle: Idle[] = [];
-	private readonly waiting: (() => void)[] = [];
+	private readonly waiting: Waiter[] = [];
 	private active: number = 0;
 	/** VMs returning to the newest head, which count as warm while they reset. */
 	private resetting: number = 0;
@@ -29,12 +39,14 @@ export class VmPool {
 		private readonly open: (snapshot: Snapshot) => Promise<WorldVm>,
 		private readonly max: number,
 		private readonly warm: number,
+		/** How long a call waits for a VM before it is refused; `undefined` waits as long as it takes. */
+		private readonly maxWaitMs?: number,
 	) {}
 
-	async run<T>(head: PoolHead, body: (vm: WorldVm) => Promise<T>): Promise<T> {
+	async run<T>(head: PoolHead, body: (vm: WorldVm) => Promise<T>): Promise<T | typeof BUSY> {
 		const newest = !this.newest || head.revision >= this.newest.revision ? head : this.newest;
 		this.newest = newest;
-		await this.slot();
+		if (!(await this.slot())) return BUSY;
 		let vm: WorldVm | undefined;
 		try {
 			vm = this.takeIdle(head.revision) ?? (await this.open(head.snapshot));
@@ -68,7 +80,7 @@ export class VmPool {
 		this.resetting++;
 		try {
 			const head = this.newest!;
-			await vm.reset(head.snapshot);
+			await vm.rewind(head.snapshot);
 			this.idle.push({ vm, revision: head.revision });
 		} catch {
 			vm.dispose();
@@ -78,18 +90,35 @@ export class VmPool {
 		}
 	}
 
-	private async slot(): Promise<void> {
+	/** A slot for one call: at once if one is free, else the next freed one, unless the wait runs out first. */
+	private slot(): Promise<boolean> {
 		if (this.active < this.max) {
 			this.active++;
-			return;
+			return Promise.resolve(true);
 		}
-		await new Promise<void>((resolve) => this.waiting.push(resolve));
+		return new Promise<boolean>((grant) => {
+			const waiter: Waiter = {
+				grant,
+				timer:
+					this.maxWaitMs === undefined
+						? undefined
+						: setTimeout(() => {
+								this.waiting.splice(this.waiting.indexOf(waiter), 1);
+								grant(false);
+							}, this.maxWaitMs),
+			};
+			this.waiting.push(waiter);
+		});
 	}
 
 	/** A freed slot passes straight to the next waiting call. */
 	private free(): void {
 		const next = this.waiting.shift();
-		if (next) next();
-		else this.active--;
+		if (!next) {
+			this.active--;
+			return;
+		}
+		clearTimeout(next.timer);
+		next.grant(true);
 	}
 }

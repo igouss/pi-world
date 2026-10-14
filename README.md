@@ -407,6 +407,7 @@ checks. Designed but not built: `answer`, pauses.
 | `POST /api/worlds/:id/develop {source, summary}` | Develop by hand, through the same attempt |
 | `GET /api/worlds/:id/revisions[/:n]`, `POST /api/worlds/:id/rollback {revision, reason}` | History and rollback |
 | `GET /api/worlds/:id/checks`, `DELETE /api/worlds/:id/checks/:name {reason}` | Checks; removal needs a reason |
+| `POST /api/worlds/:id/checks {name, expression, counterexample, generator?}` | Propose a check as the operator; the same enrolment rule as the agent's `propose_check` |
 | `GET /api/worlds/:id/data?prefix=`, `DELETE /api/worlds/:id/data/:key` | The world's data, held in its runtime isolate |
 | `POST /api/worlds/:id/model {model}` | Choose the Claude model |
 | `GET /api/account`, `POST /api/account/login`, `POST /api/account/login/finish {code}`, `POST /api/account/token {token}`, `POST /api/account/logout` | Claude login |

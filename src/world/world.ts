@@ -220,7 +220,8 @@ export class World {
 	 */
 	async call(name: string, args: readonly unknown[], chain: readonly string[] = []): Promise<CallOutcome> {
 		const { outcome, revision, defined } = await this.run(name, args, chain);
-		if (outcome.ok || !defined) return outcome;
+		// A refusal for load never ran the definition, so there is nothing in it to fix.
+		if (outcome.ok || !defined || outcome.failure === "busy") return outcome;
 		const incident = await this.incidents.record({ name, args, failure: outcome.failure, error: outcome.error, revision });
 		return { ...outcome, incident };
 	}

@@ -94,6 +94,7 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 			// A caller that prefers to wait gets the incident to follow until it is retried or answered.
 			if (!outcome.ok && outcome.incident !== undefined && /\brespond-async\b/.test(request.headers.get("prefer") ?? ""))
 				return json({ incident: outcome.incident, status: "open", location: incidentPath(runtime.summary().id, outcome.incident) }, 202);
+			if (!outcome.ok && outcome.failure === "busy") return json(outcome, 503, { "retry-after": "1" });
 			return json(outcome, outcome.ok ? 200 : 422);
 		}
 		case "GET incidents": {
@@ -158,6 +159,14 @@ async function routeApi(request: Request, url: URL, parts: string[], runtime: Wo
 		}
 		case "GET checks":
 			return json(world.checks());
+		case "POST checks": {
+			const proposal = await read<{ name?: string; expression?: string; counterexample?: string; generator?: unknown }>(request);
+			if (!proposal.name?.trim() || !proposal.expression?.trim() || !proposal.counterexample?.trim())
+				return json({ error: "a check needs a name, an expression and a counterexample" }, 400);
+			const { name, expression, counterexample, generator } = proposal;
+			const result = await world.proposeCheck({ name, expression, counterexample, generator }, { by: "operator" });
+			return json(result, result.status === "enrolled" ? 200 : 422);
+		}
 		case "DELETE checks": {
 			if (!arg) return json({ error: "name the check: /checks/:name" }, 400);
 			const { reason } = await read<{ reason?: string }>(request);

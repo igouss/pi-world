@@ -3,6 +3,7 @@ import type { DataPort } from "./data-port.ts";
 import type { PeerPort } from "./peer-port.ts";
 import { PRELUDE, PRELUDE_VERSION } from "./prelude.ts";
 import { PRELUDE_UPGRADES } from "./prelude-upgrades.ts";
+import { rewindInPlace } from "./quickjs-rewind.ts";
 import { mulberry32 } from "./random.ts";
 import { firstLine } from "../api/text.ts";
 
@@ -23,7 +24,7 @@ export type AttemptMode = Mode & { kind: "attempt" };
 /** A check's mode: an attempt's pinned clock and seed, with a fresh scratch store. */
 export type CheckMode = Mode & { kind: "check" };
 
-export type Failure = "threw" | "budget" | "host-call" | "pending";
+export type Failure = "threw" | "budget" | "host-call" | "pending" | "conflict" | "busy";
 
 export type Outcome =
 	| { readonly ok: true; readonly value: unknown }
@@ -131,6 +132,17 @@ export class WorldVm {
 		const next = await this.load(snapshot);
 		this.vm.dispose();
 		this.vm = next;
+	}
+
+	/**
+	 * Return this heap to `snapshot` for another call, in place when it can be (`rewindInPlace`), which costs a copy
+	 * of the memory rather than a new WebAssembly instance. Only for a VM that is never snapshotted: a heap whose memory
+	 * grew stays at its grown size, so a snapshot of it would not be byte-identical to one of a fresh restore.
+	 */
+	async rewind(snapshot: Snapshot): Promise<void> {
+		if (!rewindInPlace(this.vm, snapshot, this.options())) return this.reset(snapshot);
+		for (const name of HOST_FUNCTIONS) this.vm.registerHostCallback(name, this.hostFunction(name));
+		this.requests = [];
 	}
 
 	private async load(snapshot: Snapshot): Promise<QuickJS> {
