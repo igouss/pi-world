@@ -89,7 +89,7 @@ This approves:
   as the upgrade path. Each is filed, not scheduled; the numbers inside them are not approved;
 - `evaluation.md` removed: its findings live in `design.md` and this file.
 
-Nothing else is approved: the package's home (standalone or upstream in pi), the first milestone's scope, the web UI
+Nothing else is approved: the package's home (standalone or upstream in pi), the scheduling of any bead, the web UI
 stack, dependency choices beyond those named here, and every other policy question go back to the operator.
 
 ## Prototype assumptions

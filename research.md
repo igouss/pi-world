@@ -175,8 +175,8 @@ Little or no use now:
 | Cache | celld's cache always misses |
 | `storage.sync()` | The output gate already holds responses until their writes are durable |
 
-Suggested order: hibernatable WebSockets (fixes a stall already seen), alarms for scheduled world code (the most visible
-missing capability), then Queues or Workflows once open decision 14 is settled.
+Of the rest, alarms fit scheduled world code, and Queues or Workflows fit once open decision 14 is settled
+(`plan.md`, "Later").
 
 ### Spike results, 2026-10-07
 
@@ -198,8 +198,7 @@ region, so latencies are higher than on the node would be.
 
 What this changes:
 
-- Hibernatable WebSockets remove the deploy stall (open check 8) and let idle worlds hibernate. They are the first
-  change to make.
+- Hibernatable WebSockets remove the deploy stall (open check 8) and let idle worlds hibernate; the UI uses them.
 - Scheduled world code on alarms works and survives a crash, but a crash delays it by about a minute on one node.
 - Pauses as Workflows (open decision 8) keep their state across a crash; the step results are the durable record,
   not a heap continuation.
