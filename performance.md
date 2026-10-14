@@ -198,3 +198,8 @@ list as checked is not verified.
 - Develop percentiles: each point has 10 to 20 develops (one every two seconds for 40 s), so its p99 is its maximum.
 - Profiles on the node: the profiling celld was built for x86-64 only.
 - Calls between worlds across nodes: one node.
+- The chain of three under celld dev: p99 154 ms (`dev/chain-…`, 207 samples, so the p99 is about its two largest),
+  against 58 ms in an earlier dev run and 92 to 99 ms on the node, where O2 holds. Not explained.
+
+`npm run perf -- gate` lists every violation above from the newest result of each scenario; `npm run perf -- ratchet`
+holds them against `perf/baselines.json`.

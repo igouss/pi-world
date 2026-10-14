@@ -10,9 +10,14 @@ export function results(args: readonly string[]): RunRecord[] {
 	const root = args[0] ?? join(PERF, "results");
 	const newest = new Map<string, string>();
 	for (const kind of entries(root)) {
-		for (const file of entries(join(root, kind)).filter((f) => f.endsWith(".json")).sort()) newest.set(`${kind}/${file.replace(/-\d{8}T.*$/, "")}`, join(root, kind, file));
+		for (const file of entries(join(root, kind)).filter((f) => f.endsWith(".json")).sort()) newest.set(`${kind}/${scenarioOf(file)}`, join(root, kind, file));
 	}
 	return [...newest.values()].map(load);
+}
+
+/** The scenario a result file is of: its name without the start stamp `fileStamp` wrote (`-2026-10-14T012818Z.json`). */
+export function scenarioOf(file: string): string {
+	return file.replace(/-\d{4}-\d{2}-\d{2}T\d{6}Z\.json$/, "");
 }
 
 function load(file: string): RunRecord {

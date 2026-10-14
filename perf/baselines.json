@@ -5,43 +5,43 @@
 		"git": "a781c76-dirty"
 	},
 	"dev/chain/O2/tripIn (three worlds) p99 ms": {
-		"best": 57.951,
-		"at": "2026-10-14T01:04:06.920Z",
+		"best": 153.727,
+		"at": "2026-10-14T02:00:59.211Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/chain/O7/tripIn (three worlds) failed or timed out": {
 		"best": 0,
-		"at": "2026-10-14T01:04:06.920Z",
+		"at": "2026-10-14T02:00:59.211Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/develop/O3/develop (0 plain, 0 property) p50 ms": {
-		"best": 146.431,
-		"at": "2026-10-14T01:05:04.851Z",
+		"best": 201.343,
+		"at": "2026-10-14T01:38:43.460Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/develop/O3/develop (0 plain, 0 property) p99 ms": {
-		"best": 223.231,
-		"at": "2026-10-14T01:05:04.851Z",
+		"best": 298.239,
+		"at": "2026-10-14T01:38:43.460Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/develop/O7/develop (0 plain, 0 property) failed or timed out": {
 		"best": 0,
-		"at": "2026-10-14T01:05:04.851Z",
+		"at": "2026-10-14T01:38:43.460Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/develop/O3/develop (1 plain, 0 property) p50 ms": {
-		"best": 161.919,
-		"at": "2026-10-14T01:05:04.851Z",
+		"best": 180.991,
+		"at": "2026-10-14T01:38:43.460Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/develop/O3/develop (1 plain, 0 property) p99 ms": {
-		"best": 247.551,
-		"at": "2026-10-14T01:05:04.851Z",
+		"best": 431.103,
+		"at": "2026-10-14T01:38:43.460Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/develop/O7/develop (1 plain, 0 property) failed or timed out": {
 		"best": 0,
-		"at": "2026-10-14T01:05:04.851Z",
+		"at": "2026-10-14T01:38:43.460Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/develop/O3/develop (10 plain, 0 property) p50 ms": {
@@ -56,7 +56,7 @@
 	},
 	"dev/develop/O7/develop (10 plain, 0 property) failed or timed out": {
 		"best": 0,
-		"at": "2026-10-14T01:05:04.851Z",
+		"at": "2026-10-14T01:38:43.460Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/develop/O3/develop (0 plain, 1 property) p50 ms": {
@@ -71,7 +71,7 @@
 	},
 	"dev/develop/O7/develop (0 plain, 1 property) failed or timed out": {
 		"best": 0,
-		"at": "2026-10-14T01:05:04.851Z",
+		"at": "2026-10-14T01:38:43.460Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/develop/O3/develop (0 plain, 10 property) p50 ms": {
@@ -86,16 +86,36 @@
 	},
 	"dev/develop/O7/develop (0 plain, 10 property) failed or timed out": {
 		"best": 0,
-		"at": "2026-10-14T01:05:04.851Z",
+		"at": "2026-10-14T01:38:43.460Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/failure-storm/O1a/good convert p50 ms": {
-		"best": 4.171,
-		"at": "2026-10-14T02:10:30.965Z",
+		"best": 4.563,
+		"at": "2026-10-14T02:18:35.328Z",
 		"git": "822db16-dirty"
 	},
 	"dev/failure-storm/O1a/good convert p99 ms": {
 		"best": 12.095,
+		"at": "2026-10-14T02:18:35.328Z",
+		"git": "822db16-dirty"
+	},
+	"dev/failure-storm/O1a/good convert beside failures that record nothing p50 ms": {
+		"best": 4.263,
+		"at": "2026-10-14T02:18:35.328Z",
+		"git": "822db16-dirty"
+	},
+	"dev/failure-storm/O1a/good convert beside failures that record nothing p99 ms": {
+		"best": 10.767,
+		"at": "2026-10-14T02:18:35.328Z",
+		"git": "822db16-dirty"
+	},
+	"dev/failure-storm/O1a/good convert beside data writes p50 ms": {
+		"best": 4.139,
+		"at": "2026-10-14T02:18:35.328Z",
+		"git": "822db16-dirty"
+	},
+	"dev/failure-storm/O1a/good convert beside data writes p99 ms": {
+		"best": 12.743,
 		"at": "2026-10-14T02:18:35.328Z",
 		"git": "822db16-dirty"
 	},
@@ -114,60 +134,25 @@
 		"at": "2026-10-14T02:18:35.328Z",
 		"git": "822db16-dirty"
 	},
-	"dev/failure-storm/O1a/good convert beside failures that record nothing p50 ms": {
-		"best": 3.939,
-		"at": "2026-10-14T02:10:30.965Z",
-		"git": "822db16-dirty"
-	},
-	"dev/failure-storm/O1a/good convert beside failures that record nothing p99 ms": {
-		"best": 10.767,
-		"at": "2026-10-14T02:18:35.328Z",
-		"git": "822db16-dirty"
-	},
-	"dev/failure-storm/O1a/good convert beside data writes p50 ms": {
-		"best": 3.955,
-		"at": "2026-10-14T02:12:30.411Z",
-		"git": "822db16-dirty"
-	},
-	"dev/failure-storm/O1a/good convert beside data writes p99 ms": {
-		"best": 12.743,
-		"at": "2026-10-14T02:18:35.328Z",
-		"git": "822db16-dirty"
-	},
 	"dev/lost-update/correctness/bump: count after 20 successful concurrent increments": {
 		"best": 20,
 		"at": "2026-10-14T02:43:46.782Z",
 		"git": "4d25c8d-dirty"
-	},
-	"dev/lost-update/correctness/bumpSync: count after 20 successful concurrent increments": {
-		"best": 20,
-		"at": "2026-10-14T01:04:34.907Z",
-		"git": "a781c76-dirty"
-	},
-	"dev/lost-update/correctness/bump: count after 10 successful concurrent increments": {
-		"best": 10,
-		"at": "2026-10-14T02:01:27.124Z",
-		"git": "a781c76-dirty"
-	},
-	"dev/lost-update/correctness/bump: count after 11 successful concurrent increments": {
-		"best": 11,
-		"at": "2026-10-14T02:26:06.931Z",
-		"git": "f177479-dirty"
 	},
 	"dev/lost-update/correctness/bump: concurrent increments that succeeded": {
 		"best": 20,
 		"at": "2026-10-14T02:43:46.782Z",
 		"git": "4d25c8d-dirty"
 	},
+	"dev/lost-update/correctness/bumpSync: count after 20 successful concurrent increments": {
+		"best": 20,
+		"at": "2026-10-14T02:43:46.782Z",
+		"git": "4d25c8d-dirty"
+	},
 	"dev/lost-update/correctness/bumpSync: concurrent increments that succeeded": {
 		"best": 20,
-		"at": "2026-10-14T02:26:06.931Z",
-		"git": "f177479-dirty"
-	},
-	"dev/lost-update/correctness/bump: count after 14 successful concurrent increments": {
-		"best": 14,
-		"at": "2026-10-14T02:26:31.155Z",
-		"git": "f177479-dirty"
+		"at": "2026-10-14T02:43:46.782Z",
+		"git": "4d25c8d-dirty"
 	},
 	"dev/overload/O8/accepted p99 ms": {
 		"best": 25.311,
@@ -176,27 +161,27 @@
 	},
 	"dev/overload/O8/refusals: p99 ms to the refusal": {
 		"best": 0,
-		"at": "2026-10-14T01:04:38.058Z",
+		"at": "2026-10-14T02:01:30.593Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/overload/O8/max wait of any request ms": {
-		"best": 79.542,
-		"at": "2026-10-14T01:04:38.058Z",
+		"best": 191.544,
+		"at": "2026-10-14T02:01:30.593Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/read-call/O1a/convert p50 ms": {
-		"best": 4.119,
-		"at": "2026-10-14T01:33:40.613Z",
+		"best": 4.547,
+		"at": "2026-10-14T02:00:05.260Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/read-call/O1a/convert p99 ms": {
-		"best": 11.991,
-		"at": "2026-10-14T01:33:40.613Z",
+		"best": 13.767,
+		"at": "2026-10-14T02:00:05.260Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/read-call/O6a/convert failed or timed out": {
 		"best": 0,
-		"at": "2026-10-14T01:03:05.126Z",
+		"at": "2026-10-14T02:00:05.260Z",
 		"git": "a781c76-dirty"
 	},
 	"dev/slow-overload/O8/refused share of the offered calls": {
@@ -210,17 +195,27 @@
 		"git": "822db16-dirty"
 	},
 	"dev/slow-overload/O8/refusals: p99 ms to the refusal": {
-		"best": 9.071,
-		"at": "2026-10-14T02:01:57.266Z",
-		"git": "7106067-dirty"
+		"best": 1167.359,
+		"at": "2026-10-14T02:20:17.814Z",
+		"git": "822db16-dirty"
 	},
 	"dev/stall/O4/victim p99 rise with a call computing (ms)": {
-		"best": -115.3,
-		"at": "2026-10-14T02:03:28.787Z",
+		"best": 5.6,
+		"at": "2026-10-14T02:07:43.712Z",
 		"git": "a9acdf5-dirty"
 	},
 	"dev/stall/O9/call spin(3000000) service max (ms)": {
 		"best": 1769.429,
+		"at": "2026-10-14T02:07:43.712Z",
+		"git": "a9acdf5-dirty"
+	},
+	"dev/stall/O4/victim p99 rise with a world flooded with cheap calls (ms)": {
+		"best": 2.7,
+		"at": "2026-10-14T02:07:43.712Z",
+		"git": "a9acdf5-dirty"
+	},
+	"dev/stall/O9/stats @ 200/s service max (ms)": {
+		"best": 46.239,
 		"at": "2026-10-14T02:07:43.712Z",
 		"git": "a9acdf5-dirty"
 	},
@@ -235,22 +230,12 @@
 		"git": "a9acdf5-dirty"
 	},
 	"dev/stall/O4/victim p99 rise with a develop with 3 property checks (ms)": {
-		"best": -56.1,
-		"at": "2026-10-14T02:03:28.787Z",
+		"best": 73.2,
+		"at": "2026-10-14T02:07:43.712Z",
 		"git": "a9acdf5-dirty"
 	},
 	"dev/stall/O9/develop with property checks service max (ms)": {
-		"best": 216.576,
-		"at": "2026-10-14T01:07:01.717Z",
-		"git": "a781c76-dirty"
-	},
-	"dev/stall/O4/victim p99 rise with a world flooded with cheap calls (ms)": {
-		"best": -82,
-		"at": "2026-10-14T02:03:28.787Z",
-		"git": "a9acdf5-dirty"
-	},
-	"dev/stall/O9/stats @ 200/s service max (ms)": {
-		"best": 46.239,
+		"best": 303.56,
 		"at": "2026-10-14T02:07:43.712Z",
 		"git": "a9acdf5-dirty"
 	},
@@ -271,7 +256,7 @@
 	},
 	"dev/write-call/O6b/setTodo failed or timed out": {
 		"best": 0,
-		"at": "2026-10-14T01:03:39.947Z",
+		"at": "2026-10-14T02:00:32.389Z",
 		"git": "a781c76-dirty"
 	},
 	"node/chain/O2/tripIn (three worlds) p50 ms": {
@@ -280,13 +265,13 @@
 		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
 	},
 	"node/chain/O2/tripIn (three worlds) p99 ms": {
-		"best": 92.479,
-		"at": "2026-10-14T02:03:24.969Z",
+		"best": 99.263,
+		"at": "2026-10-14T02:24:59.922Z",
 		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
 	},
 	"node/chain/O7/tripIn (three worlds) failed or timed out": {
 		"best": 0,
-		"at": "2026-10-14T02:03:24.969Z",
+		"at": "2026-10-14T02:24:59.922Z",
 		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
 	},
 	"node/cold-call/O1c/cold call p99 ms (n=20, so p99 is the max)": {
@@ -295,18 +280,18 @@
 		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
 	},
 	"node/develop/O3/develop (0 plain, 0 property) p50 ms": {
-		"best": 198.143,
-		"at": "2026-10-14T02:04:38.188Z",
+		"best": 200.319,
+		"at": "2026-10-14T02:26:13.017Z",
 		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
 	},
 	"node/develop/O3/develop (0 plain, 0 property) p99 ms": {
-		"best": 281.855,
-		"at": "2026-10-14T02:04:38.188Z",
+		"best": 305.151,
+		"at": "2026-10-14T02:26:13.017Z",
 		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
 	},
 	"node/develop/O7/develop (0 plain, 0 property) failed or timed out": {
 		"best": 0,
-		"at": "2026-10-14T02:04:38.188Z",
+		"at": "2026-10-14T02:26:13.017Z",
 		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
 	},
 	"node/develop/O3/develop (1 plain, 0 property) p50 ms": {
@@ -379,21 +364,6 @@
 		"at": "2026-10-14T02:33:55.181Z",
 		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
 	},
-	"node/failure-storm/O1a/good convert beside failures p50 ms": {
-		"best": 3.203,
-		"at": "2026-10-14T02:33:55.181Z",
-		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
-	},
-	"node/failure-storm/O1a/good convert beside failures p99 ms": {
-		"best": 43.327,
-		"at": "2026-10-14T02:33:55.181Z",
-		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
-	},
-	"node/failure-storm/O9/failing call p99 ms (each records an incident)": {
-		"best": 23.967,
-		"at": "2026-10-14T02:33:55.181Z",
-		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
-	},
 	"node/failure-storm/O1a/good convert beside failures that record nothing p50 ms": {
 		"best": 3.081,
 		"at": "2026-10-14T02:33:55.181Z",
@@ -414,22 +384,32 @@
 		"at": "2026-10-14T02:33:55.181Z",
 		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
 	},
+	"node/failure-storm/O1a/good convert beside failures p50 ms": {
+		"best": 3.203,
+		"at": "2026-10-14T02:33:55.181Z",
+		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
+	},
+	"node/failure-storm/O1a/good convert beside failures p99 ms": {
+		"best": 43.327,
+		"at": "2026-10-14T02:33:55.181Z",
+		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
+	},
+	"node/failure-storm/O9/failing call p99 ms (each records an incident)": {
+		"best": 23.967,
+		"at": "2026-10-14T02:33:55.181Z",
+		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
+	},
 	"node/lost-update/correctness/bump: count after 20 successful concurrent increments": {
 		"best": 20,
 		"at": "2026-10-14T02:45:49.113Z",
 		"git": "c903365-dirty"
 	},
-	"node/lost-update/correctness/bumpSync: count after 20 successful concurrent increments": {
-		"best": 20,
-		"at": "2026-10-14T02:00:57.523Z",
-		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
-	},
-	"node/lost-update/correctness/bump: count after 12 successful concurrent increments": {
-		"best": 12,
-		"at": "2026-10-14T02:22:32.893Z",
-		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
-	},
 	"node/lost-update/correctness/bump: concurrent increments that succeeded": {
+		"best": 20,
+		"at": "2026-10-14T02:45:49.113Z",
+		"git": "c903365-dirty"
+	},
+	"node/lost-update/correctness/bumpSync: count after 20 successful concurrent increments": {
 		"best": 20,
 		"at": "2026-10-14T02:45:49.113Z",
 		"git": "c903365-dirty"
@@ -446,7 +426,7 @@
 	},
 	"node/overload/O8/refusals: p99 ms to the refusal": {
 		"best": 0,
-		"at": "2026-10-14T02:08:23.015Z",
+		"at": "2026-10-14T02:33:19.109Z",
 		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
 	},
 	"node/overload/O8/max wait of any request ms": {
@@ -466,13 +446,13 @@
 	},
 	"node/read-call/O6a/convert failed or timed out": {
 		"best": 0,
-		"at": "2026-10-14T02:01:02.511Z",
+		"at": "2026-10-14T02:22:37.480Z",
 		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
 	},
 	"node/slow-overload/O8/refused share of the offered calls": {
-		"best": 0.478,
-		"at": "2026-10-14T02:10:10.290Z",
-		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
+		"best": 0.517,
+		"at": "2026-10-14T02:45:54.872Z",
+		"git": "c903365-dirty"
 	},
 	"node/slow-overload/O8/accepted calls: max wait ms": {
 		"best": 1247.51,
@@ -480,9 +460,9 @@
 		"git": "c903365-dirty"
 	},
 	"node/slow-overload/O8/refusals: p99 ms to the refusal": {
-		"best": 20.959,
-		"at": "2026-10-14T02:10:10.290Z",
-		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
+		"best": 1079.295,
+		"at": "2026-10-14T02:45:54.872Z",
+		"git": "c903365-dirty"
 	},
 	"node/stall/O4/victim p99 rise with a call computing (ms)": {
 		"best": 16.2,
@@ -495,14 +475,14 @@
 		"git": "c903365-dirty"
 	},
 	"node/stall/O4/victim p99 rise with a world flooded with cheap calls (ms)": {
-		"best": 58.8,
-		"at": "2026-10-14T02:05:25.287Z",
-		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
+		"best": 89.4,
+		"at": "2026-10-14T02:46:24.714Z",
+		"git": "c903365-dirty"
 	},
 	"node/stall/O9/stats @ 200/s service max (ms)": {
-		"best": 186.634,
-		"at": "2026-10-14T02:29:52.187Z",
-		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
+		"best": 191.704,
+		"at": "2026-10-14T02:46:24.714Z",
+		"git": "c903365-dirty"
 	},
 	"node/stall/O4/victim p99 rise with a develop computing (ms)": {
 		"best": 14.3,
@@ -510,9 +490,9 @@
 		"git": "c903365-dirty"
 	},
 	"node/stall/O9/develop running spin(3000000) service max (ms)": {
-		"best": 705.276,
-		"at": "2026-10-14T02:05:25.287Z",
-		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
+		"best": 979.371,
+		"at": "2026-10-14T02:46:24.714Z",
+		"git": "c903365-dirty"
 	},
 	"node/stall/O4/victim p99 rise with a develop with 3 property checks (ms)": {
 		"best": 4.1,
@@ -530,13 +510,13 @@
 		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
 	},
 	"node/write-call/O1b/setTodo p99 ms": {
-		"best": 302.591,
-		"at": "2026-10-14T02:02:13.715Z",
+		"best": 302.847,
+		"at": "2026-10-14T02:23:48.438Z",
 		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
 	},
 	"node/write-call/O6b/setTodo failed or timed out": {
 		"best": 0,
-		"at": "2026-10-14T02:02:13.715Z",
+		"at": "2026-10-14T02:23:48.438Z",
 		"git": "not recorded (the node's container had no git); the harness of commits ae6117a..97c1b1f"
 	}
 }
