@@ -175,6 +175,19 @@ describe("the agent grows the world", () => {
 		expect(world.checks().checks[0]?.generator).toEqual({ int: [-100, 100] });
 	});
 
+	it("turns away a generator given as a JSON string before it reaches the world", async () => {
+		const { faux, world, root } = await setup();
+		await world.develop(`function double(x) { return 2 * x; }`, "double", { by: "operator" });
+		faux.setResponses([
+			call("propose_check", { name: "double is even", expression: "double(input) % 2 === 0", counterexample: `function double(x) { return x; }`, generator: `{"int":[-100,100]}` }),
+			fauxAssistantMessage("Retrying."),
+		]);
+		await ask(root, "Protect double.");
+		const [result] = await toolResults(root);
+		expect(result).toMatch(/generator.*must be object/s);
+		expect(await world.rejections(10)).toEqual([]);
+	});
+
 	it("lists open incidents, shows one in full, and retries one after a fix", async () => {
 		const { faux, world, root } = await setup();
 		await world.develop(`function half(n) { if (n % 2) throw new Error("odd"); return n / 2; }`, "half", { by: "operator" });

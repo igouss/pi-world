@@ -15,10 +15,14 @@ export function proposeCheckTool(world: World) {
 			}),
 			counterexample: Type.String({ description: "A develop source that breaks the behaviour" }),
 			generator: Type.Optional(
-				Type.Unknown({
-					description:
-						'For a property check, how `input` is generated, as JSON: {"int":[min,max]}, {"bool":true}, {"string":{"max":10,"alphabet":"ab"}}, {"oneOf":[values]}, {"const":value}, {"array":generator,"min":0,"max":10}, {"record":{"key":generator}}',
-				}),
+				Type.Object(
+					{},
+					{
+						additionalProperties: true,
+						description:
+							'For a property check, how `input` is generated, as an object (not a string): {"int":[min,max]}, {"bool":true}, {"string":{"max":10,"alphabet":"ab"}}, {"oneOf":[values]}, {"const":value}, {"array":generator,"min":0,"max":10}, {"record":{"key":generator}}',
+					},
+				),
 			),
 		}),
 		replay: "safe",
