@@ -105,8 +105,8 @@ The rules the implementation obeys, each with the fact that forces it.
   and a shared isolate would let one world's CPU work hold up the others. The facet owns the world's data in its own
   SQLite (synchronous, as world code needs), fetches snapshots from the cell by content hash, and reaches other worlds
   only through the `WorldHost` capability. The runtime bundle is built from `src/isolate/runtime/` and the world core
-  alone, so host code cannot leak into it. Develops and checks stay on the cell's main VM: they touch no data and are
-  bounded by the time budget. Snapshots reach a runner by content hash from the blob store, so `World` does not
+  alone, so host code cannot leak into it. Develops and checks stay on the cell's main VM, in the cell isolate that
+  worlds share: they touch no data, but their CPU holds up other worlds' cells (research, open check 10). Snapshots reach a runner by content hash from the blob store, so `World` does not
   serve them.
 - **`execute` is a preview.** Its data writes go to an overlay that is dropped afterwards (`OverlayDataPort`), and
   the result lists them. An overlay rather than a SQL transaction, because an evaluation can span awaits.

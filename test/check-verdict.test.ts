@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { checkVerdict } from "../src/world/check-verdict.ts";
-import { WorldVm, type AttemptMode } from "../src/world/world-vm.ts";
+import { describe, expect, it, vi, type MockResult } from "vitest";
+import { checkVerdict, PROPERTY_CASES } from "../src/world/check-verdict.ts";
+import { DEFAULT_LIMITS, WorldVm, type AttemptMode, type Outcome } from "../src/world/world-vm.ts";
 import { wasm } from "./wasm.ts";
 
 const mode: AttemptMode = { kind: "attempt", at: 1_750_000_000_000, seed: 3 };
 
-async function world(source: string): Promise<WorldVm> {
-	const vm = await WorldVm.create(wasm);
+async function world(source: string, budget?: number): Promise<WorldVm> {
+	const vm = await WorldVm.create(wasm, budget === undefined ? undefined : { ...DEFAULT_LIMITS, budget });
 	const developed = vm.develop(source, mode);
 	if (!developed.ok) throw new Error(developed.error);
 	return vm;
@@ -58,4 +58,40 @@ describe("checkVerdict", () => {
 		const vm = await world(`define("boom", (n) => { if (n > 5) throw new Error("too big"); return true; });`);
 		expect(await checkVerdict(vm, { expression: "boom(input)", generator: { int: [0, 100] } }, mode)).toBe("on input 6: threw: Error: too big");
 	});
+
+	it("tries a property on PROPERTY_CASES inputs", async () => {
+		const vm = await world(`define("double", (x) => 2 * x);`);
+		const outcomes = evaluations(vm);
+		await checkVerdict(vm, { expression: "double(input) % 2 === 0", generator: { int: [-1000, 1000] } }, mode);
+		expect(outcomes).toHaveLength(PROPERTY_CASES);
+	});
+
+	it("reports the input a property ran out of budget on without shrinking it", async () => {
+		const vm = await world(`define("hangsOnBig", (xs) => { if (xs.length > 3 && xs.some((x) => x > 20)) for (;;) {} return true; });`, HANG_BUDGET);
+		const outcomes = evaluations(vm);
+		const verdict = await checkVerdict(vm, { expression: "hangsOnBig(input)", generator: { array: { int: [0, 50] }, min: 0, max: 10 } }, mode);
+		expect(verdict).toMatch(/^on input \[(\d+,){4,}\d+\]: budget: ran out of budget/);
+		expect(await budgetFailures(outcomes)).toBe(1);
+	});
+
+	it("stops shrinking at the first smaller input the property runs out of budget on", async () => {
+		const vm = await world(`define("hangsOnZero", (xs) => { if (xs.includes(0)) for (;;) {} return xs.length < 3; });`, HANG_BUDGET);
+		const outcomes = evaluations(vm);
+		const verdict = await checkVerdict(vm, { expression: "hangsOnZero(input)", generator: { array: { int: [0, 50] }, min: 0, max: 10 } }, mode);
+		expect(verdict).toMatch(/^on input \[(\d+,){2,}\d+\]: returned false$/);
+		expect(await budgetFailures(outcomes)).toBe(1);
+	});
 });
+
+/** Enough ticks for every property above on inputs it does not hang on. */
+const HANG_BUDGET: number = 500;
+
+/** The results of every evaluation `vm` runs from now on. */
+function evaluations(vm: WorldVm): MockResult<Promise<Outcome>>[] {
+	return vi.spyOn(vm, "evaluate").mock.results;
+}
+
+async function budgetFailures(results: readonly MockResult<Promise<Outcome>>[]): Promise<number> {
+	const outcomes: Outcome[] = await Promise.all(results.map((result) => result.value as Promise<Outcome>));
+	return outcomes.filter((outcome) => !outcome.ok && outcome.failure === "budget").length;
+}

@@ -116,6 +116,21 @@ describe("attemptEnrolment", () => {
 		expect(enrolment.enrolled).toBe(false);
 	});
 
+	it("enrols a property check that fails on some input once its counterexample is applied", async () => {
+		const vm = await WorldVm.create(wasm);
+		await attemptDevelop(vm, `define("double", (x) => 2 * x);`, [], mode);
+		const property = { expression: "double(input) % 2 === 0", counterexample: `define("double", (x) => (x > 50 ? x : 2 * x));`, generator: { int: [0, 100] as const } };
+		expect(await attemptEnrolment(vm, property, mode)).toEqual({ enrolled: true });
+	});
+
+	it("refuses a property check that holds for every input after its counterexample", async () => {
+		const vm = await WorldVm.create(wasm);
+		await attemptDevelop(vm, `define("double", (x) => 2 * x);`, [], mode);
+		const property = { expression: "double(input) % 2 === 0", counterexample: `define("double", (x) => 4 * x);`, generator: { int: [0, 100] as const } };
+		const enrolment = await attemptEnrolment(vm, property, mode);
+		expect(enrolment.enrolled === false && enrolment.reason).toContain("never seen failing");
+	});
+
 	it("refuses a check that fails on the current world", async () => {
 		const vm = await WorldVm.create(wasm);
 		const enrolment = await attemptEnrolment(vm, { expression: "typeof double === 'function'", counterexample: `define("x", () => 0);` }, mode);

@@ -1,7 +1,7 @@
 import * as hegel from "@hegeldev/hegel";
 import * as gs from "@hegeldev/hegel/generators";
 import { describe, expect, it } from "vitest";
-import { shrink, smaller } from "../src/check/shrink.ts";
+import { shrink, smaller, STOP } from "../src/check/shrink.ts";
 
 /** A replay that fails while some choice is at least `threshold`, drawing exactly the choices it was given. */
 const atLeast = (threshold: number) => async (choices: readonly number[]) => (choices.some((c) => c >= threshold) ? choices : undefined);
@@ -46,6 +46,13 @@ describe("shrink", () => {
 		};
 		await shrink([5, 5, 5, 5, 5, 5, 5, 5, 5, 5], counted, 3);
 		expect(replays).toBe(3);
+	});
+
+	it("stops at the smallest sequence found before a replay that says stop", async () => {
+		let replays: number = 0;
+		const stopsOnSecond = async (choices: readonly number[]) => (++replays === 1 ? choices : STOP);
+		expect(await shrink([5, 5, 5, 5, 5, 5, 5, 5, 5, 5], stopsOnSecond, 100)).toEqual([5, 5]);
+		expect(replays).toBe(2);
 	});
 
 	it("keeps what a replay drew, which may be fewer choices than it was given", async () => {

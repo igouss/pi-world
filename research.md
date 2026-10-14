@@ -101,7 +101,13 @@ These are undocumented or unknown. Measure them early, at milestone 6.
    `CELLD_MAX_CELL_REQUESTS` (default 64).
 10. **CPU in one world slows others.** On the node, a world computing for about 1.5 s delayed calls to unrelated worlds
     by the same time: cells share a small pool of JavaScript isolates (`worker_count=2`). The time budget bounds it. Resolved 2026-10-07 for calls: each world's calls run in an isolate of the world's own (see "Isolation and R2 on the
-    node"). Develops and checks still run in the shared cell isolate.
+    node"). Develops and checks still run in the shared cell isolate: a develop evaluates its source, then every
+    check, a property check on up to 50 inputs, each evaluation with a whole budget. A property check no longer
+    shrinks an input it runs out of budget on, and shrinking stops at the first smaller input it runs out of budget
+    on; before, a develop whose check hung on one input replayed it 200 times (measured under vitest: 201
+    evaluations, 19.7 s at a 2 000-tick budget and 95.8 s at 10 000, so about 5 minutes at the default 30 000). A
+    check that finishes just inside the budget on every input still costs 50 budgets. Open: moving develops, checks,
+    enrolment and rollback into the world's runtime isolate, as calls already are.
 11. **The time budget is counted in interrupt ticks, not time, and a call cannot see time pass.** Seen under
     `celld dev` on 2026-10-12: `Date.now()` returns the same value throughout one call (a loop that waits for the
     clock to move never ends), and such a loop calling `Date.now()` ran 70 s before the 30 000-tick budget stopped it,
