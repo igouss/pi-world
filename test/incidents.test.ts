@@ -94,6 +94,21 @@ describe("incidents", () => {
 		expect(await world.execute(`data.get("last")`)).toMatchObject({ ok: true, value: 1.5 });
 	});
 
+	it("count no failed retry for a retry refused as busy, which never ran", async () => {
+		// While `late`, every reading of the clock is two seconds after the last: the runner reads it after the world
+		// stamped the retry's start deadline, so the retry reaches its runner too late to start.
+		let clock = at;
+		let late = false;
+		const world = await World.open(worldDeps({ now: () => (late ? (clock += 2000) : clock) }));
+		await world.develop(`function half(n) { if (n % 2) throw new Error("odd: " + n); return n / 2; }`, "half", operator);
+		await world.call("half", [3]);
+		late = true;
+		const retry = await world.retryIncident(0, "operator");
+		late = false;
+		expect(retry).toMatchObject({ ok: false, failure: "busy" });
+		expect(await world.incidents.get(0)).toMatchObject({ retries: 0, count: 1 });
+	});
+
 	it("stay open after a retry that fails, counting it", async () => {
 		const world = await failing();
 		await world.call("half", [3]);

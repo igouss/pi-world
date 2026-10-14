@@ -25,6 +25,8 @@ export interface PhaseRecord {
 	readonly streams: readonly StreamRecord[];
 	readonly utilization: Utilization | undefined;
 	readonly samples: readonly Sample[];
+	/** The client host's 1-minute load average at the start and end of the phase, and its cores. */
+	readonly clientLoad: { readonly start: number; readonly end: number; readonly cores: number };
 }
 
 /** A judgement of one objective: what was measured, the limit, and whether it held. `undefined` limits are notes. */

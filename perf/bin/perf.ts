@@ -309,7 +309,8 @@ function remote(args: readonly string[]): number {
 	const [command, ...rest] = args;
 	if (command !== "run") throw new Error("perf remote supports run");
 	if (!parse(rest).options.approval) throw new Error("a run against the operator's node needs --approval with the operator's words approving it");
-	const sync = (paths: string[]) => execFileSync("rsync", ["-a", "--relative", ...paths, `${NODE.ssh}:${REMOTE_DIR}/`], { cwd: REPO, stdio: "inherit" });
+	const sync = (paths: string[]) =>
+		execFileSync("rsync", ["-a", "--relative", "--exclude", "perf/results/", "--exclude", "perf/profiles/", ...paths, `${NODE.ssh}:${REMOTE_DIR}/`], { cwd: REPO, stdio: "inherit" });
 	sync(["perf/", ...runtimePackages(["hdr-histogram-js", "undici"]).map((name) => `node_modules/${name}/`), "package.json"]);
 	const quoted = rest.map((a) => `'${a.replaceAll("'", "'\\''")}'`).join(" ");
 	const command_ = `podman run --rm --network host --uts host --pid host -v ~/${REMOTE_DIR}:/work:Z -w /work ${NODE_IMAGE} node perf/bin/perf.ts run ${quoted} --target node`;

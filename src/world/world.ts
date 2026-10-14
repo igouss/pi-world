@@ -210,14 +210,15 @@ export class World {
 
 	/**
 	 * Call an open incident's definition again with its arguments, at the head as it is now. A retry that succeeds
-	 * closes the incident with its value; one that fails leaves it open with the new error.
+	 * closes the incident with its value; one that fails leaves it open with the new error. A retry refused as busy
+	 * never ran, so it changes nothing.
 	 */
 	async retryIncident(n: number, by: Origin["by"], commit: Commit = this.sessionCommit): Promise<Outcome> {
 		const incident = await this.incidents.requireOpen(n);
 		if (!incident.args) throw new Error(`incident ${n} kept no arguments (they were too large), so it cannot be retried`);
 		const { outcome, revision } = await this.run(incident.name, incident.args, []);
 		if (outcome.ok) await this.incidents.close(n, by, { kind: "retried", revision, value: outcome.value }, commit);
-		else await this.incidents.retryFailed(n, outcome.failure, outcome.error, revision, commit);
+		else if (outcome.failure !== "busy") await this.incidents.retryFailed(n, outcome.failure, outcome.error, revision, commit);
 		return outcome;
 	}
 

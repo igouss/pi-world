@@ -39,6 +39,7 @@ const PROGRESS_MS: number = 400;
  */
 export class WorldCell extends DurableObject<Env> {
 	private runtime: Promise<WorldRuntime> | undefined;
+	private known: Meta | undefined;
 	/** One database facade per cell, so its queue orders every SQL operation of the cell. */
 	private stores: Promise<{ db: SqliteDatabase; blobs: TieredBlobStore }> | undefined;
 
@@ -58,6 +59,7 @@ export class WorldCell extends DurableObject<Env> {
 
 	async init(id: string, name: string): Promise<void> {
 		await this.ctx.storage.put("meta", { id, name } satisfies Meta);
+		this.known = { id, name };
 		await this.live();
 	}
 
@@ -111,8 +113,10 @@ export class WorldCell extends DurableObject<Env> {
 		return this.stores;
 	}
 
+	/** The world's id and name, read once: they never change after `init`. A cell with no meta yet is read again. */
 	private async meta(): Promise<Meta | undefined> {
-		return this.ctx.storage.get<Meta>("meta");
+		this.known ??= await this.ctx.storage.get<Meta>("meta");
+		return this.known;
 	}
 
 	private live(): Promise<WorldRuntime> {
