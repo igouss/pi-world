@@ -21,7 +21,7 @@ const program = new Command()
 	.option("--json", "print raw JSON responses");
 
 function client(): Client {
-	return createClient(program.opts().server.replace(/\/$/, ""));
+	return createClient(program.opts().server);
 }
 
 /** The client and the id of the world `ref` names. */

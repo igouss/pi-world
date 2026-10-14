@@ -30,17 +30,39 @@ function paged(path: string, before?: number): string {
 	return before === undefined ? path : `${path}?before=${before}`;
 }
 
-/** The client of the server at `base` (empty for the page's own origin). A response with an `error` and a failing status throws it. */
-export function createClient(base: string, fetcher: typeof fetch = fetch) {
+/** The status of an answer the world gave and turned down: a rejected develop, a refused check, a failed call. */
+const TURNED_DOWN: number = 422;
+
+/** The response's body as JSON, or an error naming its status and the start of the body. */
+async function jsonBody(response: Response): Promise<unknown> {
+	const text: string = await response.text();
+	try {
+		return JSON.parse(text);
+	} catch {
+		throw new Error(`${statusLine(response)}: ${text.slice(0, 200)}`);
+	}
+}
+
+function statusLine(response: Response): string {
+	return `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`;
+}
+
+/**
+ * The client of the `server` at a URL, with or without a trailing slash (empty for the page's own origin). A success or a turned-down answer (422) is
+ * returned; any other status throws the body's `error`, or the status when the body names none.
+ */
+export function createClient(server: string, fetcher: typeof fetch = fetch) {
+	const base: string = server.replace(/\/$/, "");
 	async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
 		const response: Response = await fetcher(base + path, {
 			method,
 			headers: body === undefined ? {} : { "content-type": "application/json" },
 			...(body === undefined ? {} : { body: JSON.stringify(body) }),
 		});
-		const value: T & { error?: string } = (await response.json()) as T & { error?: string };
-		if (!response.ok && typeof value?.error === "string") throw new Error(value.error);
-		return value;
+		const value: unknown = await jsonBody(response);
+		if (response.ok || response.status === TURNED_DOWN) return value as T;
+		const error: unknown = (value as { error?: unknown } | null)?.error;
+		throw new Error(typeof error === "string" ? error : statusLine(response));
 	}
 
 	return {

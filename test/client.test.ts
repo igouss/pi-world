@@ -19,6 +19,11 @@ function fakeFetch(status: number, body: unknown): { readonly fetcher: typeof fe
 	return { fetcher, sent };
 }
 
+/** A fetch that answers every request with `status` and the raw `text`. */
+function rawFetch(status: number, text: string, statusText: string = ""): typeof fetch {
+	return (async () => new Response(text, { status, statusText })) as typeof fetch;
+}
+
 describe("the API client", () => {
 	it("sends a call to the server it was made for, with the arguments as JSON", async () => {
 		const { fetcher, sent } = fakeFetch(200, { ok: true, value: 3 });
@@ -83,5 +88,40 @@ describe("the API client", () => {
 		await client.rejections("w");
 		await client.rejections("w", 7);
 		expect(sent.map((s) => s.url)).toEqual(["/api/worlds/w/rejections", "/api/worlds/w/rejections?before=7"]);
+	});
+
+	it("returns a failed call with its failure and incident, not an error", async () => {
+		const failed = { ok: false, failure: "threw", error: "TypeError: boom", incident: 4 };
+		const { fetcher } = fakeFetch(422, failed);
+		await expect(createClient("", fetcher).call("w", "f", [])).resolves.toEqual(failed);
+	});
+
+	it("throws a failing status whose body names no error, with the status", async () => {
+		await expect(createClient("", rawFetch(500, "{}")).worlds()).rejects.toThrow("HTTP 500");
+	});
+
+	it("throws a body that is not JSON with the status and the start of the body", async () => {
+		await expect(createClient("", rawFetch(502, "<html>Bad Gateway</html>", "Bad Gateway")).worlds()).rejects.toThrow(
+			"HTTP 502 Bad Gateway: <html>Bad Gateway</html>",
+		);
+	});
+
+	it("throws a successful status whose body is not JSON", async () => {
+		await expect(createClient("", rawFetch(200, "OK")).worlds()).rejects.toThrow("HTTP 200: OK");
+	});
+
+	it("throws a failing status whose body is JSON null, with the status", async () => {
+		await expect(createClient("", rawFetch(500, "null")).worlds()).rejects.toThrow("HTTP 500");
+	});
+
+	it("cuts a long body that is not JSON to its first 200 characters", async () => {
+		const page: string = `<html>${"x".repeat(300)}</html>`;
+		await expect(createClient("", rawFetch(502, page)).worlds()).rejects.toThrow(new Error(`HTTP 502: ${page.slice(0, 200)}`));
+	});
+
+	it("drops a trailing slash from its base", async () => {
+		const { fetcher, sent } = fakeFetch(200, []);
+		await createClient("http://node:8787/", fetcher).worlds();
+		expect(sent[0]?.url).toBe("http://node:8787/api/worlds");
 	});
 });
