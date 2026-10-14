@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 /**
- * Deploys to the celld fleet and waits until the node serves the new build. The bundle is stamped with the git
- * revision; a working tree with changes adds a hash of them, so two different dirty deploys never share a build and
- * the wait cannot mistake the previous one for this one. The fleet bucket and its service-account key come from the
- * environment, with the defaults this project's fleet uses.
+ * Deploys a commit to the celld fleet and waits until the node serves it. A working tree with changes is refused,
+ * before the gates run and again after them, so the bundle is exactly the commit its build names. The fleet bucket
+ * and its service-account key come from the environment, with the defaults this project's fleet uses.
  */
-import { execFile } from "node:child_process";
-import { createHash, type Hash } from "node:crypto";
+import { execFile, spawn } from "node:child_process";
+import { once } from "node:events";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import { promisify } from "node:util";
@@ -32,18 +31,26 @@ export function stamp(config: string, build: string): string {
 	return config.replace(DEV_BUILD, `"BUILD": ${JSON.stringify(JSON.stringify(build))}`);
 }
 
-async function git(...args: string[]): Promise<string> {
-	return (await run("git", args, { maxBuffer: 256 * 1024 * 1024, encoding: "buffer" })).stdout.toString("utf8");
+/** Refuses `git status --porcelain` output that lists any change: a deploy is a commit, so its build names one. */
+export function refuseChanges(porcelain: string): void {
+	const changes: string = porcelain.trimEnd();
+	if (changes) throw new Error(`commit or stash these changes before deploying:\n${changes}`);
 }
 
-/** The revision, and for a working tree with changes `-dirty-` and a hash of the diff and of every untracked file. */
-async function buildName(): Promise<string> {
-	const revision: string = (await git("describe", "--always", "--dirty")).trim();
-	const untracked: readonly string[] = (await git("ls-files", "--others", "--exclude-standard")).split("\n").filter(Boolean).sort();
-	if (!revision.endsWith("-dirty") && untracked.length === 0) return revision;
-	const hash: Hash = createHash("sha256").update(await git("diff", "HEAD", "--binary"));
-	for (const path of untracked) hash.update(path).update(await readFile(path));
-	return `${revision.replace(/-dirty$/, "")}-dirty-${hash.digest("hex").slice(0, 8)}`;
+async function git(...args: string[]): Promise<string> {
+	return (await run("git", args)).stdout;
+}
+
+/** The commit to deploy, refused when the working tree has changes. */
+async function committed(): Promise<string> {
+	refuseChanges(await git("status", "--porcelain"));
+	return (await git("describe", "--always")).trim();
+}
+
+/** Runs an npm script with its output on this terminal; a failure stops the deploy. */
+async function npmRun(script: string): Promise<void> {
+	const [code] = (await once(spawn("npm", ["run", "-s", script], { stdio: "inherit" }), "exit")) as [number | null];
+	if (code !== 0) throw new Error(`npm run ${script} failed`);
 }
 
 async function waitForBuild(client: Client, build: string): Promise<number> {
@@ -60,7 +67,9 @@ async function waitForBuild(client: Client, build: string): Promise<number> {
 }
 
 async function main(): Promise<void> {
-	const build: string = await buildName();
+	const build: string = await committed();
+	for (const gate of ["typecheck", "test", "build"]) await npmRun(gate);
+	if ((await committed()) !== build) throw new Error(`HEAD moved from ${build} while the gates ran`);
 	await writeFile(STAMPED, stamp(await readFile(CONFIG, "utf8"), build));
 	try {
 		const { stdout, stderr } = await run("celld", ["deploy", STAMPED, "--bucket", BUCKET], {
