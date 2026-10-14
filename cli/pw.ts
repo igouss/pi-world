@@ -10,6 +10,7 @@ import { appPath } from "../src/api/paths.ts";
 import type { CallResult, CheckProposal, DevelopResult, EnrolResult, Transcript, TranscriptItem, WorldSummary } from "../src/api/types.ts";
 import { ask } from "./follow.ts";
 import { formatCall, formatDevelop, formatEnrol, formatItem } from "./format.ts";
+import { positiveInteger } from "./positive-integer.ts";
 import { runMain } from "./run-main.ts";
 import { serverFromEnv } from "./server.ts";
 import { resolveWorld } from "./world-ref.ts";
@@ -129,7 +130,7 @@ program
 	.argument("<world>")
 	.argument("[message...]")
 	.option("-f, --file <file>", "read the message from a file")
-	.option("-t, --timeout <seconds>", "give up after this long", "900")
+	.option("-t, --timeout <seconds>", "give up after this long", positiveInteger, 900)
 	.action(async (ref, words, options) => {
 		const content: string = options.file ? await readFile(options.file, "utf8") : words.join(" ");
 		if (!content.trim()) throw new Error("ask needs a message, or --file");
@@ -137,7 +138,7 @@ program
 		const show = (item: TranscriptItem): void => {
 			if (!program.opts().json) console.log(formatItem(item));
 		};
-		const transcript: Transcript = await ask(api, id, content, show, Number(options.timeout) * 1000);
+		const transcript: Transcript = await ask(api, id, content, show, options.timeout * 1000);
 		const last: TranscriptItem | undefined = transcript.items.at(-1);
 		if (program.opts().json) console.log(JSON.stringify(last ?? null, null, 2));
 		if (last?.kind === "assistant" && last.error) throw new Error(`the agent's turn ended in an error: ${last.error}`);
@@ -147,11 +148,11 @@ program
 	.command("transcript")
 	.description("the agent's conversation, last items first")
 	.argument("<world>")
-	.option("-n, --last <count>", "how many items", "20")
+	.option("-n, --last <count>", "how many items", positiveInteger, 20)
 	.action(async (ref, options) => {
 		const { api, id } = await target(ref);
 		const transcript: Transcript = await api.transcript(id);
-		print(transcript.items.slice(-Number(options.last)), (items) => items.map(formatItem).join("\n"));
+		print(transcript.items.slice(-options.last), (items) => items.map(formatItem).join("\n"));
 	});
 
 program

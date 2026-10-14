@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { settled, unseen } from "../cli/follow.ts";
+import { positiveInteger } from "../cli/positive-integer.ts";
 import { resolveWorld } from "../cli/world-ref.ts";
 import type { Transcript, TranscriptItem, WorldListing } from "../src/api/types.ts";
 
@@ -87,5 +88,31 @@ describe("following the agent", () => {
 
 	it("shows only the items it has not shown, in order", () => {
 		expect(unseen(transcript([user(1), user(2), user(3)], false), new Set([1]))).toEqual([user(2), user(3)]);
+	});
+});
+
+describe("a positive whole-number option", () => {
+	it("reads a whole number of one", () => {
+		expect(positiveInteger("1")).toBe(1);
+	});
+
+	it("reads a whole number of many", () => {
+		expect(positiveInteger("900")).toBe(900);
+	});
+
+	it("refuses zero", () => {
+		expect(() => positiveInteger("0")).toThrow("not a positive whole number: 0");
+	});
+
+	it("refuses a number with a unit", () => {
+		expect(() => positiveInteger("15m")).toThrow("not a positive whole number: 15m");
+	});
+
+	it("refuses a fraction", () => {
+		expect(() => positiveInteger("1.5")).toThrow("not a positive whole number: 1.5");
+	});
+
+	it("refuses an empty value", () => {
+		expect(() => positiveInteger("")).toThrow("not a positive whole number: ");
 	});
 });
