@@ -142,7 +142,7 @@ The rules the implementation obeys, each with the fact that forces it.
     the call read. When the call succeeds, its commit validates those reads and makes its writes in the same
     transaction of the world's `DataStore` (the runtime's SQLite); a call that fails leaves no write. A call whose
     reads went stale reruns from the start in the world's rerun lane, one rerun at a time, at most 5 times, and then
-    fails with failure kind `conflict`, an incident. A call that wrote nothing never conflicts. A rerun repeats the
+    fails with failure kind `conflict`, an incident. A call that wrote nothing is checked too when it awaited another world between its reads, since reads either side of an await may have seen two states; one that never awaited saw one state and is not checked. A rerun repeats the
     calls it made to other worlds, and data those worlds wrote is not rolled back (`overlay-data-port.ts`,
     `local-call-runner.ts`).
   - A call starts within a second or is refused. Each call carries a start deadline one second after the world's cell

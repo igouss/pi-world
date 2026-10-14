@@ -19,6 +19,7 @@ export class OverlayDataPort implements DataPort {
 	private readonly keysRead: Map<string, string | undefined> = new Map();
 	/** What each prefix listed from the base held when it was listed; compared only if the call commits writes. */
 	private readonly prefixesRead: Map<string, readonly DataRow[]> = new Map();
+	private awaited: boolean = false;
 
 	constructor(private readonly base: DataStore) {}
 
@@ -56,8 +57,11 @@ export class OverlayDataPort implements DataPort {
 	 * this one read, so its writes rest on a state that no longer exists, and it must run again to be serializable.
 	 */
 	commitIfUnchanged(): boolean {
-		// A call that wrote nothing is serializable at the moment it read, whatever changed since.
-		if (this.writes.size === 0) return true;
+		if (this.writes.size === 0) {
+			// Reads made in one synchronous stretch saw one state of the store. Reads either side of an await may have
+			// seen two, a state that never existed; they stand only if nothing they read has changed since.
+			return !this.awaited || this.unchanged();
+		}
 		let committed = false;
 		this.base.transaction(() => {
 			if (!this.unchanged()) return;
@@ -65,6 +69,11 @@ export class OverlayDataPort implements DataPort {
 			committed = true;
 		});
 		return committed;
+	}
+
+	/** Note that the evaluation awaited something outside the VM, so its reads may span more than one state. */
+	crossedAwait(): void {
+		this.awaited = true;
 	}
 
 	private readBase(key: string): string | undefined {

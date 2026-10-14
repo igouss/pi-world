@@ -99,7 +99,7 @@ export class LocalCallRunner implements CallRunner, DataAdmin {
 		const left = startBy - (this.deps.now ?? Date.now)();
 		if (left <= 0) return BUSY_REFUSAL;
 		const writes = new OverlayDataPort(this.deps.data);
-		const mode: Mode = { kind: "live", data: writes, peers: this.deps.peers?.(chain, grants) ?? NO_PEERS };
+		const mode: Mode = { kind: "live", data: writes, peers: awaitsNoted(this.deps.peers?.(chain, grants) ?? NO_PEERS, writes) };
 		const ran = await this.pool.run({ revision: head.revision, snapshot }, (vm) => body(vm, mode), left);
 		return ran === BUSY ? BUSY_REFUSAL : { outcome: ran, writes };
 	}
@@ -116,4 +116,13 @@ export class LocalCallRunner implements CallRunner, DataAdmin {
 		}
 		return snapshot;
 	}
+}
+
+/** The other worlds, telling the overlay whenever world code awaits one of them: the only way a live evaluation yields. */
+function awaitsNoted(peers: PeerPort, writes: OverlayDataPort): PeerPort {
+	return {
+		call: (worldId, name, args) => (writes.crossedAwait(), peers.call(worldId, name, args)),
+		list: () => (writes.crossedAwait(), peers.list()),
+		functions: (worldId) => (writes.crossedAwait(), peers.functions(worldId)),
+	};
 }

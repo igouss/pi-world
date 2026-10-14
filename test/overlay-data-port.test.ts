@@ -135,6 +135,15 @@ describe("OverlayDataPort", () => {
 		expect(transactions).toBe(0);
 	});
 
+	it("does not commit a call that wrote nothing but read either side of an await, when what it read changed", () => {
+		const data = base();
+		const overlay = new OverlayDataPort(data);
+		overlay.get("meta");
+		overlay.crossedAwait();
+		data.set("meta", "9");
+		expect(overlay.commitIfUnchanged()).toBe(false);
+	});
+
 	it("treats a set after a delete as a set", () => {
 		const overlay = new OverlayDataPort(base());
 		overlay.delete("meta");

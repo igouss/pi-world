@@ -118,6 +118,19 @@ describe("serializable calls", () => {
 		expect(await a.call("n", [])).toEqual({ ok: true, value: 6 });
 	});
 
+	it("never answer a read-only call with a state that never existed, when it reads either side of an await", async () => {
+		const a = await world();
+		await a.develop(
+			`define("pair", async () => { const x = data.get("a") ?? 0; await worlds.call("b", "x"); const y = data.get("b") ?? 0; return [x, y]; }); define("both", () => { data.set("a", 1); data.set("b", 1); return true; });`,
+			"pair",
+			operator,
+		);
+		const reading = a.call("pair", []);
+		await new Promise((resolve) => setTimeout(resolve, DELAY_MS / 3));
+		expect(await a.call("both", [])).toEqual({ ok: true, value: true });
+		expect(await reading).toEqual({ ok: true, value: [1, 1] });
+	});
+
 	it("give up with a conflict, writing nothing, when what a call reads changes under every run", async () => {
 		const deps = worldDeps();
 		const a = await World.open(deps);
