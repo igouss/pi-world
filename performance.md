@@ -197,9 +197,21 @@ bead.
 
 ## The concurrency protocol, model-checked
 
-See `spec/tla/README.md` for the TLA+ model of develop, call, commit, the VM pool and the data overlay, the seeded
-bugs TLC found, and the results table. Status when this file was written: in progress; whatever that README does not
-list as checked is not verified.
+`spec/tla/WorldConcurrency.tla` models develop, rollback, call, commit, the VM pool and the data overlay, with one
+cell crash, in two versions: `deployed` (`a781c76`) and `fixed` (`808bd57`, the code at HEAD). `npm run tla` runs TLC
+on 45 configurations and fails if any result differs from its expectation; it exited 0 in a run on a frozen copy of
+the model (one worker, about 40 minutes). `spec/tla/README.md` maps every action to file:line and holds the table.
+
+- Properties 1 to 4 (a call's writes all or none; no lost revision; calls only on committed heaps; the VM pool's
+  bounds and liveness) hold in both versions, and each was first seen red on a seeded bug (30 seeded
+  configurations).
+- Property 5 fails in `deployed` with no seed: `NoLostUpdate` with a peer await (trace 18) and without one, when two
+  calls resume on one pending snapshot (trace 15); `ReadsExisted` for a read-only call across an await (trace 16).
+  In `fixed`, `NoLostUpdate`, `Serializable` and `ReadsExisted` hold, and each is red on the seeded bug that removes
+  its fix.
+- Abstractions: one crash at most; one data key pair; `RUNS` is 1 in the model and 5 in the code; time is not
+  modelled, so the start deadline is a nondeterministic refusal; agent tool reruns, grants, incidents and prelude
+  upgrades are left out.
 
 ## Not verified
 
